@@ -17,10 +17,20 @@ rm -rf "$out_dir"
 mkdir -p "$out_dir"
 
 # Run the Bats suite under kcov to gather coverage for scripts/**.
-# --bash-parse improves bash coverage accuracy.
+# Prefer the explicit bash parser flag; older kcov versions use different names.
 # Exclude tests and vendored bats libs.
+
+kcov_help="$(kcov --help 2>&1 || true)"
+bash_parser_flag=""
+if grep -Fq -- '--bash-parser' <<<"$kcov_help"; then
+  bash_parser_flag="--bash-parser"
+elif grep -Fq -- '--bash-parse' <<<"$kcov_help"; then
+  # Avoid the ambiguous prefix '--bash-parse' (it can match multiple options).
+  bash_parser_flag=""
+fi
+
 exec kcov \
-  --bash-parse \
+  ${bash_parser_flag:+"$bash_parser_flag"} \
   --include-path="$ROOT_DIR/scripts" \
   --exclude-pattern="$ROOT_DIR/tests,$ROOT_DIR/tests/vendor" \
   "$out_dir" \
