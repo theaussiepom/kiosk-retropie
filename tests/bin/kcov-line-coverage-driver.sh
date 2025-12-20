@@ -634,9 +634,9 @@ mv "$stub_bin/chromium-browser.__kcov_hidden" "$stub_bin/chromium-browser"
   printf '%s\n' '#!/usr/bin/env bash' 'exit 0' >"$chromium_only/chromium"
   chmod +x "$chromium_only/chromium"
 
-  # Use ./ha-kiosk.sh so SCRIPT_DIR resolves to '.' and exercises the fallback.
-  # Keep /usr/bin:/bin so the script can reach chromium selection.
-  HA_URL=http://example.invalid RETRO_HA_DRY_RUN=1 PATH="$chromium_only:$stub_bin:/usr/bin:/bin" /usr/bin/bash ./ha-kiosk.sh >/dev/null 2>&1
+  # Force chromium selection: provide chromium in PATH, and *do not* include /usr/bin
+  # (so we don't accidentally find a system chromium-browser first).
+  HA_URL=http://example.invalid RETRO_HA_DRY_RUN=1 PATH="$chromium_only:$stub_bin:/bin" /usr/bin/bash ./ha-kiosk.sh >/dev/null 2>&1
   rm -f "lib" >/dev/null 2>&1 || true
 ) || true
 

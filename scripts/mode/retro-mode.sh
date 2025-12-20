@@ -2,11 +2,7 @@
 set -euo pipefail
 
 SCRIPT_PATH="${BASH_SOURCE[0]}"
-SCRIPT_DIR="${SCRIPT_PATH%/*}"
-if [[ -z "$SCRIPT_DIR" || "$SCRIPT_DIR" == "." || "$SCRIPT_DIR" == "$SCRIPT_PATH" ]]; then
-  SCRIPT_DIR="."
-fi
-SCRIPT_DIR="$(cd -- "$SCRIPT_DIR" && pwd)"
+SCRIPT_DIR="$(cd -- "$(dirname -- "$SCRIPT_PATH")" && pwd)"
 
 LIB_DIR=""
 if [[ -d "$SCRIPT_DIR/lib" ]]; then
