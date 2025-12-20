@@ -144,19 +144,20 @@ run_kcov() {
   fi
 
   # If kcov failed quickly and didn't tell us why, try the alternate CLI order
-  # once. This is cheap in the failure mode we see on CI (silent exit=1).
+  # once. Only do this on nonzero exit.
   local log_size=0
   log_size="$(wc -c <"$log_file" 2>/dev/null || echo 0)"
-  if [[ "$log_size" -lt 200 ]]; then
+  if [[ "$rc" -ne 0 && "$log_size" -lt 200 ]]; then
     local alt_log_file="$out_dir/${label}.alt.log"
     echo "kcov produced little/no output; retrying with arg order: $alt_order" >&2
     echo "+ ${kcov_cmd_alt[*]}" >&2
     if run_one kcov_cmd_alt "$alt_log_file"; then
       mv "$alt_log_file" "$log_file"
       return 0
+    else
+      # IMPORTANT: capture the exit status here; do not use `$?` after `if`.
+      rc=$?
     fi
-    # Keep rc from the alternate run if it produced a clearer failure.
-    rc=$?
     if [[ -s "$alt_log_file" ]]; then
       mv "$alt_log_file" "$log_file"
     fi
@@ -166,9 +167,9 @@ run_kcov() {
     echo "kcov step timed out after ${timeout_seconds}s: $label" >&2
   fi
 
-  # If kcov failed but produced no output, capture a small strace to help debug
+  # If kcov failed and produced no output, capture a small strace to help debug
   # CI-only failures. Keep it narrow to avoid massive artifacts.
-  if [[ ! -s "$log_file" ]] || [[ "$(wc -c <"$log_file" 2>/dev/null || echo 0)" -lt 200 ]]; then
+  if [[ "$rc" -ne 0 && ( ! -s "$log_file" || "$(wc -c <"$log_file" 2>/dev/null || echo 0)" -lt 200 ) ]]; then
     if command -v strace >/dev/null 2>&1; then
       echo "kcov produced little/no output; capturing strace to $strace_file" >&2
       # Trace process/exec/file plus writes to stderr; enough to spot missing binaries,
@@ -179,6 +180,11 @@ run_kcov() {
         strace -f -qq -s 200 -o "$strace_file" -e trace=process,execve,file,write -e write=2 "${kcov_cmd[@]}" >/dev/null 2>&1 || true
       fi
     fi
+  fi
+
+  # If we ever reach here with rc==0, treat that as success.
+  if [[ "$rc" -eq 0 ]]; then
+    return 0
   fi
 
   echo "kcov step failed: $label (exit=$rc)" >&2
