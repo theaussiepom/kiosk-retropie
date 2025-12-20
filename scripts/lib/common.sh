@@ -16,9 +16,6 @@ retro_ha_root() {
   # Filesystem root prefix for tests.
   # Use RETRO_HA_ROOT="$TEST_ROOT" to make scripts operate within a fake FS.
   local root="${RETRO_HA_ROOT:-/}"
-  if [[ -z "$root" ]]; then
-    root="/"
-  fi
   # Normalize trailing slash (keep '/' as-is).
   if [[ "$root" != "/" ]]; then
     root="${root%/}"

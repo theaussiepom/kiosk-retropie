@@ -623,15 +623,19 @@ run_allow_fail env HA_URL=http://example.invalid RETRO_HA_DRY_RUN=0 RETRO_HA_SCR
 mv "$stub_bin/chromium-browser.__kcov_hidden" "$stub_bin/chromium-browser"
 
 # Reliably cover SCRIPT_DIR fallback (SCRIPT_DIR='.') and the chromium (not chromium-browser) branch.
+# Important: run as `bash ha-kiosk.sh` (no slash) so BASH_SOURCE[0] has no '/'.
 (
   set +e
   cd "$ROOT_DIR/scripts/mode" || exit 0
   ln -s ../lib "lib" 2>/dev/null || true
+
   chromium_only="$work_dir/bin-chromium-only"
   mkdir -p "$chromium_only"
   printf '%s\n' '#!/usr/bin/env bash' 'exit 0' >"$chromium_only/chromium"
   chmod +x "$chromium_only/chromium"
-  HA_URL=http://example.invalid RETRO_HA_DRY_RUN=1 PATH="$chromium_only:.:/usr/bin:/bin" ha-kiosk.sh >/dev/null 2>&1
+
+  # Avoid picking up a system chromium-browser by not including /usr/bin in PATH.
+  HA_URL=http://example.invalid RETRO_HA_DRY_RUN=1 PATH="$chromium_only:$stub_bin" /usr/bin/bash ha-kiosk.sh >/dev/null 2>&1
   rm -f "lib" >/dev/null 2>&1 || true
 ) || true
 
@@ -653,9 +657,18 @@ run_allow_fail env RETRO_HA_DRY_RUN=0 RETRO_HA_SCREEN_ROTATION=right bash "$ROOT
   set +e
   cd "$ROOT_DIR/scripts/mode" || exit 0
   ln -s ../lib "lib" 2>/dev/null || true
-  RETRO_HA_DRY_RUN=1 PATH=".:/usr/bin:/bin" retro-mode.sh >/dev/null 2>&1
+  RETRO_HA_DRY_RUN=1 PATH="$stub_bin" /usr/bin/bash retro-mode.sh >/dev/null 2>&1
   rm -f "lib" >/dev/null 2>&1 || true
 ) || true
+
+# Cover nfs scripts' "$SCRIPT_DIR/lib" selection by providing scripts/nfs/lib -> ../lib.
+nfs_lib_link="$ROOT_DIR/scripts/nfs/lib"
+if [[ ! -e "$nfs_lib_link" ]]; then
+  ln -s ../lib "$nfs_lib_link" 2>/dev/null || true
+fi
+run_allow_fail env RETRO_HA_DRY_RUN=1 RETRO_HA_SAVE_BACKUP_ENABLED=0 bash "$ROOT_DIR/scripts/nfs/save-backup.sh"
+run_allow_fail env RETRO_HA_DRY_RUN=1 RETRO_HA_NFS_ROMS_SUBDIR= bash "$ROOT_DIR/scripts/nfs/sync-roms.sh"
+rm -f "$nfs_lib_link" 2>/dev/null || true
 
 # Cover scripts/mode/lib branch selection.
 mode_lib_link="$ROOT_DIR/scripts/mode/lib"
