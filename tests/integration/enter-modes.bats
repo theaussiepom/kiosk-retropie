@@ -1,8 +1,10 @@
 #!/usr/bin/env bats
 
-load 'vendor/bats-support/load'
-load 'vendor/bats-assert/load'
-load 'helpers/common'
+RETRO_HA_REPO_ROOT="${RETRO_HA_REPO_ROOT:-$(cd "$BATS_TEST_DIRNAME/../.." && pwd)}"
+
+load "$RETRO_HA_REPO_ROOT/tests/vendor/bats-support/load"
+load "$RETRO_HA_REPO_ROOT/tests/vendor/bats-assert/load"
+load "$RETRO_HA_REPO_ROOT/tests/helpers/common"
 
 setup() {
 	setup_test_root
@@ -17,7 +19,7 @@ teardown() {
 }
 
 @test "enter-ha-mode stops retro and starts ha" {
-	run bash "$BATS_TEST_DIRNAME/../scripts/mode/enter-ha-mode.sh"
+	run bash "$RETRO_HA_REPO_ROOT/scripts/mode/enter-ha-mode.sh"
 	assert_success
 	assert_file_contains "$TEST_ROOT/calls.log" "systemctl stop retro-mode.service"
 	assert_file_contains "$TEST_ROOT/calls.log" "systemctl start ha-kiosk.service"
@@ -26,7 +28,7 @@ teardown() {
 @test "enter-retro-mode stops ha and starts retro" {
 	# Ensure enter-retro-mode can find ledctl via repo layout.
 	# It will be recorded (dry-run) rather than executed.
-	run bash "$BATS_TEST_DIRNAME/../scripts/mode/enter-retro-mode.sh"
+	run bash "$RETRO_HA_REPO_ROOT/scripts/mode/enter-retro-mode.sh"
 	assert_success
 	assert_file_contains "$TEST_ROOT/calls.log" "systemctl stop ha-kiosk.service"
 	assert_file_contains "$TEST_ROOT/calls.log" "systemctl start retro-mode.service"
@@ -34,7 +36,7 @@ teardown() {
 }
 
 @test "enter-retro-mode ledctl path selection covers all branches" {
-	source "$BATS_TEST_DIRNAME/../scripts/mode/enter-retro-mode.sh"
+	source "$RETRO_HA_REPO_ROOT/scripts/mode/enter-retro-mode.sh"
 
 	# Case 1: RETRO_HA_LIBDIR/ledctl.sh is executable.
 	local libdir="$TEST_ROOT/lib"
@@ -89,7 +91,7 @@ teardown() {
 		source "$1"
 		SCRIPT_DIR="$2"
 		main
-	' bash "$BATS_TEST_DIRNAME/../scripts/mode/enter-retro-mode.sh" "$isolated_dir"
+	' bash "$RETRO_HA_REPO_ROOT/scripts/mode/enter-retro-mode.sh" "$isolated_dir"
 	assert_success
 	# Should still switch modes.
 	assert_file_contains "$TEST_ROOT/calls.log" "systemctl stop ha-kiosk.service"

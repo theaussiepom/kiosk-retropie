@@ -1,8 +1,10 @@
 #!/usr/bin/env bats
 
-load 'vendor/bats-support/load'
-load 'vendor/bats-assert/load'
-load 'helpers/common'
+RETRO_HA_REPO_ROOT="${RETRO_HA_REPO_ROOT:-$(cd "$BATS_TEST_DIRNAME/../.." && pwd)}"
+
+load "$RETRO_HA_REPO_ROOT/tests/vendor/bats-support/load"
+load "$RETRO_HA_REPO_ROOT/tests/vendor/bats-assert/load"
+load "$RETRO_HA_REPO_ROOT/tests/helpers/common"
 
 setup() {
 	setup_test_root
@@ -16,7 +18,7 @@ teardown() {
 }
 
 @test "install.sh dry-run records expected high-level actions" {
-	run bash "$BATS_TEST_DIRNAME/../scripts/install.sh"
+	run bash "$RETRO_HA_REPO_ROOT/scripts/install.sh"
 	assert_success
 
 	assert_file_contains "$TEST_ROOT/calls.log" "apt-get"

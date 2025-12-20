@@ -1,8 +1,10 @@
 #!/usr/bin/env bats
 
-load 'vendor/bats-support/load'
-load 'vendor/bats-assert/load'
-load 'helpers/common'
+RETRO_HA_REPO_ROOT="${RETRO_HA_REPO_ROOT:-$(cd "$BATS_TEST_DIRNAME/../.." && pwd)}"
+
+load "$RETRO_HA_REPO_ROOT/tests/vendor/bats-support/load"
+load "$RETRO_HA_REPO_ROOT/tests/vendor/bats-assert/load"
+load "$RETRO_HA_REPO_ROOT/tests/helpers/common"
 
 setup() {
 	setup_test_root
@@ -166,7 +168,7 @@ assert_calls_contains() {
 	LISTENER_LOG="$TEST_ROOT/controller-listener-ha.log"
 	export LISTENER_LOG
 
-	bash "$BATS_TEST_DIRNAME/../scripts/input/controller-listener-ha-mode.sh" >"$LISTENER_LOG" 2>&1 &
+	bash "$RETRO_HA_REPO_ROOT/scripts/input/controller-listener-ha-mode.sh" >"$LISTENER_LOG" 2>&1 &
 	LISTENER_PID=$!
 	export LISTENER_PID
 
@@ -196,7 +198,7 @@ assert_calls_contains() {
 	LISTENER_LOG="$TEST_ROOT/controller-listener-tty.log"
 	export LISTENER_LOG
 
-	bash "$BATS_TEST_DIRNAME/../scripts/input/controller-listener-tty.sh" >"$LISTENER_LOG" 2>&1 &
+	bash "$RETRO_HA_REPO_ROOT/scripts/input/controller-listener-tty.sh" >"$LISTENER_LOG" 2>&1 &
 	LISTENER_PID=$!
 	export LISTENER_PID
 

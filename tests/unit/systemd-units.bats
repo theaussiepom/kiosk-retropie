@@ -1,11 +1,13 @@
 #!/usr/bin/env bats
 
-load 'vendor/bats-support/load'
-load 'vendor/bats-assert/load'
+RETRO_HA_REPO_ROOT="${RETRO_HA_REPO_ROOT:-$(cd "$BATS_TEST_DIRNAME/../.." && pwd)}"
+
+load "$RETRO_HA_REPO_ROOT/tests/vendor/bats-support/load"
+load "$RETRO_HA_REPO_ROOT/tests/vendor/bats-assert/load"
 
 @test "systemd unit ExecStart references stay under /usr/local/lib/retro-ha" {
 	# -h: no filename prefix, -o: only matching part, -E: extended regex (portable for '+').
-	run grep -RhoE '^ExecStart=[^ ]+' "$BATS_TEST_DIRNAME/../systemd"
+	run grep -RhoE '^ExecStart=[^ ]+' "$RETRO_HA_REPO_ROOT/systemd"
 	assert_success
 
 	while IFS= read -r line; do
@@ -19,6 +21,6 @@ load 'vendor/bats-assert/load'
 }
 
 @test "ha-kiosk and retro-mode units exist" {
-	[ -f "$BATS_TEST_DIRNAME/../systemd/ha-kiosk.service" ]
-	[ -f "$BATS_TEST_DIRNAME/../systemd/retro-mode.service" ]
+	[ -f "$RETRO_HA_REPO_ROOT/systemd/ha-kiosk.service" ]
+	[ -f "$RETRO_HA_REPO_ROOT/systemd/retro-mode.service" ]
 }

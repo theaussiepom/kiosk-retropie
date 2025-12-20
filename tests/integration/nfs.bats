@@ -1,8 +1,10 @@
 #!/usr/bin/env bats
 
-load 'vendor/bats-support/load'
-load 'vendor/bats-assert/load'
-load 'helpers/common'
+RETRO_HA_REPO_ROOT="${RETRO_HA_REPO_ROOT:-$(cd "$BATS_TEST_DIRNAME/../.." && pwd)}"
+
+load "$RETRO_HA_REPO_ROOT/tests/vendor/bats-support/load"
+load "$RETRO_HA_REPO_ROOT/tests/vendor/bats-assert/load"
+load "$RETRO_HA_REPO_ROOT/tests/helpers/common"
 
 setup() {
 	setup_test_root
@@ -13,7 +15,7 @@ teardown() {
 }
 
 @test "mount-nfs is fail-open when NFS not configured" {
-	run bash "$BATS_TEST_DIRNAME/../scripts/nfs/mount-nfs.sh"
+	run bash "$RETRO_HA_REPO_ROOT/scripts/nfs/mount-nfs.sh"
 	assert_success
 }
 
@@ -27,7 +29,7 @@ teardown() {
 	export MOUNTPOINT_PATHS=$''
 	export MOUNT_EXIT_CODE=0
 
-	run bash "$BATS_TEST_DIRNAME/../scripts/nfs/mount-nfs.sh"
+	run bash "$RETRO_HA_REPO_ROOT/scripts/nfs/mount-nfs.sh"
 	assert_success
 	assert_file_contains "$TEST_ROOT/calls.log" "mount -t nfs"
 }
@@ -46,7 +48,7 @@ teardown() {
 	export RETRO_HA_ROMS_SYSTEMS="nes"
 	export RETRO_HA_ROMS_EXCLUDE_SYSTEMS="snes"
 
-	run bash "$BATS_TEST_DIRNAME/../scripts/nfs/sync-roms.sh"
+	run bash "$RETRO_HA_REPO_ROOT/scripts/nfs/sync-roms.sh"
 	assert_success
 
 	assert_file_contains "$TEST_ROOT/calls.log" "rsync"

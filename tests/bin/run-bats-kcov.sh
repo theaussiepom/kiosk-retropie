@@ -6,9 +6,13 @@ export PATH="/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
 
+# Stable repo-root path for tests (avoids depending on $BATS_TEST_DIRNAME-relative paths).
+export RETRO_HA_REPO_ROOT="$ROOT_DIR"
+
 "$ROOT_DIR/tests/bin/fetch-bats.sh" >/dev/null
 
-export BATS_LIB_PATH="$ROOT_DIR/tests/vendor"
+export BATS_LOAD_PATH="$ROOT_DIR/tests:$ROOT_DIR/tests/vendor"
+export BATS_LIB_PATH="$ROOT_DIR/tests/vendor:$ROOT_DIR/tests"
 
 if ! command -v kcov >/dev/null 2>&1; then
   echo "kcov not found on PATH" >&2

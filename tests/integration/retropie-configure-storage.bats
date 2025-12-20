@@ -1,8 +1,10 @@
 #!/usr/bin/env bats
 
-load 'vendor/bats-support/load'
-load 'vendor/bats-assert/load'
-load 'helpers/common'
+RETRO_HA_REPO_ROOT="${RETRO_HA_REPO_ROOT:-$(cd "$BATS_TEST_DIRNAME/../.." && pwd)}"
+
+load "$RETRO_HA_REPO_ROOT/tests/vendor/bats-support/load"
+load "$RETRO_HA_REPO_ROOT/tests/vendor/bats-assert/load"
+load "$RETRO_HA_REPO_ROOT/tests/helpers/common"
 
 setup() {
 	setup_test_root
@@ -25,14 +27,14 @@ teardown() {
 }
 
 @test "configure-retropie-storage succeeds in dry-run" {
-	run bash "$BATS_TEST_DIRNAME/../scripts/retropie/configure-retropie-storage.sh"
+	run bash "$RETRO_HA_REPO_ROOT/scripts/retropie/configure-retropie-storage.sh"
 	assert_success
 	assert_file_contains "$TEST_ROOT/calls.log" "write_kv"
 }
 
 @test "configure-retropie-storage skips retroarch config when missing" {
 	rm -f "$TEST_ROOT/opt/retropie/configs/all/retroarch.cfg"
-	run bash "$BATS_TEST_DIRNAME/../scripts/retropie/configure-retropie-storage.sh"
+	run bash "$RETRO_HA_REPO_ROOT/scripts/retropie/configure-retropie-storage.sh"
 	assert_success
 	/usr/bin/grep -Fq -- "RetroArch config not found" <<<"$output"
 }
@@ -44,15 +46,15 @@ teardown() {
 	# This assertion is about the script's privilege check. Run the script under a
 	# non-root UID even if the test suite itself is running as root (e.g. inside a
 	# container).
-	local script_src="$BATS_TEST_DIRNAME/../scripts/retropie/configure-retropie-storage.sh"
+	local script_src="$RETRO_HA_REPO_ROOT/scripts/retropie/configure-retropie-storage.sh"
 	local public_root
 	public_root="$(mktemp -d)"
 	chmod 755 "$public_root"
 	local script_copy_dir="$public_root/scripts/retropie"
 	mkdir -p "$script_copy_dir" "$public_root/scripts/lib"
 	cp "$script_src" "$script_copy_dir/configure-retropie-storage.sh"
-	cp "$BATS_TEST_DIRNAME/../scripts/lib/common.sh" "$public_root/scripts/lib/common.sh"
-	cp "$BATS_TEST_DIRNAME/../scripts/lib/logging.sh" "$public_root/scripts/lib/logging.sh"
+	cp "$RETRO_HA_REPO_ROOT/scripts/lib/common.sh" "$public_root/scripts/lib/common.sh"
+	cp "$RETRO_HA_REPO_ROOT/scripts/lib/logging.sh" "$public_root/scripts/lib/logging.sh"
 	chmod -R a+rX "$public_root"
 
 	if [[ "${EUID:-$(id -u)}" -eq 0 ]] && command -v runuser >/dev/null 2>&1; then
@@ -72,7 +74,7 @@ teardown() {
 	# Empty home dir field (6th field) so cut -f6 returns empty.
 	export GETENT_PASSWD_RETROPI_LINE="retropi:x:1000:1000:::/bin/bash"
 
-	run bash "$BATS_TEST_DIRNAME/../scripts/retropie/configure-retropie-storage.sh"
+	run bash "$RETRO_HA_REPO_ROOT/scripts/retropie/configure-retropie-storage.sh"
 	assert_failure
 	assert_output --partial "Unable to resolve home directory"
 }
@@ -86,7 +88,7 @@ teardown() {
 	export RETRO_HA_NFS_MOUNT_POINT="$mp"
 	export RETRO_HA_ROMS_DIR="$mp/roms"
 
-	run bash "$BATS_TEST_DIRNAME/../scripts/retropie/configure-retropie-storage.sh"
+	run bash "$RETRO_HA_REPO_ROOT/scripts/retropie/configure-retropie-storage.sh"
 	assert_failure
 	assert_output --partial "RETRO_HA_ROMS_DIR must be local"
 }
@@ -100,7 +102,7 @@ teardown() {
 	export RETRO_HA_NFS_MOUNT_POINT="$mp"
 	export RETRO_HA_SAVES_DIR="$mp/saves"
 
-	run bash "$BATS_TEST_DIRNAME/../scripts/retropie/configure-retropie-storage.sh"
+	run bash "$RETRO_HA_REPO_ROOT/scripts/retropie/configure-retropie-storage.sh"
 	assert_failure
 	assert_output --partial "RETRO_HA_SAVES_DIR must be local"
 }
@@ -114,7 +116,7 @@ teardown() {
 	export RETRO_HA_NFS_MOUNT_POINT="$mp"
 	export RETRO_HA_STATES_DIR="$mp/states"
 
-	run bash "$BATS_TEST_DIRNAME/../scripts/retropie/configure-retropie-storage.sh"
+	run bash "$RETRO_HA_REPO_ROOT/scripts/retropie/configure-retropie-storage.sh"
 	assert_failure
 	assert_output --partial "RETRO_HA_STATES_DIR must be local"
 }
@@ -137,14 +139,14 @@ EOF
 
 	# Make the existing target be a directory to force the mv-to-backup branch.
 	mkdir -p "$TEST_ROOT/home/retropi/RetroPie/roms"
-	run bash "$BATS_TEST_DIRNAME/../scripts/retropie/configure-retropie-storage.sh"
+	run bash "$RETRO_HA_REPO_ROOT/scripts/retropie/configure-retropie-storage.sh"
 	assert_success
 	assert_file_contains "$TEST_ROOT/calls.log" "mv"
 
 	# Now make it a symlink to cover the -L branch.
 	rm -rf "$TEST_ROOT/home/retropi/RetroPie/roms"
 	ln -s "$TEST_ROOT/var/lib/retro-ha/retropie/roms" "$TEST_ROOT/home/retropi/RetroPie/roms"
-	run bash "$BATS_TEST_DIRNAME/../scripts/retropie/configure-retropie-storage.sh"
+	run bash "$RETRO_HA_REPO_ROOT/scripts/retropie/configure-retropie-storage.sh"
 	assert_success
 }
 
@@ -155,7 +157,7 @@ EOF
 	# Prepare a retroarch.cfg that already contains the key so ensure_kv_line takes the awk-replace branch.
 	echo 'savefile_directory = "OLD"' > "$TEST_ROOT/opt/retropie/configs/all/retroarch.cfg"
 
-	run bash "$BATS_TEST_DIRNAME/../scripts/retropie/configure-retropie-storage.sh"
+	run bash "$RETRO_HA_REPO_ROOT/scripts/retropie/configure-retropie-storage.sh"
 	assert_success
 	assert_file_contains "$TEST_ROOT/calls.log" "write_kv"
 }

@@ -6,6 +6,13 @@ setup_test_root() {
 	# leaving PATH pointing there can break bats' own cleanup.
 	export RETRO_HA_TEST_ORIG_PATH="$PATH"
 
+	# Repo root (for vendored libs, helpers, and stubs). Keep separate from
+	# RETRO_HA_ROOT, which is the temp test root for scripts under test.
+	if [[ -z "${RETRO_HA_REPO_ROOT:-}" ]]; then
+		RETRO_HA_REPO_ROOT="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
+		export RETRO_HA_REPO_ROOT
+	fi
+
 	TEST_ROOT="$(mktemp -d)"
 	export TEST_ROOT
 
@@ -15,7 +22,7 @@ setup_test_root() {
 	# Suite-wide aggregation for path coverage assertions.
 	export RETRO_HA_PATH_COVERAGE=1
 	# Use a stable file so we can run tests individually (per-test timeout runner).
-	export RETRO_HA_PATHS_FILE="${RETRO_HA_PATHS_FILE:-$BATS_TEST_DIRNAME/.tmp/retro-ha-paths.log}"
+	export RETRO_HA_PATHS_FILE="${RETRO_HA_PATHS_FILE:-$RETRO_HA_REPO_ROOT/tests/.tmp/retro-ha-paths.log}"
 	# Avoid depending on external dirname (PATH may be intentionally minimal).
 	local paths_dir="${RETRO_HA_PATHS_FILE%/*}"
 	if [[ -z "$paths_dir" || "$paths_dir" == "$RETRO_HA_PATHS_FILE" ]]; then
@@ -27,7 +34,7 @@ setup_test_root() {
 	mkdir -p "$TEST_ROOT/etc/retro-ha" "$TEST_ROOT/var/lib/retro-ha" "$TEST_ROOT/var/lock"
 
 	# Ensure stubs override system commands.
-	export PATH="$BATS_TEST_DIRNAME/stubs:$PATH"
+	export PATH="$RETRO_HA_REPO_ROOT/tests/stubs:$PATH"
 }
 
 make_isolated_path_with_stubs() {
@@ -62,7 +69,7 @@ make_isolated_path_with_stubs() {
 
 	local stub
 	for stub in "$@"; do
-		cp "$BATS_TEST_DIRNAME/stubs/$stub" "$bin_dir/$stub"
+		cp "$RETRO_HA_REPO_ROOT/tests/stubs/$stub" "$bin_dir/$stub"
 		chmod +x "$bin_dir/$stub"
 	done
 

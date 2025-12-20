@@ -1,8 +1,10 @@
 #!/usr/bin/env bats
 
-load 'vendor/bats-support/load'
-load 'vendor/bats-assert/load'
-load 'helpers/common'
+RETRO_HA_REPO_ROOT="${RETRO_HA_REPO_ROOT:-$(cd "$BATS_TEST_DIRNAME/../.." && pwd)}"
+
+load "$RETRO_HA_REPO_ROOT/tests/vendor/bats-support/load"
+load "$RETRO_HA_REPO_ROOT/tests/vendor/bats-assert/load"
+load "$RETRO_HA_REPO_ROOT/tests/helpers/common"
 
 setup() {
 	setup_test_root
@@ -16,7 +18,7 @@ teardown() {
 	mkdir -p "$TEST_ROOT/var/lib/retro-ha"
 	touch "$TEST_ROOT/var/lib/retro-ha/installed"
 
-	run bash "$BATS_TEST_DIRNAME/../scripts/bootstrap.sh"
+	run bash "$RETRO_HA_REPO_ROOT/scripts/bootstrap.sh"
 	assert_success
 }
 
@@ -25,7 +27,7 @@ teardown() {
 	export GETENT_EXIT_CODE=2
 	export CURL_EXIT_CODE=2
 
-	run bash "$BATS_TEST_DIRNAME/../scripts/bootstrap.sh"
+	run bash "$RETRO_HA_REPO_ROOT/scripts/bootstrap.sh"
 	assert_failure
 }
 
@@ -48,7 +50,7 @@ EOF
 	export RETRO_HA_CHECKOUT_DIR="$checkout"
 	export RETRO_HA_DRY_RUN=1
 
-	run bash "$BATS_TEST_DIRNAME/../scripts/bootstrap.sh"
+	run bash "$RETRO_HA_REPO_ROOT/scripts/bootstrap.sh"
 	assert_success
 	assert_file_contains "$TEST_ROOT/calls.log" "exec $checkout/scripts/install.sh"
 }

@@ -1,8 +1,10 @@
 #!/usr/bin/env bats
 
-load 'vendor/bats-support/load'
-load 'vendor/bats-assert/load'
-load 'helpers/common'
+RETRO_HA_REPO_ROOT="${RETRO_HA_REPO_ROOT:-$(cd "$BATS_TEST_DIRNAME/../.." && pwd)}"
+
+load "$RETRO_HA_REPO_ROOT/tests/vendor/bats-support/load"
+load "$RETRO_HA_REPO_ROOT/tests/vendor/bats-assert/load"
+load "$RETRO_HA_REPO_ROOT/tests/helpers/common"
 
 setup() {
 	setup_test_root
@@ -16,7 +18,7 @@ teardown() {
 
 @test "led-mqtt exits 0 when disabled" {
 	export RETRO_HA_LED_MQTT_ENABLED=0
-	run bash "$BATS_TEST_DIRNAME/../scripts/leds/led-mqtt.sh"
+	run bash "$RETRO_HA_REPO_ROOT/scripts/leds/led-mqtt.sh"
 	assert_success
 	# Calls may exist due to path coverage markers; ensure we did not subscribe.
 	if [[ -f "$TEST_ROOT/calls.log" ]]; then
@@ -27,7 +29,7 @@ teardown() {
 @test "led-mqtt fails if enabled but MQTT_HOST missing" {
 	export RETRO_HA_LED_MQTT_ENABLED=1
 	unset MQTT_HOST
-	run bash "$BATS_TEST_DIRNAME/../scripts/leds/led-mqtt.sh"
+	run bash "$RETRO_HA_REPO_ROOT/scripts/leds/led-mqtt.sh"
 	assert_failure
 	assert_output --partial "MQTT_HOST is required"
 }
@@ -38,7 +40,7 @@ teardown() {
 
 	make_isolated_path_with_stubs dirname mosquitto_sub mosquitto_pub
 
-	run bash "$BATS_TEST_DIRNAME/../scripts/leds/led-mqtt.sh"
+	run bash "$RETRO_HA_REPO_ROOT/scripts/leds/led-mqtt.sh"
 	assert_success
 	assert_file_contains "$TEST_ROOT/calls.log" "mosquitto_sub"
 }
@@ -50,7 +52,7 @@ teardown() {
 	# Force the script to call publish_state path by invoking internal function
 	# via sourcing and calling it directly (entrypoint guard should prevent auto-run).
 	make_isolated_path_with_stubs dirname mosquitto_pub
-	source "$BATS_TEST_DIRNAME/../scripts/leds/led-mqtt.sh"
+	source "$RETRO_HA_REPO_ROOT/scripts/leds/led-mqtt.sh"
 	publish_state "act" "ON" "retro-ha"
 
 	assert_file_contains "$TEST_ROOT/calls.log" "mosquitto_pub"
@@ -67,7 +69,7 @@ teardown() {
 
 	make_isolated_path_with_stubs dirname
 
-	source "$BATS_TEST_DIRNAME/../scripts/leds/led-mqtt.sh"
+	source "$RETRO_HA_REPO_ROOT/scripts/leds/led-mqtt.sh"
 	run mosq_args
 	assert_success
 
@@ -95,7 +97,7 @@ teardown() {
 	export RETRO_HA_LEDCTL_PATH="$ledctl"
 
 	make_isolated_path_with_stubs dirname
-	source "$BATS_TEST_DIRNAME/../scripts/leds/led-mqtt.sh"
+	source "$RETRO_HA_REPO_ROOT/scripts/leds/led-mqtt.sh"
 
 	run handle_set "act" "bogus" "retro-ha"
 	assert_success
@@ -108,7 +110,7 @@ teardown() {
 		export RETRO_HA_DRY_RUN=1
 		export RETRO_HA_LEDCTL_PATH="$2"
 		handle_set act on retro-ha
-	' bash "$BATS_TEST_DIRNAME/../scripts/leds/led-mqtt.sh" "$TEST_ROOT/missing-ledctl.sh"
+	' bash "$RETRO_HA_REPO_ROOT/scripts/leds/led-mqtt.sh" "$TEST_ROOT/missing-ledctl.sh"
 	assert_failure
 	assert_output --partial "LED control script missing or not executable"
 }
@@ -139,7 +141,7 @@ EOF
 	chmod +x "$ledctl"
 	export RETRO_HA_LEDCTL_PATH="$ledctl"
 
-	run bash "$BATS_TEST_DIRNAME/../scripts/leds/led-mqtt.sh"
+	run bash "$RETRO_HA_REPO_ROOT/scripts/leds/led-mqtt.sh"
 	assert_success
 	assert_file_contains "$TEST_ROOT/calls.log" "mosquitto_sub"
 	assert_file_contains "$TEST_ROOT/calls.log" "${ledctl} all on"

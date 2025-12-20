@@ -1,8 +1,10 @@
 #!/usr/bin/env bats
 
-load 'vendor/bats-support/load'
-load 'vendor/bats-assert/load'
-load 'helpers/common'
+RETRO_HA_REPO_ROOT="${RETRO_HA_REPO_ROOT:-$(cd "$BATS_TEST_DIRNAME/../.." && pwd)}"
+
+load "$RETRO_HA_REPO_ROOT/tests/vendor/bats-support/load"
+load "$RETRO_HA_REPO_ROOT/tests/vendor/bats-assert/load"
+load "$RETRO_HA_REPO_ROOT/tests/helpers/common"
 
 setup() {
   setup_test_root
@@ -15,7 +17,7 @@ teardown() {
 
 @test "mount-nfs records not-configured path" {
   unset NFS_SERVER NFS_PATH
-  run bash "$BATS_TEST_DIRNAME/../scripts/nfs/mount-nfs.sh"
+  run bash "$RETRO_HA_REPO_ROOT/scripts/nfs/mount-nfs.sh"
   assert_success
   assert_file_contains "$TEST_ROOT/calls.log" "PATH mount-nfs:not-configured"
 }
@@ -24,7 +26,7 @@ teardown() {
   export NFS_SERVER=server
   export NFS_PATH=/export
   export MOUNTPOINT_PATHS="$TEST_ROOT/mnt/retro-ha-roms\n"
-  run bash "$BATS_TEST_DIRNAME/../scripts/nfs/mount-nfs.sh"
+  run bash "$RETRO_HA_REPO_ROOT/scripts/nfs/mount-nfs.sh"
   assert_success
   assert_file_contains "$TEST_ROOT/calls.log" "PATH mount-nfs:already-mounted"
 }
@@ -34,7 +36,7 @@ teardown() {
   export NFS_SERVER=server
   export NFS_PATH=/export
   export MOUNT_EXIT_CODE=32
-  run bash "$BATS_TEST_DIRNAME/../scripts/nfs/mount-nfs.sh"
+  run bash "$RETRO_HA_REPO_ROOT/scripts/nfs/mount-nfs.sh"
   assert_success
   assert_file_contains "$TEST_ROOT/calls.log" "PATH mount-nfs:mount-attempt"
   assert_file_contains "$TEST_ROOT/calls.log" "PATH mount-nfs:mount-failed"
@@ -45,14 +47,14 @@ teardown() {
   export NFS_SERVER=server
   export NFS_PATH=/export
   export MOUNT_EXIT_CODE=0
-  run bash "$BATS_TEST_DIRNAME/../scripts/nfs/mount-nfs.sh"
+  run bash "$RETRO_HA_REPO_ROOT/scripts/nfs/mount-nfs.sh"
   assert_success
   assert_file_contains "$TEST_ROOT/calls.log" "PATH mount-nfs:mount-success"
 }
 
 @test "mount-nfs-backup disabled path" {
   export RETRO_HA_SAVE_BACKUP_ENABLED=0
-  run bash "$BATS_TEST_DIRNAME/../scripts/nfs/mount-nfs-backup.sh"
+  run bash "$RETRO_HA_REPO_ROOT/scripts/nfs/mount-nfs-backup.sh"
   assert_success
   assert_file_contains "$TEST_ROOT/calls.log" "PATH mount-nfs-backup:disabled"
 }
@@ -60,7 +62,7 @@ teardown() {
 @test "mount-nfs-backup not-configured path" {
   export RETRO_HA_SAVE_BACKUP_ENABLED=1
   unset RETRO_HA_SAVE_BACKUP_NFS_SERVER RETRO_HA_SAVE_BACKUP_NFS_PATH NFS_SERVER NFS_PATH
-  run bash "$BATS_TEST_DIRNAME/../scripts/nfs/mount-nfs-backup.sh"
+  run bash "$RETRO_HA_REPO_ROOT/scripts/nfs/mount-nfs-backup.sh"
   assert_success
   assert_file_contains "$TEST_ROOT/calls.log" "PATH mount-nfs-backup:not-configured"
 }
@@ -70,7 +72,7 @@ teardown() {
   export NFS_SERVER=server
   export NFS_PATH=/export
   export MOUNTPOINT_PATHS="$TEST_ROOT/mnt/retro-ha-backup\n"
-  run bash "$BATS_TEST_DIRNAME/../scripts/nfs/mount-nfs-backup.sh"
+  run bash "$RETRO_HA_REPO_ROOT/scripts/nfs/mount-nfs-backup.sh"
   assert_success
   assert_file_contains "$TEST_ROOT/calls.log" "PATH mount-nfs-backup:already-mounted"
 }
@@ -81,7 +83,7 @@ teardown() {
   export NFS_SERVER=server
   export NFS_PATH=/export
   export MOUNT_EXIT_CODE=32
-  run bash "$BATS_TEST_DIRNAME/../scripts/nfs/mount-nfs-backup.sh"
+  run bash "$RETRO_HA_REPO_ROOT/scripts/nfs/mount-nfs-backup.sh"
   assert_success
   assert_file_contains "$TEST_ROOT/calls.log" "PATH mount-nfs-backup:mount-attempt"
   assert_file_contains "$TEST_ROOT/calls.log" "PATH mount-nfs-backup:mount-failed"
@@ -93,7 +95,7 @@ teardown() {
   export NFS_SERVER=server
   export NFS_PATH=/export
   export MOUNT_EXIT_CODE=0
-  run bash "$BATS_TEST_DIRNAME/../scripts/nfs/mount-nfs-backup.sh"
+  run bash "$RETRO_HA_REPO_ROOT/scripts/nfs/mount-nfs-backup.sh"
   assert_success
   assert_file_contains "$TEST_ROOT/calls.log" "PATH mount-nfs-backup:mount-success"
 }
@@ -103,7 +105,7 @@ teardown() {
   export NFS_PATH=/export
   export MOUNTPOINT_PATHS="$TEST_ROOT/mnt/retro-ha-roms\n"
   make_isolated_path_with_stubs dirname mountpoint mount
-  run bash "$BATS_TEST_DIRNAME/../scripts/nfs/sync-roms.sh"
+  run bash "$RETRO_HA_REPO_ROOT/scripts/nfs/sync-roms.sh"
   assert_success
   assert_file_contains "$TEST_ROOT/calls.log" "PATH sync-roms:rsync-missing"
 }
@@ -112,7 +114,7 @@ teardown() {
   export NFS_SERVER=server
   export NFS_PATH=/export
   unset MOUNTPOINT_PATHS
-  run bash "$BATS_TEST_DIRNAME/../scripts/nfs/sync-roms.sh"
+  run bash "$RETRO_HA_REPO_ROOT/scripts/nfs/sync-roms.sh"
   assert_success
   assert_file_contains "$TEST_ROOT/calls.log" "PATH sync-roms:not-mounted"
 }
@@ -128,7 +130,7 @@ teardown() {
   export RETRO_HA_ROMS_EXCLUDE_SYSTEMS="snes"
   export RETRO_HA_ROMS_SYNC_DELETE=1
 
-  run bash "$BATS_TEST_DIRNAME/../scripts/nfs/sync-roms.sh"
+  run bash "$RETRO_HA_REPO_ROOT/scripts/nfs/sync-roms.sh"
   assert_success
 
   assert_file_contains "$TEST_ROOT/calls.log" "PATH sync-roms:delete-enabled"
@@ -142,7 +144,7 @@ teardown() {
   export NFS_PATH=/export
   export MOUNTPOINT_PATHS="$TEST_ROOT/mnt/retro-ha-roms\n"
   export RETRO_HA_NFS_ROMS_SUBDIR=subdir
-  run bash "$BATS_TEST_DIRNAME/../scripts/nfs/sync-roms.sh"
+  run bash "$RETRO_HA_REPO_ROOT/scripts/nfs/sync-roms.sh"
   assert_success
   assert_file_contains "$TEST_ROOT/calls.log" "PATH sync-roms:with-subdir"
   assert_file_contains "$TEST_ROOT/calls.log" "PATH sync-roms:src-missing"
@@ -156,14 +158,14 @@ teardown() {
   mkdir -p "$TEST_ROOT/mnt/retro-ha-roms/nes"
   export RETRO_HA_ROMS_SYSTEMS="nes,snes"
 
-  run bash "$BATS_TEST_DIRNAME/../scripts/nfs/sync-roms.sh"
+  run bash "$RETRO_HA_REPO_ROOT/scripts/nfs/sync-roms.sh"
   assert_success
   assert_file_contains "$TEST_ROOT/calls.log" "PATH sync-roms:allowlist"
   assert_file_contains "$TEST_ROOT/calls.log" "PATH sync-roms:missing-system"
 
   # Now switch to discovery mode.
   unset RETRO_HA_ROMS_SYSTEMS
-  run bash "$BATS_TEST_DIRNAME/../scripts/nfs/sync-roms.sh"
+  run bash "$RETRO_HA_REPO_ROOT/scripts/nfs/sync-roms.sh"
   assert_success
   assert_file_contains "$TEST_ROOT/calls.log" "PATH sync-roms:discover"
 }
@@ -179,7 +181,7 @@ teardown() {
   # Remove rsync from PATH by isolating it.
   make_isolated_path_with_stubs dirname mountpoint systemctl
 
-  run bash "$BATS_TEST_DIRNAME/../scripts/nfs/save-backup.sh"
+  run bash "$RETRO_HA_REPO_ROOT/scripts/nfs/save-backup.sh"
   assert_success
   assert_file_contains "$TEST_ROOT/calls.log" "PATH save-backup:rsync-missing"
 }
@@ -195,7 +197,7 @@ teardown() {
   mkdir -p "$TEST_ROOT/var/lib/retro-ha/retropie/saves" "$TEST_ROOT/var/lib/retro-ha/retropie/states"
   export RETRO_HA_SAVE_BACKUP_DELETE=1
 
-  run bash "$BATS_TEST_DIRNAME/../scripts/nfs/save-backup.sh"
+  run bash "$RETRO_HA_REPO_ROOT/scripts/nfs/save-backup.sh"
   assert_success
   assert_file_contains "$TEST_ROOT/calls.log" "PATH save-backup:delete-enabled"
   assert_file_contains "$TEST_ROOT/calls.log" "PATH save-backup:backup-saves"
@@ -204,19 +206,19 @@ teardown() {
 
 @test "save-backup records disabled/retro-active/not-mounted paths" {
   export RETRO_HA_SAVE_BACKUP_ENABLED=0
-  run bash "$BATS_TEST_DIRNAME/../scripts/nfs/save-backup.sh"
+  run bash "$RETRO_HA_REPO_ROOT/scripts/nfs/save-backup.sh"
   assert_success
   assert_file_contains "$TEST_ROOT/calls.log" "PATH save-backup:disabled"
 
   export RETRO_HA_SAVE_BACKUP_ENABLED=1
   export SYSTEMCTL_ACTIVE_RETRO=0
-  run bash "$BATS_TEST_DIRNAME/../scripts/nfs/save-backup.sh"
+  run bash "$RETRO_HA_REPO_ROOT/scripts/nfs/save-backup.sh"
   assert_success
   assert_file_contains "$TEST_ROOT/calls.log" "PATH save-backup:retro-active"
 
   export SYSTEMCTL_ACTIVE_RETRO=1
   unset MOUNTPOINT_PATHS
-  run bash "$BATS_TEST_DIRNAME/../scripts/nfs/save-backup.sh"
+  run bash "$RETRO_HA_REPO_ROOT/scripts/nfs/save-backup.sh"
   assert_success
   assert_file_contains "$TEST_ROOT/calls.log" "PATH save-backup:not-mounted"
 }

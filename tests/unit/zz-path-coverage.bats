@@ -1,11 +1,13 @@
 #!/usr/bin/env bats
 
-load 'vendor/bats-support/load'
-load 'vendor/bats-assert/load'
+RETRO_HA_REPO_ROOT="${RETRO_HA_REPO_ROOT:-$(cd "$BATS_TEST_DIRNAME/../.." && pwd)}"
+
+load "$RETRO_HA_REPO_ROOT/tests/vendor/bats-support/load"
+load "$RETRO_HA_REPO_ROOT/tests/vendor/bats-assert/load"
 
 @test "path coverage: all required path IDs were hit" {
-  required_file="$BATS_TEST_DIRNAME/coverage/required-paths.txt"
-  paths_log="${RETRO_HA_PATHS_FILE:-$BATS_TEST_DIRNAME/.tmp/retro-ha-paths.log}"
+  required_file="$RETRO_HA_REPO_ROOT/tests/coverage/required-paths.txt"
+  paths_log="${RETRO_HA_PATHS_FILE:-$RETRO_HA_REPO_ROOT/tests/.tmp/retro-ha-paths.log}"
 
   [ -f "$required_file" ]
   [ -f "$paths_log" ]

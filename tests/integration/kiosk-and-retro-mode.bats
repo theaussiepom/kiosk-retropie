@@ -1,8 +1,10 @@
 #!/usr/bin/env bats
 
-load 'vendor/bats-support/load'
-load 'vendor/bats-assert/load'
-load 'helpers/common'
+RETRO_HA_REPO_ROOT="${RETRO_HA_REPO_ROOT:-$(cd "$BATS_TEST_DIRNAME/../.." && pwd)}"
+
+load "$RETRO_HA_REPO_ROOT/tests/vendor/bats-support/load"
+load "$RETRO_HA_REPO_ROOT/tests/vendor/bats-assert/load"
+load "$RETRO_HA_REPO_ROOT/tests/helpers/common"
 
 setup() {
 	setup_test_root
@@ -18,7 +20,7 @@ teardown() {
 
 @test "ha-kiosk fails if HA_URL missing" {
 	unset HA_URL
-	run /bin/bash "$BATS_TEST_DIRNAME/../scripts/mode/ha-kiosk.sh"
+	run /bin/bash "$RETRO_HA_REPO_ROOT/scripts/mode/ha-kiosk.sh"
 	assert_failure
 }
 
@@ -28,7 +30,7 @@ teardown() {
 	# Use isolated path so chromium-browser is the only chromium candidate.
 	make_isolated_path_with_stubs dirname chromium-browser xinit getent id
 
-	run /bin/bash "$BATS_TEST_DIRNAME/../scripts/mode/ha-kiosk.sh"
+	run /bin/bash "$RETRO_HA_REPO_ROOT/scripts/mode/ha-kiosk.sh"
 	assert_success
 	assert_file_contains "$TEST_ROOT/calls.log" "write_file $XDG_RUNTIME_DIR/retro-ha/ha-xinitrc"
 	assert_file_contains "$TEST_ROOT/calls.log" "exec xinit"
@@ -41,7 +43,7 @@ teardown() {
 	# Use isolated path so we control chromium and xinit.
 	make_isolated_path_with_stubs dirname chromium-browser xinit
 
-	run /bin/bash "$BATS_TEST_DIRNAME/../scripts/mode/ha-kiosk.sh"
+	run /bin/bash "$RETRO_HA_REPO_ROOT/scripts/mode/ha-kiosk.sh"
 	assert_success
 
 	# xinitrc should be written in the runtime dir.
@@ -52,7 +54,7 @@ teardown() {
 @test "ha-kiosk fails if no chromium binary" {
 	export HA_URL="http://example.local"
 	make_isolated_path_with_stubs dirname xinit getent id
-	run /bin/bash "$BATS_TEST_DIRNAME/../scripts/mode/ha-kiosk.sh"
+	run /bin/bash "$RETRO_HA_REPO_ROOT/scripts/mode/ha-kiosk.sh"
 	assert_failure
 	assert_output --partial "Chromium not found"
 }
@@ -60,20 +62,20 @@ teardown() {
 @test "retro-mode exits 0 when emulationstation missing" {
 	# Isolate PATH so emulationstation is not found.
 	make_isolated_path_with_stubs dirname xinit
-	run /bin/bash "$BATS_TEST_DIRNAME/../scripts/mode/retro-mode.sh"
+	run /bin/bash "$RETRO_HA_REPO_ROOT/scripts/mode/retro-mode.sh"
 	assert_success
 }
 
 @test "retro-mode fails when xinit missing" {
 	make_isolated_path_with_stubs dirname emulationstation
-	run /bin/bash "$BATS_TEST_DIRNAME/../scripts/mode/retro-mode.sh"
+	run /bin/bash "$RETRO_HA_REPO_ROOT/scripts/mode/retro-mode.sh"
 	assert_failure
 	assert_output --partial "xinit not found"
 }
 
 @test "retro-mode records xinit exec in dry-run when deps present" {
 	make_isolated_path_with_stubs dirname xinit emulationstation
-	run /bin/bash "$BATS_TEST_DIRNAME/../scripts/mode/retro-mode.sh"
+	run /bin/bash "$RETRO_HA_REPO_ROOT/scripts/mode/retro-mode.sh"
 	assert_success
 	assert_file_contains "$TEST_ROOT/calls.log" "write_file $XDG_RUNTIME_DIR/retro-ha/retro-xinitrc"
 	assert_file_contains "$TEST_ROOT/calls.log" "exec xinit"
@@ -83,7 +85,7 @@ teardown() {
 	export RETRO_HA_DRY_RUN=0
 	make_isolated_path_with_stubs dirname xinit emulationstation
 
-	run /bin/bash "$BATS_TEST_DIRNAME/../scripts/mode/retro-mode.sh"
+	run /bin/bash "$RETRO_HA_REPO_ROOT/scripts/mode/retro-mode.sh"
 	assert_success
 
 	[ -f "$XDG_RUNTIME_DIR/retro-ha/retro-xinitrc" ]
