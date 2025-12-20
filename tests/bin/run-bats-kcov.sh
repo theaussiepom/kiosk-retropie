@@ -72,6 +72,7 @@ run_kcov() {
   shift
 
   local log_file="$out_dir/${label}.log"
+  local strace_file="$out_dir/${label}.strace"
 
   echo "kcov step: $label" >&2
   echo "+ kcov $*" >&2
@@ -84,9 +85,24 @@ run_kcov() {
     # compound command without an else branch can be 0, which would mask failure.
     local rc=$?
   fi
+
+  # If kcov failed but produced no output, capture a small strace to help debug
+  # CI-only failures. Keep it narrow to avoid massive artifacts.
+  if [[ ! -s "$log_file" ]] || [[ "$(wc -c <"$log_file" 2>/dev/null || echo 0)" -lt 200 ]]; then
+    if command -v strace >/dev/null 2>&1; then
+      echo "kcov produced little/no output; capturing strace to $strace_file" >&2
+      # Trace process/exec/file opens only; enough to spot missing binaries, perms, etc.
+      strace -f -qq -o "$strace_file" -e trace=process,execve,file kcov "$@" >/dev/null 2>&1 || true
+    fi
+  fi
+
   echo "kcov step failed: $label (exit=$rc)" >&2
   echo "--- $log_file (last 200 lines) ---" >&2
   tail -n 200 "$log_file" >&2 || true
+  if [[ -f "$strace_file" ]]; then
+    echo "--- $strace_file (last 200 lines) ---" >&2
+    tail -n 200 "$strace_file" >&2 || true
+  fi
   exit "$rc"
 }
 
