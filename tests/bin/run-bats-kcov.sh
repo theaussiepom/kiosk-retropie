@@ -166,6 +166,17 @@ run_kcov() {
     fi
   fi
 
+  # In CI we run Bats once without kcov (for correctness) and a second time under
+  # kcov (for coverage). Some kcov/bats combinations can return non-zero while
+  # still producing a valid coverage report. When enabled, treat that as success
+  # so we can proceed to driver+merge and still enforce coverage.
+  if [[ "${KCOV_ALLOW_NONZERO_WITH_REPORT:-0}" == "1" && "$rc" -ne 0 ]]; then
+    if find "$out" -maxdepth 4 -name coverage.json -print -quit 2>/dev/null | grep -q .; then
+      echo "kcov step returned non-zero but produced coverage.json; continuing: $label (exit=$rc)" >&2
+      return 0
+    fi
+  fi
+
   if [[ "$rc" -eq 124 ]]; then
     echo "kcov step timed out after ${timeout_seconds}s: $label" >&2
   fi

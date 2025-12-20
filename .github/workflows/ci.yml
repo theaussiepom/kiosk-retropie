@@ -95,7 +95,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          "$GITHUB_WORKSPACE/tests/bin/run-bats-kcov.sh"
+          KCOV_ALLOW_NONZERO_WITH_REPORT=1 "$GITHUB_WORKSPACE/tests/bin/run-bats-kcov.sh"
 
       - name: Show kcov output paths
         if: always()
