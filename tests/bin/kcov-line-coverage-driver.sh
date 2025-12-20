@@ -435,6 +435,7 @@ run_allow_fail bash "$ROOT_DIR/scripts/leds/ledctl.sh" act off
 run_allow_fail bash "$ROOT_DIR/scripts/leds/ledctl.sh" act on
 run_allow_fail env RETRO_HA_ACT_LED_TRIGGER_ON=nonesuch bash "$ROOT_DIR/scripts/leds/ledctl.sh" act on
 run_allow_fail env RETRO_HA_ACT_LED=missing-led bash "$ROOT_DIR/scripts/leds/ledctl.sh" act off
+run_allow_fail env RETRO_HA_ACT_LED=missing-led bash "$ROOT_DIR/scripts/leds/ledctl.sh" act on
 run_allow_fail bash "$ROOT_DIR/scripts/leds/ledctl.sh" pwr off
 run_allow_fail bash "$ROOT_DIR/scripts/leds/ledctl.sh" pwr on
 run_allow_fail env RETRO_HA_PWR_LED_TRIGGER_ON=nonesuch bash "$ROOT_DIR/scripts/leds/ledctl.sh" pwr on
@@ -598,7 +599,13 @@ run_allow_fail env RETRO_HA_DRY_RUN=1 RETRO_HA_SCREEN_ROTATION=right bash "$ROOT
 run_allow_fail env RETRO_HA_DRY_RUN=0 RETRO_HA_SCREEN_ROTATION=right bash "$ROOT_DIR/scripts/mode/retro-mode.sh"
 
 # Cover SCRIPT_DIR fallback (SCRIPT_DIR='.') by executing via PATH (no slash).
-run_allow_fail env RETRO_HA_DRY_RUN=1 PATH="$ROOT_DIR/scripts/mode:$PATH" retro-mode.sh
+(
+  set +e
+  cd "$ROOT_DIR/scripts/mode" || exit 0
+  ln -s ../lib "lib" 2>/dev/null || true
+  RETRO_HA_DRY_RUN=1 PATH=".:/usr/bin:/bin" retro-mode.sh >/dev/null 2>&1
+  rm -f "lib" >/dev/null 2>&1 || true
+) || true
 
 # Cover scripts/mode/lib branch selection.
 mode_lib_link="$ROOT_DIR/scripts/mode/lib"
@@ -684,6 +691,14 @@ fi
 # retropie/install-retropie.sh: require_root fail + user missing + git/sudo missing + home missing + clone/update + dry-run/non-dry-run.
 run_allow_fail env RETRO_HA_ALLOW_NON_ROOT=0 RETRO_HA_DRY_RUN=1 bash "$ROOT_DIR/scripts/retropie/install-retropie.sh"
 run_allow_fail env RETRO_HA_ALLOW_NON_ROOT=1 KCOV_RETROPI_EXISTS=0 RETRO_HA_DRY_RUN=1 bash "$ROOT_DIR/scripts/retropie/install-retropie.sh"
+
+# Cover scripts/retropie/lib selection in install-retropie.
+retropie_lib_link="$ROOT_DIR/scripts/retropie/lib"
+if [[ ! -e "$retropie_lib_link" ]]; then
+  ln -s ../lib "$retropie_lib_link" 2>/dev/null || true
+fi
+KCOV_GETENT_HOME="$home" run_allow_fail env RETRO_HA_ALLOW_NON_ROOT=1 RETRO_HA_DRY_RUN=1 bash "$ROOT_DIR/scripts/retropie/install-retropie.sh"
+rm -f "$retropie_lib_link" 2>/dev/null || true
 
 home="$work_dir/home/retropi"
 mkdir -p "$home"
@@ -821,6 +836,20 @@ rm -f "$installed_marker"
 # Network not ready (DNS fail / HTTPS fail).
 run_allow_fail env RETRO_HA_DRY_RUN=0 KCOV_GETENT_HOSTS_OK=0 KCOV_CURL_OK=1 RETRO_HA_REPO_URL=https://example.invalid/repo.git RETRO_HA_REPO_REF=main bash "$ROOT_DIR/scripts/bootstrap.sh"
 run_allow_fail env RETRO_HA_DRY_RUN=0 KCOV_GETENT_HOSTS_OK=1 KCOV_CURL_OK=0 RETRO_HA_REPO_URL=https://example.invalid/repo.git RETRO_HA_REPO_REF=main bash "$ROOT_DIR/scripts/bootstrap.sh"
+
+# Cover bootstrap exec installer branch.
+(
+  set +e
+  checkout_exec="$RETRO_HA_ROOT/opt/retro-ha-exec"
+  mkdir -p "$checkout_exec/.git" "$checkout_exec/scripts"
+  printf '%s\n' '#!/usr/bin/env bash' 'exit 0' >"$checkout_exec/scripts/install.sh"
+  chmod +x "$checkout_exec/scripts/install.sh"
+  RETRO_HA_DRY_RUN=0 KCOV_GETENT_HOSTS_OK=1 KCOV_CURL_OK=1 \
+    RETRO_HA_REPO_URL=https://example.invalid/repo.git \
+    RETRO_HA_REPO_REF=main \
+    RETRO_HA_CHECKOUT_DIR="$checkout_exec" \
+    bash "$ROOT_DIR/scripts/bootstrap.sh" >/dev/null 2>&1
+) || true
 
 # Sourced bootstrap should not run main.
 (
