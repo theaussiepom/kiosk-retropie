@@ -105,6 +105,14 @@ jobs:
           ls -la coverage || true
           echo "Searching for coverage.json under coverage/"
           find coverage -maxdepth 4 -name coverage.json -print 2>/dev/null || true
+          echo "Searching for kcov logs under coverage/"
+          find coverage -maxdepth 2 -name '*.log' -print 2>/dev/null || true
+
+          for f in coverage/*.log; do
+            [ -f "$f" ] || continue
+            echo "--- $f (last 200 lines) ---"
+            tail -n 200 "$f" || true
+          done
 
       - name: Upload kcov coverage artifact
         if: always()
@@ -112,6 +120,16 @@ jobs:
         with:
           name: kcov-coverage
           path: coverage/
+          if-no-files-found: warn
+
+      - name: Upload kcov logs artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kcov-logs
+          path: |
+            coverage/*.log
+            coverage/**/*.log
           if-no-files-found: warn
 
       - name: Enforce 100% line coverage
