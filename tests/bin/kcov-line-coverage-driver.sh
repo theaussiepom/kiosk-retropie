@@ -530,8 +530,14 @@ run_allow_fail env RETRO_HA_DRY_RUN=1 RETRO_HA_SCREEN_ROTATION=right bash "$ROOT
 run_allow_fail env RETRO_HA_DRY_RUN=0 RETRO_HA_SCREEN_ROTATION=right bash "$ROOT_DIR/scripts/mode/retro-mode.sh"
 
 # enter-ha-mode.sh: exercise svc_stop + svc_start via dry-run and non-dry-run.
+# Also cover the "$SCRIPT_DIR/lib" branch by temporarily creating scripts/mode/lib.
+mode_lib_link="$ROOT_DIR/scripts/mode/lib"
+if [[ ! -e "$mode_lib_link" ]]; then
+  ln -s ../lib "$mode_lib_link" 2>/dev/null || true
+fi
 run_allow_fail env RETRO_HA_DRY_RUN=1 bash "$ROOT_DIR/scripts/mode/enter-ha-mode.sh"
 run_allow_fail env RETRO_HA_DRY_RUN=0 bash "$ROOT_DIR/scripts/mode/enter-ha-mode.sh"
+rm -f "$mode_lib_link" 2>/dev/null || true
 
 # enter-retro-mode.sh: exercise ledctl path resolution (libdir and repo fallback).
 tmp_lib="$work_dir/lib"
