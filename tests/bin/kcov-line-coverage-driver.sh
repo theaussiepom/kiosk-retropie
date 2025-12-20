@@ -46,8 +46,15 @@ cat >"$stub_bin/getent" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Minimal getent stub for passwd lookups.
+# Minimal getent stub for passwd + basic DNS reachability in bootstrap.
 # Control via KCOV_GETENT_HOME (empty -> simulate missing).
+if [[ "${1:-}" == "hosts" && "${2:-}" == "github.com" ]]; then
+  if [[ "${KCOV_GETENT_HOSTS_OK:-1}" == "1" ]]; then
+    echo "140.82.121.4 github.com"
+    exit 0
+  fi
+  exit 2
+fi
 if [[ "${1:-}" == "passwd" && "${2:-}" == "retropi" ]]; then
   home="${KCOV_GETENT_HOME:-}"
   if [[ -z "$home" ]]; then
@@ -60,6 +67,19 @@ fi
 exec /usr/bin/getent "$@"
 EOF
 chmod +x "$stub_bin/getent"
+
+cat >"$stub_bin/curl" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Minimal curl stub.
+# KCOV_CURL_OK=1 -> succeed, else fail.
+if [[ "${KCOV_CURL_OK:-1}" == "1" ]]; then
+  exit 0
+fi
+exit 22
+EOF
+chmod +x "$stub_bin/curl"
 
 cat >"$stub_bin/sudo" <<'EOF'
 #!/usr/bin/env bash
@@ -276,6 +296,25 @@ source "$ROOT_DIR/scripts/lib/config.sh"
 # Hit remaining uncovered lines in logging.sh.
 warn "driver warn"
 
+# Exercise retro_ha_is_sourced (false + true).
+(
+  set -euo pipefail
+  source "$ROOT_DIR/scripts/lib/common.sh"
+  retro_ha_is_sourced >/dev/null || true
+)
+(
+  set -euo pipefail
+  tmp_entry="$work_dir/entry.__kcov_sourced.sh"
+  cat >"$tmp_entry" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+source "$ROOT_DIR/scripts/lib/common.sh"
+retro_ha_is_sourced >/dev/null || true
+EOF
+  # shellcheck source=/dev/null
+  source "$tmp_entry"
+)
+
 (
   unset RETRO_HA_ROOT
   retro_ha_root >/dev/null
@@ -385,6 +424,7 @@ run_allow_fail bash "$ROOT_DIR/scripts/leds/ledctl.sh" pwr off
 run_allow_fail bash "$ROOT_DIR/scripts/leds/ledctl.sh" pwr on
 run_allow_fail env RETRO_HA_PWR_LED_TRIGGER_ON=nonesuch bash "$ROOT_DIR/scripts/leds/ledctl.sh" pwr on
 run_allow_fail bash "$ROOT_DIR/scripts/leds/ledctl.sh" all on
+run_allow_fail bash "$ROOT_DIR/scripts/leds/ledctl.sh" all off
 
 # mount-nfs.sh: not configured / already mounted / mount fail / mount success.
 export RETRO_HA_DRY_RUN=0
@@ -431,11 +471,24 @@ run_allow_fail env RETRO_HA_NFS_MOUNT_POINT="$mp_src" RETRO_HA_NFS_ROMS_SUBDIR="
 run_allow_fail env RETRO_HA_NFS_MOUNT_POINT="$mp_src" RETRO_HA_NFS_ROMS_SUBDIR="$src_subdir" RETRO_HA_ROMS_SYSTEMS="nes,snes" RETRO_HA_ROMS_EXCLUDE_SYSTEMS="nes" KCOV_MOUNTPOINTS_MOUNTED=":${mp_src}:" bash "$ROOT_DIR/scripts/nfs/sync-roms.sh"
 run_allow_fail env RETRO_HA_NFS_MOUNT_POINT="$mp_src" RETRO_HA_NFS_ROMS_SUBDIR="$src_subdir" RETRO_HA_ROMS_SYNC_DELETE=1 KCOV_MOUNTPOINTS_MOUNTED=":${mp_src}:" bash "$ROOT_DIR/scripts/nfs/sync-roms.sh"
 
+# chown missing + delete disabled branch.
+no_chown="$work_dir/bin-no-chown"
+mkdir -p "$no_chown"
+ln -sf /usr/bin/bash "$no_chown/bash"
+ln -sf /usr/bin/env "$no_chown/env"
+ln -sf /usr/bin/mkdir "$no_chown/mkdir"
+ln -sf /usr/bin/find "$no_chown/find"
+ln -sf /usr/bin/sort "$no_chown/sort"
+ln -sf "$stub_bin/mountpoint" "$no_chown/mountpoint"
+ln -sf "$stub_bin/rsync" "$no_chown/rsync"
+PATH="$no_chown" run_allow_fail env RETRO_HA_NFS_MOUNT_POINT="$mp_src" RETRO_HA_NFS_ROMS_SUBDIR="$src_subdir" KCOV_MOUNTPOINTS_MOUNTED=":${mp_src}:" bash "$ROOT_DIR/scripts/nfs/sync-roms.sh"
+
 # led-mqtt.sh: disabled / missing host / missing ledctl / payload handling + state publish + tls/user/pass.
 run_allow_fail env RETRO_HA_LED_MQTT_ENABLED=0 bash "$ROOT_DIR/scripts/leds/led-mqtt.sh"
 run_allow_fail env RETRO_HA_LED_MQTT_ENABLED=1 MQTT_HOST= bash "$ROOT_DIR/scripts/leds/led-mqtt.sh"
 run_allow_fail env RETRO_HA_LED_MQTT_ENABLED=1 MQTT_HOST=localhost RETRO_HA_LEDCTL_PATH="$work_dir/missing-ledctl" KCOV_MOSQUITTO_SUB_OUTPUT=$'retro-ha/led/act/set ON\n' bash "$ROOT_DIR/scripts/leds/led-mqtt.sh"
 run_allow_fail env RETRO_HA_LED_MQTT_ENABLED=1 MQTT_HOST=localhost MQTT_USERNAME=u MQTT_PASSWORD=p MQTT_TLS=1 RETRO_HA_LEDCTL_PATH="$ROOT_DIR/scripts/leds/ledctl.sh" KCOV_MOSQUITTO_SUB_OUTPUT=$'retro-ha/led/act/set ON\nretro-ha/led/pwr/set off\nretro-ha/led/all/set INVALID\nretro-ha/led/all/set OFF\nretro-ha/led/bad/set ON\n' bash "$ROOT_DIR/scripts/leds/led-mqtt.sh"
+run_allow_fail env RETRO_HA_LED_MQTT_ENABLED=1 MQTT_HOST=localhost MQTT_TLS=0 RETRO_HA_LEDCTL_PATH="$ROOT_DIR/scripts/leds/ledctl.sh" KCOV_MOSQUITTO_SUB_OUTPUT='' bash "$ROOT_DIR/scripts/leds/led-mqtt.sh"
 
 # ha-kiosk.sh: missing HA_URL / missing chromium / dry-run / non-dry-run (exec xinit stub).
 run_allow_fail env HA_URL= bash "$ROOT_DIR/scripts/mode/ha-kiosk.sh"
@@ -443,16 +496,42 @@ run_allow_fail env HA_URL=http://example.invalid PATH="$stub_bin:/bin" bash "$RO
 run_allow_fail env HA_URL=http://example.invalid RETRO_HA_DRY_RUN=1 RETRO_HA_SCREEN_ROTATION=left bash "$ROOT_DIR/scripts/mode/ha-kiosk.sh"
 run_allow_fail env HA_URL=http://example.invalid RETRO_HA_DRY_RUN=0 RETRO_HA_SCREEN_ROTATION=left bash "$ROOT_DIR/scripts/mode/ha-kiosk.sh"
 
+# Missing chromium/chromium-browser branch.
+no_chromium="$work_dir/bin-no-chromium"
+mkdir -p "$no_chromium"
+ln -sf /usr/bin/bash "$no_chromium/bash"
+ln -sf /usr/bin/id "$no_chromium/id"
+ln -sf /usr/bin/mkdir "$no_chromium/mkdir"
+ln -sf /usr/bin/chmod "$no_chromium/chmod"
+ln -sf /usr/bin/rm "$no_chromium/rm"
+ln -sf /usr/bin/cat "$no_chromium/cat"
+ln -sf /usr/bin/tr "$no_chromium/tr"
+ln -sf "$stub_bin/xinit" "$no_chromium/xinit"
+ln -sf "$stub_bin/xset" "$no_chromium/xset"
+ln -sf "$stub_bin/xrandr" "$no_chromium/xrandr"
+PATH="$no_chromium" run_allow_fail env HA_URL=http://example.invalid bash "$ROOT_DIR/scripts/mode/ha-kiosk.sh"
+
+# Force chromium selection (hide chromium-browser).
+mv "$stub_bin/chromium-browser" "$stub_bin/chromium-browser.__kcov_hidden"
+run_allow_fail env HA_URL=http://example.invalid RETRO_HA_DRY_RUN=0 RETRO_HA_SCREEN_ROTATION= bash "$ROOT_DIR/scripts/mode/ha-kiosk.sh"
+mv "$stub_bin/chromium-browser.__kcov_hidden" "$stub_bin/chromium-browser"
+
 # retro-mode.sh: missing xinit / missing emulationstation / dry-run / non-dry-run.
 run_allow_fail env PATH="$stub_bin:/bin" bash "$ROOT_DIR/scripts/mode/retro-mode.sh"
+
+mv "$stub_bin/xinit" "$stub_bin/xinit.__kcov_hidden"
+run_allow_fail env RETRO_HA_DRY_RUN=0 bash "$ROOT_DIR/scripts/mode/retro-mode.sh"
+mv "$stub_bin/xinit.__kcov_hidden" "$stub_bin/xinit"
+
 mv "$stub_bin/emulationstation" "$stub_bin/emulationstation.__kcov_hidden"
 run_allow_fail env RETRO_HA_DRY_RUN=0 bash "$ROOT_DIR/scripts/mode/retro-mode.sh"
 mv "$stub_bin/emulationstation.__kcov_hidden" "$stub_bin/emulationstation"
 run_allow_fail env RETRO_HA_DRY_RUN=1 RETRO_HA_SCREEN_ROTATION=right bash "$ROOT_DIR/scripts/mode/retro-mode.sh"
 run_allow_fail env RETRO_HA_DRY_RUN=0 RETRO_HA_SCREEN_ROTATION=right bash "$ROOT_DIR/scripts/mode/retro-mode.sh"
 
-# enter-ha-mode.sh: exercise svc_stop + svc_start via dry-run.
+# enter-ha-mode.sh: exercise svc_stop + svc_start via dry-run and non-dry-run.
 run_allow_fail env RETRO_HA_DRY_RUN=1 bash "$ROOT_DIR/scripts/mode/enter-ha-mode.sh"
+run_allow_fail env RETRO_HA_DRY_RUN=0 bash "$ROOT_DIR/scripts/mode/enter-ha-mode.sh"
 
 # enter-retro-mode.sh: exercise ledctl path resolution (libdir and repo fallback).
 tmp_lib="$work_dir/lib"
@@ -461,6 +540,11 @@ printf '%s\n' '#!/usr/bin/env bash' 'exit 0' >"$tmp_lib/ledctl.sh"
 chmod +x "$tmp_lib/ledctl.sh"
 run_allow_fail env RETRO_HA_DRY_RUN=1 RETRO_HA_LIBDIR="$tmp_lib" bash "$ROOT_DIR/scripts/mode/enter-retro-mode.sh"
 run_allow_fail env RETRO_HA_DRY_RUN=1 RETRO_HA_LIBDIR= bash "$ROOT_DIR/scripts/mode/enter-retro-mode.sh"
+
+# Force fallback to installed default by making repo ledctl non-executable.
+chmod -x "$ROOT_DIR/scripts/leds/ledctl.sh" || true
+run_allow_fail env RETRO_HA_DRY_RUN=1 RETRO_HA_LIBDIR= bash "$ROOT_DIR/scripts/mode/enter-retro-mode.sh"
+chmod +x "$ROOT_DIR/scripts/leds/ledctl.sh" || true
 
 (
   # Directly call retro_ha_ledctl_path to hit the SCRIPT_DIR/ledctl.sh candidate lines
@@ -488,6 +572,9 @@ mkdir -p "$hc_lib"
 printf '%s\n' '#!/usr/bin/env bash' 'exit 0' >"$hc_lib/enter-retro-mode.sh"
 chmod +x "$hc_lib/enter-retro-mode.sh"
 run_allow_fail env KCOV_SYSTEMCTL_ACTIVE_UNITS="" RETRO_HA_DRY_RUN=1 RETRO_HA_LIBDIR="$hc_lib" bash "$ROOT_DIR/scripts/healthcheck.sh"
+
+# Choose scripts/mode/enter-retro-mode.sh (no RETRO_HA_LIBDIR).
+run_allow_fail env KCOV_SYSTEMCTL_ACTIVE_UNITS="" RETRO_HA_DRY_RUN=1 RETRO_HA_LIBDIR= bash "$ROOT_DIR/scripts/healthcheck.sh"
 
 # retropie/install-retropie.sh: require_root fail + user missing + git/sudo missing + home missing + clone/update + dry-run/non-dry-run.
 run_allow_fail env RETRO_HA_ALLOW_NON_ROOT=0 RETRO_HA_DRY_RUN=1 bash "$ROOT_DIR/scripts/retropie/install-retropie.sh"
@@ -541,6 +628,21 @@ mkdir -p "${retro_cfg%/*}"
 printf '%s\n' 'savefile_directory = "old"' >"$retro_cfg"
 KCOV_GETENT_HOME="$home" run_allow_fail env RETRO_HA_ALLOW_NON_ROOT=1 RETRO_HA_DRY_RUN=0 RETRO_HA_NFS_MOUNT_POINT="$nfs_mp" bash "$ROOT_DIR/scripts/retropie/configure-retropie-storage.sh"
 
+# Dry-run kv writes while RetroArch config exists.
+KCOV_GETENT_HOME="$home" run_allow_fail env RETRO_HA_ALLOW_NON_ROOT=1 RETRO_HA_DRY_RUN=1 RETRO_HA_NFS_MOUNT_POINT="$nfs_mp" bash "$ROOT_DIR/scripts/retropie/configure-retropie-storage.sh"
+
+# Make legacy /var/lib/retro-ha/roms exist so the script skips ln -s.
+mkdir -p "$(retro_ha_path /var/lib/retro-ha/roms)"
+
+# Target exists as a directory -> mv branch.
+mkdir -p "$home/RetroPie/roms"
+KCOV_GETENT_HOME="$home" run_allow_fail env RETRO_HA_ALLOW_NON_ROOT=1 RETRO_HA_DRY_RUN=0 RETRO_HA_NFS_MOUNT_POINT="$nfs_mp" bash "$ROOT_DIR/scripts/retropie/configure-retropie-storage.sh"
+
+# Target is already a symlink -> -L branch.
+rm -rf "$home/RetroPie/roms"
+ln -sf "$(retro_ha_path /var/lib/retro-ha/retropie/roms)" "$home/RetroPie/roms"
+KCOV_GETENT_HOME="$home" run_allow_fail env RETRO_HA_ALLOW_NON_ROOT=1 RETRO_HA_DRY_RUN=0 RETRO_HA_NFS_MOUNT_POINT="$nfs_mp" bash "$ROOT_DIR/scripts/retropie/configure-retropie-storage.sh"
+
 # Prepare a config.env for bootstrap/install to load.
 cat >"$RETRO_HA_ROOT/etc/retro-ha/config.env" <<EOF
 RETRO_HA_REPO_URL=https://example.invalid/repo.git
@@ -582,6 +684,24 @@ mkdir -p "$checkout_dir/.git"
     RETRO_HA_REPO_URL=https://example.invalid/repo.git \
     RETRO_HA_REPO_REF=main \
     bash "$ROOT_DIR/scripts/bootstrap.sh" >/dev/null
+) || true
+
+# Marker present early-exit.
+installed_marker="$RETRO_HA_ROOT/var/lib/retro-ha/installed"
+mkdir -p "${installed_marker%/*}"
+: >"$installed_marker"
+run_allow_fail env RETRO_HA_DRY_RUN=0 KCOV_GETENT_HOSTS_OK=1 KCOV_CURL_OK=1 bash "$ROOT_DIR/scripts/bootstrap.sh"
+rm -f "$installed_marker"
+
+# Network not ready (DNS fail / HTTPS fail).
+run_allow_fail env RETRO_HA_DRY_RUN=0 KCOV_GETENT_HOSTS_OK=0 KCOV_CURL_OK=1 RETRO_HA_REPO_URL=https://example.invalid/repo.git RETRO_HA_REPO_REF=main bash "$ROOT_DIR/scripts/bootstrap.sh"
+run_allow_fail env RETRO_HA_DRY_RUN=0 KCOV_GETENT_HOSTS_OK=1 KCOV_CURL_OK=0 RETRO_HA_REPO_URL=https://example.invalid/repo.git RETRO_HA_REPO_REF=main bash "$ROOT_DIR/scripts/bootstrap.sh"
+
+# Sourced bootstrap should not run main.
+(
+  set +e
+  # shellcheck source=scripts/bootstrap.sh
+  source "$ROOT_DIR/scripts/bootstrap.sh"
 ) || true
 
 # Exercise install.sh branches.
