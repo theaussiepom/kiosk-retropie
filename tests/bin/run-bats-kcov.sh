@@ -15,6 +15,7 @@ fi
 out_dir="${KCOV_OUT_DIR:-$ROOT_DIR/coverage}"
 rm -rf "$out_dir"
 mkdir -p "$out_dir"
+mkdir -p "$out_dir/bats" "$out_dir/driver" "$out_dir/kcov-merged"
 
 # Run the Bats suite under kcov to gather coverage for scripts/**.
 # Prefer the explicit bash parser flag; older kcov versions use different names.
@@ -23,6 +24,7 @@ mkdir -p "$out_dir"
 kcov_help="$(kcov --help 2>&1 || true)"
 bash_parser_flag=""
 parse_dirs_flag=""
+report_type_args=()
 if grep -Fq -- '--bash-parser' <<<"$kcov_help"; then
   bash_parser_flag="--bash-parser"
 elif grep -Fq -- '--bash-parse' <<<"$kcov_help"; then
@@ -32,6 +34,11 @@ fi
 
 if grep -Fq -- '--bash-parse-files-in-dirs' <<<"$kcov_help"; then
   parse_dirs_flag="--bash-parse-files-in-dirs=$ROOT_DIR/scripts"
+fi
+
+# Some kcov versions only emit coverage.json when JSON reporting is explicitly enabled.
+if grep -Fq -- '--report-type' <<<"$kcov_help"; then
+  report_type_args+=(--report-type=html --report-type=json)
 fi
 
 echo "kcov version: $(kcov --version 2>/dev/null || echo unknown)" >&2
@@ -44,6 +51,7 @@ if [[ -n "$parse_dirs_flag" ]]; then
   common_args+=("$parse_dirs_flag")
 fi
 common_args+=(
+  "${report_type_args[@]}"
   --include-path="$ROOT_DIR/scripts"
   --exclude-pattern="$ROOT_DIR/tests,$ROOT_DIR/tests/vendor"
 )
@@ -60,9 +68,11 @@ run_kcov() {
   # Capture stdout+stderr to a log file so we can print it on failure.
   if kcov "$@" >"$log_file" 2>&1; then
     return 0
+  else
+    # IMPORTANT: capture the kcov exit status here. The exit status of an `if`
+    # compound command without an else branch can be 0, which would mask failure.
+    local rc=$?
   fi
-
-  rc=$?
   echo "kcov step failed: $label (exit=$rc)" >&2
   echo "--- $log_file (last 200 lines) ---" >&2
   tail -n 200 "$log_file" >&2 || true
