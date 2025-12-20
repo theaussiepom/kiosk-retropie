@@ -41,7 +41,27 @@ teardown() {
 	export RETRO_HA_ALLOW_NON_ROOT=0
 	export RETRO_HA_DRY_RUN=1
 
-	run bash "$BATS_TEST_DIRNAME/../scripts/retropie/configure-retropie-storage.sh"
+	# This assertion is about the script's privilege check. Run the script under a
+	# non-root UID even if the test suite itself is running as root (e.g. inside a
+	# container).
+	local script_src="$BATS_TEST_DIRNAME/../scripts/retropie/configure-retropie-storage.sh"
+	local public_root
+	public_root="$(mktemp -d)"
+	chmod 755 "$public_root"
+	local script_copy_dir="$public_root/scripts/retropie"
+	mkdir -p "$script_copy_dir" "$public_root/scripts/lib"
+	cp "$script_src" "$script_copy_dir/configure-retropie-storage.sh"
+	cp "$BATS_TEST_DIRNAME/../scripts/lib/common.sh" "$public_root/scripts/lib/common.sh"
+	cp "$BATS_TEST_DIRNAME/../scripts/lib/logging.sh" "$public_root/scripts/lib/logging.sh"
+	chmod -R a+rX "$public_root"
+
+	if [[ "${EUID:-$(id -u)}" -eq 0 ]] && command -v runuser >/dev/null 2>&1; then
+		run runuser -u nobody -- bash "$script_copy_dir/configure-retropie-storage.sh"
+	elif [[ "${EUID:-$(id -u)}" -eq 0 ]] && command -v su >/dev/null 2>&1; then
+		run su -s /bin/bash nobody -c "bash '$script_copy_dir/configure-retropie-storage.sh'"
+	else
+		run bash "$script_copy_dir/configure-retropie-storage.sh"
+	fi
 	assert_failure
 	assert_output --partial "Must run as root"
 }
