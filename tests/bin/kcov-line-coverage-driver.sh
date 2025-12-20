@@ -118,6 +118,56 @@ exit 0
 EOF
 chmod +x "$stub_bin/git"
 
+cat >"$stub_bin/id" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Minimal id stub for driver coverage.
+# - KCOV_RETROPI_EXISTS=1 makes: id -u retropi succeed.
+if [[ "${1:-}" == "-u" && "${2:-}" == "retropi" ]]; then
+  if [[ "${KCOV_RETROPI_EXISTS:-0}" == "1" ]]; then
+    echo "1000"
+    exit 0
+  fi
+  exit 1
+fi
+
+exec /usr/bin/id "$@"
+EOF
+chmod +x "$stub_bin/id"
+
+cat >"$stub_bin/apt-get" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+# No-op apt-get for install.sh non-dry-run coverage.
+exit 0
+EOF
+chmod +x "$stub_bin/apt-get"
+
+cat >"$stub_bin/useradd" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+exit 0
+EOF
+chmod +x "$stub_bin/useradd"
+
+cat >"$stub_bin/usermod" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+exit 0
+EOF
+chmod +x "$stub_bin/usermod"
+
+cat >"$stub_bin/systemctl" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Minimal systemctl stub.
+exit 0
+EOF
+chmod +x "$stub_bin/systemctl"
+
 cat >"$stub_bin/mountpoint" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -697,7 +747,7 @@ retropie_lib_link="$ROOT_DIR/scripts/retropie/lib"
 if [[ ! -e "$retropie_lib_link" ]]; then
   ln -s ../lib "$retropie_lib_link" 2>/dev/null || true
 fi
-KCOV_GETENT_HOME="$home" run_allow_fail env RETRO_HA_ALLOW_NON_ROOT=1 RETRO_HA_DRY_RUN=1 bash "$ROOT_DIR/scripts/retropie/install-retropie.sh"
+KCOV_GETENT_HOME="$home" PATH="$stub_bin:/usr/bin:/bin" run_allow_fail env RETRO_HA_ALLOW_NON_ROOT=1 RETRO_HA_DRY_RUN=1 KCOV_RETROPI_EXISTS=1 bash "$ROOT_DIR/scripts/retropie/install-retropie.sh"
 rm -f "$retropie_lib_link" 2>/dev/null || true
 
 home="$work_dir/home/retropi"
@@ -729,7 +779,7 @@ KCOV_GETENT_HOME="$home" run_allow_fail env RETRO_HA_ALLOW_NON_ROOT=1 RETRO_HA_D
 mkdir -p "$setup_dir/.git"
 printf '%s\n' '#!/usr/bin/env bash' 'exit 0' >"$setup_dir/retropie_packages.sh"
 chmod +x "$setup_dir/retropie_packages.sh"
-KCOV_GETENT_HOME="$home" run_allow_fail env RETRO_HA_ALLOW_NON_ROOT=1 RETRO_HA_DRY_RUN=0 RETRO_HA_RETROPIE_SETUP_DIR="$setup_dir" bash "$ROOT_DIR/scripts/retropie/install-retropie.sh"
+KCOV_GETENT_HOME="$home" PATH="$stub_bin:/usr/bin:/bin" run_allow_fail env RETRO_HA_ALLOW_NON_ROOT=1 RETRO_HA_DRY_RUN=0 KCOV_RETROPI_EXISTS=1 RETRO_HA_RETROPIE_SETUP_DIR="$setup_dir" bash "$ROOT_DIR/scripts/retropie/install-retropie.sh"
 
 # retropie/configure-retropie-storage.sh: require_root fail + getent missing + guardrails + retroarch missing/present + ensure_kv_line dry-run and non-dry-run.
 run_allow_fail env RETRO_HA_ALLOW_NON_ROOT=0 RETRO_HA_DRY_RUN=1 bash "$ROOT_DIR/scripts/retropie/configure-retropie-storage.sh"
@@ -739,7 +789,7 @@ retropie_lib_link="$ROOT_DIR/scripts/retropie/lib"
 if [[ ! -e "$retropie_lib_link" ]]; then
   ln -s ../lib "$retropie_lib_link" 2>/dev/null || true
 fi
-KCOV_GETENT_HOME="$home" run_allow_fail env RETRO_HA_ALLOW_NON_ROOT=1 RETRO_HA_DRY_RUN=1 bash "$ROOT_DIR/scripts/retropie/configure-retropie-storage.sh"
+KCOV_GETENT_HOME="$home" PATH="$stub_bin:/usr/bin:/bin" run_allow_fail env RETRO_HA_ALLOW_NON_ROOT=1 RETRO_HA_DRY_RUN=1 KCOV_RETROPI_EXISTS=1 bash "$ROOT_DIR/scripts/retropie/configure-retropie-storage.sh"
 rm -f "$retropie_lib_link" 2>/dev/null || true
 
 KCOV_GETENT_HOME="" run_allow_fail env RETRO_HA_ALLOW_NON_ROOT=1 RETRO_HA_DRY_RUN=1 bash "$ROOT_DIR/scripts/retropie/configure-retropie-storage.sh"
@@ -754,7 +804,7 @@ KCOV_GETENT_HOME="$home" run_allow_fail env RETRO_HA_ALLOW_NON_ROOT=1 RETRO_HA_D
 
 mkdir -p "${retro_cfg%/*}"
 printf '%s\n' 'savefile_directory = "old"' >"$retro_cfg"
-KCOV_GETENT_HOME="$home" run_allow_fail env RETRO_HA_ALLOW_NON_ROOT=1 RETRO_HA_DRY_RUN=0 RETRO_HA_NFS_MOUNT_POINT="$nfs_mp" bash "$ROOT_DIR/scripts/retropie/configure-retropie-storage.sh"
+KCOV_GETENT_HOME="$home" PATH="$stub_bin:/usr/bin:/bin" run_allow_fail env RETRO_HA_ALLOW_NON_ROOT=1 RETRO_HA_DRY_RUN=0 KCOV_RETROPI_EXISTS=1 RETRO_HA_NFS_MOUNT_POINT="$nfs_mp" bash "$ROOT_DIR/scripts/retropie/configure-retropie-storage.sh"
 
 # Dry-run kv writes while RetroArch config exists.
 KCOV_GETENT_HOME="$home" run_allow_fail env RETRO_HA_ALLOW_NON_ROOT=1 RETRO_HA_DRY_RUN=1 RETRO_HA_NFS_MOUNT_POINT="$nfs_mp" bash "$ROOT_DIR/scripts/retropie/configure-retropie-storage.sh"
@@ -792,7 +842,7 @@ rm -rf "$checkout_dir/.git"
   RETRO_HA_CHECKOUT_DIR="$checkout_dir" \
     RETRO_HA_REPO_URL=https://example.invalid/repo.git \
     RETRO_HA_REPO_REF=main \
-    bash "$ROOT_DIR/scripts/bootstrap.sh" >/dev/null
+    PATH="$stub_bin:/usr/bin:/bin" KCOV_GETENT_HOSTS_OK=1 KCOV_CURL_OK=1 bash "$ROOT_DIR/scripts/bootstrap.sh" >/dev/null
 ) || true
 
 # Already cloned path
@@ -802,7 +852,7 @@ mkdir -p "$checkout_dir/.git"
   RETRO_HA_CHECKOUT_DIR="$checkout_dir" \
     RETRO_HA_REPO_URL=https://example.invalid/repo.git \
     RETRO_HA_REPO_REF=main \
-    bash "$ROOT_DIR/scripts/bootstrap.sh" >/dev/null
+    PATH="$stub_bin:/usr/bin:/bin" KCOV_GETENT_HOSTS_OK=1 KCOV_CURL_OK=1 bash "$ROOT_DIR/scripts/bootstrap.sh" >/dev/null
 ) || true
 
 # Missing installer branch
@@ -811,7 +861,7 @@ mkdir -p "$checkout_dir/.git"
   RETRO_HA_CHECKOUT_DIR="$RETRO_HA_ROOT/opt/missing-installer" \
     RETRO_HA_REPO_URL=https://example.invalid/repo.git \
     RETRO_HA_REPO_REF=main \
-    bash "$ROOT_DIR/scripts/bootstrap.sh" >/dev/null
+    PATH="$stub_bin:/usr/bin:/bin" KCOV_GETENT_HOSTS_OK=1 KCOV_CURL_OK=1 bash "$ROOT_DIR/scripts/bootstrap.sh" >/dev/null
 ) || true
 
 # Cover bootstrap's "$SCRIPT_DIR/../lib" selection by temporarily providing a repo-root lib/.
@@ -848,7 +898,7 @@ run_allow_fail env RETRO_HA_DRY_RUN=0 KCOV_GETENT_HOSTS_OK=1 KCOV_CURL_OK=0 RETR
     RETRO_HA_REPO_URL=https://example.invalid/repo.git \
     RETRO_HA_REPO_REF=main \
     RETRO_HA_CHECKOUT_DIR="$checkout_exec" \
-    bash "$ROOT_DIR/scripts/bootstrap.sh" >/dev/null 2>&1
+    PATH="$stub_bin:/usr/bin:/bin" bash "$ROOT_DIR/scripts/bootstrap.sh" >/dev/null 2>&1
 ) || true
 
 # Sourced bootstrap should not run main.
@@ -890,21 +940,21 @@ rm -f "$RETRO_HA_INSTALLED_MARKER"
 # Full-ish dry-run with different apt-cache outcomes and user present/missing.
 (
   KCOV_RETROPI_EXISTS=1 KCOV_APT_CACHE_MODE=browser KCOV_FLOCK_MODE=ok \
-    "$ROOT_DIR/scripts/install.sh" >/dev/null
+    PATH="$stub_bin:/usr/bin:/bin" bash "$ROOT_DIR/scripts/install.sh" >/dev/null
 )
 (
   KCOV_RETROPI_EXISTS=0 KCOV_APT_CACHE_MODE=chromium KCOV_FLOCK_MODE=ok \
-    "$ROOT_DIR/scripts/install.sh" >/dev/null
+    PATH="$stub_bin:/usr/bin:/bin" bash "$ROOT_DIR/scripts/install.sh" >/dev/null
 )
 (
   KCOV_RETROPI_EXISTS=0 KCOV_APT_CACHE_MODE=none KCOV_FLOCK_MODE=ok \
     RETRO_HA_INSTALL_RETROPIE=1 \
-    "$ROOT_DIR/scripts/install.sh" >/dev/null
+    PATH="$stub_bin:/usr/bin:/bin" bash "$ROOT_DIR/scripts/install.sh" >/dev/null
 )
 
 # Require-root failure branch.
 (
   set +e
   RETRO_HA_ALLOW_NON_ROOT=0 KCOV_RETROPI_EXISTS=1 KCOV_APT_CACHE_MODE=none KCOV_FLOCK_MODE=ok \
-    "$ROOT_DIR/scripts/install.sh" >/dev/null
+    PATH="$stub_bin:/usr/bin:/bin" bash "$ROOT_DIR/scripts/install.sh" >/dev/null
 ) || true
