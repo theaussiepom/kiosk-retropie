@@ -537,6 +537,24 @@ mv "$stub_bin/rsync.__kcov_hidden" "$stub_bin/rsync"
 mkdir -p "$RETRO_HA_ROOT/var/lib/retro-ha/retropie/saves" "$RETRO_HA_ROOT/var/lib/retro-ha/retropie/states"
 run_allow_fail env RETRO_HA_SAVE_BACKUP_ENABLED=1 RETRO_HA_SAVE_BACKUP_DIR="$backup_root" RETRO_HA_SAVE_BACKUP_DELETE=1 KCOV_SYSTEMCTL_ACTIVE_UNITS="" KCOV_MOUNTPOINTS_MOUNTED=":${backup_root}:" bash "$ROOT_DIR/scripts/nfs/save-backup.sh"
 
+# save-backup.sh: cover defensive unknown-label branch (case *) which continues.
+(
+  set -euo pipefail
+  export RETRO_HA_SAVE_BACKUP_ENABLED=1
+  export RETRO_HA_SAVE_BACKUP_DIR="$backup_root"
+  export KCOV_SYSTEMCTL_ACTIVE_UNITS=""
+  export KCOV_MOUNTPOINTS_MOUNTED=":${backup_root}:"
+  export RETRO_HA_DRY_RUN=1
+
+  source "$ROOT_DIR/scripts/nfs/save-backup.sh"
+
+  save_backup_plan() {
+    printf 'unknown\t%s\t%s\n' "$RETRO_HA_ROOT/does-not-matter" "$RETRO_HA_ROOT/does-not-matter"
+  }
+
+  main
+) || true
+
 # sync-roms.sh: rsync missing / not mounted / src missing / allowlist+missing system / excluded / discover + delete.
 mp_src="$mp_roms"
 src_subdir="roms"

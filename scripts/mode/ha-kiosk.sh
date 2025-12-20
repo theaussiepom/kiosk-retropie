@@ -74,9 +74,8 @@ main() {
   if [[ "${RETRO_HA_DRY_RUN:-0}" == "1" ]]; then
     record_call "write_file $xinitrc"
   else
-    {
-      retro_ha_xinitrc_prelude
-      cat << EOF
+    retro_ha_xinitrc_prelude > "$xinitrc"
+    cat << EOF >> "$xinitrc"
 
 exec "$chromium" \
   --kiosk \
@@ -88,7 +87,6 @@ exec "$chromium" \
   --user-data-dir="$profile_dir" \
   "$HA_URL"
 EOF
-    } > "$xinitrc"
   fi
 
   run_cmd chmod 0755 "$xinitrc"
