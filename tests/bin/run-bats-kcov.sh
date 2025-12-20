@@ -194,6 +194,63 @@ run_kcov() {
   exit "$rc"
 }
 
+run_kcov_merge() {
+  local label="$1"
+  local out="$2"
+  shift 2
+
+  local log_file="$out_dir/${label}.log"
+  local strace_file="$out_dir/${label}.strace"
+  local timeout_bin=""
+  local timeout_seconds="${KCOV_TIMEOUT_SECONDS:-600}"
+
+  local -a kcov_cmd=(kcov --merge "$out" "$@")
+
+  echo "kcov step: $label" >&2
+  echo "+ ${kcov_cmd[*]}" >&2
+
+  if command -v timeout >/dev/null 2>&1; then
+    timeout_bin="timeout"
+  fi
+
+  local rc=0
+  if [[ -n "$timeout_bin" ]]; then
+    if "$timeout_bin" --foreground -k 10s "${timeout_seconds}s" "${kcov_cmd[@]}" >"$log_file" 2>&1; then
+      return 0
+    fi
+    rc=$?
+  else
+    if "${kcov_cmd[@]}" >"$log_file" 2>&1; then
+      return 0
+    fi
+    rc=$?
+  fi
+
+  if [[ "$rc" -eq 124 ]]; then
+    echo "kcov step timed out after ${timeout_seconds}s: $label" >&2
+  fi
+
+  if [[ ! -s "$log_file" ]] || [[ "$(wc -c <"$log_file" 2>/dev/null || echo 0)" -lt 200 ]]; then
+    if command -v strace >/dev/null 2>&1; then
+      echo "kcov produced little/no output; capturing strace to $strace_file" >&2
+      if [[ -n "$timeout_bin" ]]; then
+        "$timeout_bin" --foreground -k 5s 60s strace -f -qq -s 200 -o "$strace_file" -e trace=process,execve,file,write -e write=2 "${kcov_cmd[@]}" >/dev/null 2>&1 || true
+      else
+        strace -f -qq -s 200 -o "$strace_file" -e trace=process,execve,file,write -e write=2 "${kcov_cmd[@]}" >/dev/null 2>&1 || true
+      fi
+    fi
+  fi
+
+  echo "kcov step failed: $label (exit=$rc)" >&2
+  echo "--- $log_file (last 200 lines) ---" >&2
+  tail -n 200 "$log_file" >&2 || true
+  if [[ -f "$strace_file" ]]; then
+    echo "--- $strace_file (execve failures) ---" >&2
+    grep -E 'execve\(.*\) = -1 ' "$strace_file" | tail -n 50 >&2 || true
+  fi
+  exit "$rc"
+}
+
 
 # kcov bash coverage can behave differently depending on whether the traced
 # process exec()s into bats. To keep the original behavior (which already
@@ -204,4 +261,4 @@ run_kcov "bats" "$out_dir/bats" "$ROOT_DIR/tests/bin/run-bats.sh" "$@"
 run_kcov "driver" "$out_dir/driver" "$ROOT_DIR/tests/bin/kcov-line-coverage-driver.sh"
 
 # Merge into a stable location consumed by assert-kcov-100.sh.
-run_kcov "merge" "$out_dir/kcov-merged" "--merge" "$out_dir/bats" "$out_dir/driver"
+run_kcov_merge "merge" "$out_dir/kcov-merged" "$out_dir/bats" "$out_dir/driver"
