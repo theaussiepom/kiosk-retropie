@@ -48,13 +48,35 @@ common_args+=(
   --exclude-pattern="$ROOT_DIR/tests,$ROOT_DIR/tests/vendor"
 )
 
+run_kcov() {
+  local label="$1"
+  shift
+
+  local log_file="$out_dir/${label}.log"
+
+  echo "kcov step: $label" >&2
+  echo "+ kcov $*" >&2
+
+  # Capture stdout+stderr to a log file so we can print it on failure.
+  if kcov "$@" >"$log_file" 2>&1; then
+    return 0
+  fi
+
+  rc=$?
+  echo "kcov step failed: $label (exit=$rc)" >&2
+  echo "--- $log_file (last 200 lines) ---" >&2
+  tail -n 200 "$log_file" >&2 || true
+  exit "$rc"
+}
+
+
 # kcov bash coverage can behave differently depending on whether the traced
 # process exec()s into bats. To keep the original behavior (which already
 # captured coverage from the Bats suite), run Bats under kcov as its own run.
-kcov "${common_args[@]}" "$out_dir/bats" "$ROOT_DIR/tests/bin/run-bats.sh" "$@"
+run_kcov "bats" "${common_args[@]}" "$out_dir/bats" "$ROOT_DIR/tests/bin/run-bats.sh" "$@"
 
 # Run additional “line coverage” driver paths under kcov.
-kcov "${common_args[@]}" "$out_dir/driver" "$ROOT_DIR/tests/bin/kcov-line-coverage-driver.sh"
+run_kcov "driver" "${common_args[@]}" "$out_dir/driver" "$ROOT_DIR/tests/bin/kcov-line-coverage-driver.sh"
 
 # Merge into a stable location consumed by assert-kcov-100.sh.
-kcov --merge "$out_dir/kcov-merged" "$out_dir/bats" "$out_dir/driver" >/dev/null
+run_kcov "merge" --merge "$out_dir/kcov-merged" "$out_dir/bats" "$out_dir/driver"
