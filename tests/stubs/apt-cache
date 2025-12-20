@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+calls_file="${RETRO_HA_CALLS_FILE:-/dev/null}"
+printf 'apt-cache %q\n' "$*" >>"$calls_file" || true
+
+# Minimal stub for: apt-cache show <pkg>
+if [[ "${1:-}" != "show" ]]; then
+  exit 1
+fi
+
+pkg="${2:-}"
+case "$pkg" in
+  chromium-browser)
+    if [[ "${APT_CACHE_HAS_CHROMIUM_BROWSER:-0}" == "1" ]]; then
+      echo "Package: chromium-browser"
+      exit 0
+    fi
+    exit 1
+    ;;
+  chromium)
+    if [[ "${APT_CACHE_HAS_CHROMIUM:-0}" == "1" ]]; then
+      echo "Package: chromium"
+      exit 0
+    fi
+    exit 1
+    ;;
+  *)
+    exit 1
+    ;;
+esac

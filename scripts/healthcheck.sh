@@ -22,6 +22,29 @@ is_active() {
   systemctl is-active --quiet "$1"
 }
 
+healthcheck_enter_retro_path() {
+  # Determine which enter-retro-mode.sh to run.
+  # Optional arg: script_dir override (defaults to this script's directory).
+  local script_dir="${1:-$SCRIPT_DIR}"
+
+  local enter
+  if [[ -n "${RETRO_HA_LIBDIR:-}" && -x "$RETRO_HA_LIBDIR/enter-retro-mode.sh" ]]; then
+    cover_path "healthcheck:enter-retro-libdir"
+    enter="$RETRO_HA_LIBDIR/enter-retro-mode.sh"
+  elif [[ -x "$script_dir/enter-retro-mode.sh" ]]; then
+    cover_path "healthcheck:enter-retro-scriptdir"
+    enter="$script_dir/enter-retro-mode.sh"
+  elif [[ -x "$script_dir/mode/enter-retro-mode.sh" ]]; then
+    cover_path "healthcheck:enter-retro-scriptdir-mode"
+    enter="$script_dir/mode/enter-retro-mode.sh"
+  else
+    cover_path "healthcheck:enter-retro-fallback"
+    enter="$(retro_ha_path /usr/local/lib/retro-ha)/enter-retro-mode.sh"
+  fi
+
+  printf '%s\n' "$enter"
+}
+
 main() {
   export RETRO_HA_LOG_PREFIX="healthcheck"
 
@@ -38,19 +61,11 @@ main() {
 
   log "No active mode detected; failing over to Retro mode"
   local enter
-  if [[ -n "${RETRO_HA_LIBDIR:-}" && -x "$RETRO_HA_LIBDIR/enter-retro-mode.sh" ]]; then
-    enter="$RETRO_HA_LIBDIR/enter-retro-mode.sh"
-  elif [[ -x "$SCRIPT_DIR/enter-retro-mode.sh" ]]; then
-    enter="$SCRIPT_DIR/enter-retro-mode.sh"
-  elif [[ -x "$SCRIPT_DIR/mode/enter-retro-mode.sh" ]]; then
-    enter="$SCRIPT_DIR/mode/enter-retro-mode.sh"
-  else
-    enter="$(retro_ha_path /usr/local/lib/retro-ha)/enter-retro-mode.sh"
-  fi
+  enter="$(healthcheck_enter_retro_path "$SCRIPT_DIR")"
 
   run_cmd "$enter" || true
 }
 
-if ! retro_ha_is_sourced; then
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
   main "$@"
 fi

@@ -14,6 +14,24 @@ def log(msg: str) -> None:
 	print(f"controller_listener_ha_mode: {msg}", flush=True)
 
 
+def cover_path(path_id: str) -> None:
+	if os.environ.get("RETRO_HA_PATH_COVERAGE", "0") != "1":
+		return
+	# Prefer suite-wide append file when present.
+	path_file = os.environ.get("RETRO_HA_CALLS_FILE_APPEND") or os.environ.get("RETRO_HA_CALLS_FILE")
+	if not path_file:
+		return
+	try:
+		os.makedirs(os.path.dirname(path_file), exist_ok=True)
+	except Exception:
+		pass
+	try:
+		with open(path_file, "a", encoding="utf-8") as f:
+			f.write(f"PATH {path_id}\n")
+	except Exception:
+		pass
+
+
 def systemctl(*args: str) -> int:
 	return subprocess.call(["systemctl", *args])
 
@@ -51,6 +69,7 @@ def main() -> int:
 
 	# Safety: only run behavior if HA kiosk is up.
 	if not is_active("ha-kiosk.service"):
+		cover_path("controller-ha:ha-not-active")
 		log("ha-kiosk.service not active; exiting")
 		return 0
 
@@ -63,13 +82,16 @@ def main() -> int:
 		try:
 			fd = os.open(dev, os.O_RDONLY | os.O_NONBLOCK)
 		except OSError as e:
+			cover_path("controller-ha:device-open-failed")
 			log(f"Unable to open {dev}: {e}")
 			continue
 		sel.register(fd, selectors.EVENT_READ, data=dev)
+		cover_path("controller-ha:listening")
 		log(f"Listening on {dev}")
 		opened = True
 
 	if not opened:
+		cover_path("controller-ha:no-devices")
 		log("No controller devices found")
 		return 1
 
@@ -102,6 +124,7 @@ def main() -> int:
 						continue
 
 					log("Start pressed -> switching to RetroPie mode")
+					cover_path("controller-ha:trigger-start-retro")
 					systemctl("start", "retro-mode.service")
 					triggers += 1
 					if max_triggers and triggers >= max_triggers:

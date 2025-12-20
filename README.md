@@ -150,6 +150,11 @@ Controller listeners prefer evdev devices under `/dev/input/by-id`.
 - `RETRO_HA_START_BUTTON_CODE` (optional, default: `315`)
 - `RETRO_HA_START_DEBOUNCE_SEC` (optional, default: `1.0`)
 
+Safety / loop limits:
+
+- `RETRO_HA_MAX_TRIGGERS` (optional; max "start" events before exiting)
+- `RETRO_HA_MAX_LOOPS` (optional; max poll loops before exiting)
+
 ### LED MQTT bridge (optional)
 
 - `RETRO_HA_LED_MQTT_ENABLED` (default: `0`; set to `1` to enable)
@@ -556,8 +561,17 @@ command -v mosquitto_pub || true
 Recommended targets:
 
 - `make lint` (shell, yaml, systemd, markdown)
-- `./tests/bin/run-bats.sh`
+- `make test` (runs unit + integration and prints a path coverage summary)
+- `make test-unit` (fast; runs on every commit)
+- `make test-integration` (slower; run after unit passes)
+- `./tests/bin/run-bats.sh` (everything)
+- `make path-coverage` (re-run tests and print derived required/uncovered counts)
 - `make coverage` (Linux/devcontainer recommended)
+
+Notes:
+
+- Path coverage is enforced by tests via explicit `PATH <id>` markers and `tests/coverage/required-paths.txt`.
+- `RETRO_HA_PATH_COVERAGE` is intended for tests/CI only (it should not be set in production services).
 
 Devcontainer:
 

@@ -4,5 +4,12 @@ set -euo pipefail
 calls_file="${RETRO_HA_CALLS_FILE:-/dev/null}"
 printf 'flock %q\n' "$*" >>"$calls_file" || true
 
-# Always succeed in unit tests.
-exit 0
+if [[ -n "${RETRO_HA_STUB_FLOCK_TOUCH_MARKER:-}" ]]; then
+	marker_path="${RETRO_HA_INSTALLED_MARKER:-}"
+	if [[ -n "$marker_path" ]]; then
+		mkdir -p "${marker_path%/*}" || true
+		: >"$marker_path" || true
+	fi
+fi
+
+exit "${RETRO_HA_STUB_FLOCK_EXIT_CODE:-0}"

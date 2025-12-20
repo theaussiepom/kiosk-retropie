@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
   pull_request:
   push:
-    branches: [main]
+    branches: ["**"]
 
 permissions:
   contents: read
@@ -72,7 +72,20 @@ jobs:
 
   tests:
     name: tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run all tests (show Bats output)
+        shell: bash
+        run: |
+          set -euo pipefail
+          make test
+
+  coverage:
+    name: coverage (kcov)
     runs-on: ubuntu-22.04
+    needs: [tests]
     steps:
       - uses: actions/checkout@v4
 
@@ -84,12 +97,6 @@ jobs:
           sudo add-apt-repository -y universe
           sudo apt-get update
           sudo apt-get install -y kcov strace
-
-      - name: Run tests (show Bats output)
-        shell: bash
-        run: |
-          set -euo pipefail
-          "$GITHUB_WORKSPACE/tests/bin/run-bats.sh"
 
       - name: Run tests under kcov
         timeout-minutes: 15

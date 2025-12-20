@@ -1,20 +1,24 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Ensure a sane PATH even if the calling shell mutated it.
-export PATH="/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
-
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
 
-"$ROOT_DIR/tests/bin/fetch-bats.sh" >/dev/null
+# This is the "run everything" entrypoint used by `make test`.
+# It intentionally preserves the split between unit and integration suites:
+# - unit suite enforces only lib-* path IDs
+# - integration suite enforces all non-lib path IDs
 
-export BATS_LIB_PATH="$ROOT_DIR/tests/vendor"
+# Disallow selecting individual files here; use the suite runners for that.
+for arg in "$@"; do
+  if [[ "$arg" == *.bats ]]; then
+    echo "run-bats.sh does not accept explicit .bats files." >&2
+    echo "Use: $ROOT_DIR/tests/bin/run-bats-unit.sh <file.bats> or run-bats-integration.sh <file.bats>" >&2
+    exit 2
+  fi
+done
 
-# Stable path-coverage log shared across Bats invocations.
-PATHS_LOG="${RETRO_HA_PATHS_FILE:-$ROOT_DIR/tests/.tmp/retro-ha-paths.log}"
-mkdir -p "$(dirname "$PATHS_LOG")"
-rm -f "$PATHS_LOG"
-export RETRO_HA_PATHS_FILE="$PATHS_LOG"
+"$ROOT_DIR/tests/bin/run-bats-unit.sh" "$@"
+"$ROOT_DIR/tests/bin/run-bats-integration.sh" "$@"
 
-test_files=("$ROOT_DIR/tests"/*.bats)
-exec "$ROOT_DIR/tests/vendor/bats-core/bin/bats" "${test_files[@]}" "$@"
+echo
+"$ROOT_DIR/tests/bin/recalc-path-coverage.sh" --no-run

@@ -17,6 +17,8 @@ fi
 source "$LIB_DIR/logging.sh"
 # shellcheck source=scripts/lib/common.sh
 source "$LIB_DIR/common.sh"
+# shellcheck source=scripts/lib/backup.sh
+source "$LIB_DIR/backup.sh"
 
 main() {
   export RETRO_HA_LOG_PREFIX="save-backup"
@@ -60,27 +62,42 @@ main() {
   run_cmd chown -R "$user:$user" "$backup_root/$backup_subdir" || true
 
   local -a args
-  args=(-a --info=stats2 --human-readable)
+  local arg
+  while IFS= read -r arg; do
+    [[ -n "$arg" ]] || continue
+    args+=("$arg")
+  done <<< "$(save_backup_rsync_args "$delete")"
+
   if [[ "$delete" == "1" ]]; then
     cover_path "save-backup:delete-enabled"
-    args+=(--delete)
   fi
 
-  if [[ -d "$saves_dir" ]]; then
-    cover_path "save-backup:backup-saves"
-    log "Backing up saves: $saves_dir -> $backup_root/$backup_subdir/saves (delete=$delete)"
-    run_cmd mkdir -p "$backup_root/$backup_subdir/saves"
-    run_cmd rsync "${args[@]}" "$saves_dir/" "$backup_root/$backup_subdir/saves/" || true
-  fi
+  local item
+  while IFS= read -r item; do
+    [[ -n "$item" ]] || continue
 
-  if [[ -d "$states_dir" ]]; then
-    cover_path "save-backup:backup-states"
-    log "Backing up states: $states_dir -> $backup_root/$backup_subdir/states (delete=$delete)"
-    run_cmd mkdir -p "$backup_root/$backup_subdir/states"
-    run_cmd rsync "${args[@]}" "$states_dir/" "$backup_root/$backup_subdir/states/" || true
-  fi
+    local label src dest
+    IFS=$'\t' read -r label src dest <<< "$item"
+
+    case "$label" in
+      saves)
+        cover_path "save-backup:backup-saves"
+        log "Backing up saves: $src -> $dest (delete=$delete)"
+        ;;
+      states)
+        cover_path "save-backup:backup-states"
+        log "Backing up states: $src -> $dest (delete=$delete)"
+        ;;
+      *)
+        continue
+        ;;
+    esac
+
+    run_cmd mkdir -p "$dest"
+    run_cmd rsync "${args[@]}" "$src/" "$dest/" || true
+  done <<< "$(save_backup_plan "$saves_dir" "$states_dir" "$backup_root" "$backup_subdir")"
 }
 
-if ! retro_ha_is_sourced; then
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
   main "$@"
 fi

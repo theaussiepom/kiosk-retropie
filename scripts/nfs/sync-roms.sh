@@ -18,31 +18,8 @@ source "$LIB_DIR/logging.sh"
 # shellcheck source=scripts/lib/common.sh
 source "$LIB_DIR/common.sh"
 
-split_list() {
-  # Split a comma/space separated list into newline-separated tokens.
-  # Usage: split_list "$VAR"
-  local s="${1:-}"
-  if [[ -z "$s" ]]; then
-    return 0
-  fi
-  s="${s//,/ }"
-  # shellcheck disable=SC2086
-  for item in $s; do
-    printf '%s\n' "$item"
-  done
-}
-
-in_list() {
-  local needle="$1"
-  shift
-  local x
-  for x in "$@"; do
-    if [[ "$x" == "$needle" ]]; then
-      return 0
-    fi
-  done
-  return 1
-}
+# shellcheck source=scripts/lib/list.sh
+source "$LIB_DIR/list.sh"
 
 main() {
   export RETRO_HA_LOG_PREFIX="sync-roms"

@@ -24,12 +24,14 @@ main() {
   log "Switching to HA kiosk mode"
 
   # Stop RetroPie mode first to preserve single X ownership.
+  cover_path "enter-ha-mode:stop-retro"
   svc_stop retro-mode.service || true
 
   # Start HA kiosk.
+  cover_path "enter-ha-mode:start-ha"
   svc_start ha-kiosk.service
 }
 
-if ! retro_ha_is_sourced; then
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
   main "$@"
 fi

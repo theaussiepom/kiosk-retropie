@@ -26,29 +26,35 @@ retro_ha_ledctl_path() {
   # Support both:
   # - installed layout: /usr/local/lib/retro-ha/ledctl.sh
   # - repo layout: scripts/leds/ledctl.sh
+  # Optional arg: script_dir override (defaults to this script's directory).
+  local script_dir="${1:-$SCRIPT_DIR}"
   local candidate=""
 
   if [[ -n "${RETRO_HA_LIBDIR:-}" ]]; then
     candidate="$RETRO_HA_LIBDIR/ledctl.sh"
     if [[ -x "$candidate" ]]; then
+      cover_path "enter-retro-mode:ledctl-libdir"
       echo "$candidate"
       return 0
     fi
   fi
 
-  candidate="$SCRIPT_DIR/ledctl.sh"
+  candidate="$script_dir/ledctl.sh"
   if [[ -x "$candidate" ]]; then
+    cover_path "enter-retro-mode:ledctl-scriptdir"
     echo "$candidate"
     return 0
   fi
 
-  candidate="$SCRIPT_DIR/../leds/ledctl.sh"
+  candidate="$script_dir/../leds/ledctl.sh"
   if [[ -x "$candidate" ]]; then
+    cover_path "enter-retro-mode:ledctl-scriptdir-leds"
     echo "$candidate"
     return 0
   fi
 
   # Fallback: installed default.
+  cover_path "enter-retro-mode:ledctl-fallback"
   echo "$(retro_ha_libdir)/ledctl.sh"
 }
 
@@ -62,7 +68,7 @@ main() {
 
   # RetroPie mode should force LEDs on.
   local ledctl
-  ledctl="$(retro_ha_ledctl_path)"
+  ledctl="$(retro_ha_ledctl_path "$SCRIPT_DIR")"
   if [[ -x "$ledctl" ]]; then
     run_cmd "$ledctl" all on || true
   fi
@@ -70,6 +76,6 @@ main() {
   svc_start retro-mode.service
 }
 
-if ! retro_ha_is_sourced; then
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
   main "$@"
 fi

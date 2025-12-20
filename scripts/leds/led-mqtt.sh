@@ -39,18 +39,32 @@ mosq_args() {
   local args=()
 
   args+=("-h" "${MQTT_HOST}")
+  if [[ -n "${MQTT_PORT:-}" ]]; then
+    cover_path "led-mqtt:mosq-port-explicit"
+  else
+    cover_path "led-mqtt:mosq-port-default"
+  fi
   args+=("-p" "${MQTT_PORT:-1883}")
 
   if [[ -n "${MQTT_USERNAME:-}" ]]; then
+    cover_path "led-mqtt:mosq-username"
     args+=("-u" "${MQTT_USERNAME}")
+  else
+    cover_path "led-mqtt:mosq-no-username"
   fi
   if [[ -n "${MQTT_PASSWORD:-}" ]]; then
+    cover_path "led-mqtt:mosq-password"
     args+=("-P" "${MQTT_PASSWORD}")
+  else
+    cover_path "led-mqtt:mosq-no-password"
   fi
 
   # Optional TLS (keep minimal; assume system CA store).
   if [[ "${MQTT_TLS:-0}" == "1" ]]; then
+    cover_path "led-mqtt:mosq-tls-on"
     args+=("--tls-version" "tlsv1.2")
+  else
+    cover_path "led-mqtt:mosq-tls-off"
   fi
 
   printf '%s\n' "${args[@]}"
@@ -85,15 +99,23 @@ handle_set() {
 
   local state
   case "$payload" in
-    ON) state="on" ;;
-    OFF) state="off" ;;
+    ON)
+      cover_path "led-mqtt:payload-on"
+      state="on"
+      ;;
+    OFF)
+      cover_path "led-mqtt:payload-off"
+      state="off"
+      ;;
     *)
+      cover_path "led-mqtt:payload-invalid"
       log "Ignoring payload '$payload_raw' for target '$target'"
       return 0
       ;;
   esac
 
   if [[ ! -x "$LEDCTL_PATH" ]]; then
+    cover_path "led-mqtt:ledctl-missing"
     die "LED control script missing or not executable: $LEDCTL_PATH"
   fi
 
@@ -102,9 +124,11 @@ handle_set() {
   # Publish retained state for HA UI.
   case "$target" in
     act | pwr)
+      cover_path "led-mqtt:target-single"
       publish_state "$target" "$payload" "$prefix"
       ;;
     all)
+      cover_path "led-mqtt:target-all"
       publish_state "act" "$payload" "$prefix" || true
       publish_state "pwr" "$payload" "$prefix" || true
       ;;
@@ -151,6 +175,7 @@ main() {
         handle_set "$target" "$payload" "$prefix" || true
         ;;
       *)
+        cover_path "led-mqtt:unknown-target"
         log "Ignoring unknown target '$target' (topic: $topic)"
         ;;
     esac

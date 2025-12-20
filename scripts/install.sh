@@ -25,18 +25,25 @@ die() {
 
 require_root() {
   if [[ "${RETRO_HA_ALLOW_NON_ROOT:-0}" == "1" ]]; then
+    cover_path "install:allow-non-root"
     return 0
   fi
-  if [[ "${EUID:-$(id -u)}" -ne 0 ]]; then
+  local effective_uid="${RETRO_HA_EUID_OVERRIDE:-${EUID:-$(id -u)}}"
+  if [[ "$effective_uid" -ne 0 ]]; then
+    cover_path "install:root-required"
     die "Must run as root"
   fi
+  cover_path "install:root-ok"
 }
 
 ensure_user() {
   local user="retropi"
   if id -u "$user" > /dev/null 2>&1; then
+    cover_path "install:user-exists"
     return 0
   fi
+
+  cover_path "install:user-created"
 
   # Create a dedicated kiosk user.
   run_cmd useradd -m -s /bin/bash "$user"
@@ -66,10 +73,13 @@ install_packages() {
 
   # Chromium package name varies by release.
   if apt-cache show chromium-browser > /dev/null 2>&1; then
+    cover_path "install:chromium-browser-pkg"
     run_cmd apt-get install -y --no-install-recommends chromium-browser
   elif apt-cache show chromium > /dev/null 2>&1; then
+    cover_path "install:chromium-pkg"
     run_cmd apt-get install -y --no-install-recommends chromium
   else
+    cover_path "install:chromium-none"
     log "Chromium package not found via apt-cache (skipping for now)"
   fi
 }
@@ -101,6 +111,15 @@ install_files() {
     run_cmd install -m 0755 "$repo_root/scripts/lib/common.sh" "$lib_dir/lib/common.sh"
     run_cmd install -m 0755 "$repo_root/scripts/lib/config.sh" "$lib_dir/lib/config.sh"
     run_cmd install -m 0755 "$repo_root/scripts/lib/logging.sh" "$lib_dir/lib/logging.sh"
+    if [[ -f "$repo_root/scripts/lib/path.sh" ]]; then
+      run_cmd install -m 0755 "$repo_root/scripts/lib/path.sh" "$lib_dir/lib/path.sh"
+    fi
+    if [[ -f "$repo_root/scripts/lib/x11.sh" ]]; then
+      run_cmd install -m 0755 "$repo_root/scripts/lib/x11.sh" "$lib_dir/lib/x11.sh"
+    fi
+    if [[ -f "$repo_root/scripts/lib/backup.sh" ]]; then
+      run_cmd install -m 0755 "$repo_root/scripts/lib/backup.sh" "$lib_dir/lib/backup.sh"
+    fi
   fi
 
   # Install scripts (only those that exist today).
@@ -228,9 +247,11 @@ enable_services() {
 write_marker() {
   run_cmd mkdir -p "$(dirname "$MARKER_FILE")"
   if [[ "${RETRO_HA_DRY_RUN:-0}" == "1" ]]; then
+    cover_path "install:write-marker-dry-run"
     record_call "write_marker $MARKER_FILE"
     return 0
   fi
+  cover_path "install:write-marker-write"
   date -u +%Y-%m-%dT%H:%M:%SZ > "$MARKER_FILE"
 }
 
@@ -240,6 +261,7 @@ main() {
   export RETRO_HA_LOG_PREFIX="retro-ha install"
 
   if [[ -f "$MARKER_FILE" ]]; then
+    cover_path "install:marker-present-early"
     log "Already installed ($MARKER_FILE present)"
     exit 0
   fi
@@ -247,10 +269,13 @@ main() {
   run_cmd mkdir -p "$(dirname "$LOCK_FILE")"
   exec 9> "$LOCK_FILE"
   if ! flock -n 9; then
+    cover_path "install:lock-busy"
     die "Another installer instance is running"
   fi
+  cover_path "install:lock-acquired"
 
   if [[ -f "$MARKER_FILE" ]]; then
+    cover_path "install:marker-after-lock"
     log "Already installed (marker appeared while waiting for lock)"
     exit 0
   fi
@@ -265,8 +290,11 @@ main() {
   install_files
 
   if [[ "${RETRO_HA_INSTALL_RETROPIE:-0}" == "1" ]]; then
+    cover_path "install:optional-retropie-enabled"
     log "Installing RetroPie (optional)"
     run_cmd "${RETRO_HA_LIBDIR:-$(retro_ha_path /usr/local/lib/retro-ha)}/install-retropie.sh" || log "RetroPie install failed (continuing)"
+  else
+    cover_path "install:optional-retropie-disabled"
   fi
 
   log "Configuring RetroPie storage (local saves)"
@@ -281,4 +309,6 @@ main() {
   log "Install complete"
 }
 
-main "$@"
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  main "$@"
+fi

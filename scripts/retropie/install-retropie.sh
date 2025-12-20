@@ -82,4 +82,6 @@ main() {
   log "RetroPie install completed"
 }
 
-main "$@"
+if ! retro_ha_is_sourced; then
+  main "$@"
+fi

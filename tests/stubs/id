@@ -3,6 +3,9 @@ set -euo pipefail
 
 # Minimal id stub for scripts that check for retropi.
 if [[ "${1:-}" == "-u" && "${2:-}" == "retropi" ]]; then
+	if [[ "${ID_RETROPI_EXISTS:-1}" != "1" ]]; then
+		exit 1
+	fi
 	echo 1000
 	exit 0
 fi

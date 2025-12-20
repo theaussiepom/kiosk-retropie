@@ -39,6 +39,7 @@ main() {
   installed_marker="${RETRO_HA_INSTALLED_MARKER:-$(retro_ha_path /var/lib/retro-ha/installed)}"
 
   if [[ -f "$installed_marker" ]]; then
+    cover_path "bootstrap:installed-marker"
     log "Marker present; nothing to do."
     exit 0
   fi
@@ -49,21 +50,32 @@ main() {
   require_cmd git
 
   if ! network_ok; then
+    cover_path "bootstrap:network-not-ready"
     die "Network not ready yet"
   fi
+  cover_path "bootstrap:network-ok"
 
   local repo_url="${RETRO_HA_REPO_URL:-}"
   local repo_ref="${RETRO_HA_REPO_REF:-}"
 
-  [[ -n "$repo_url" ]] || die "RETRO_HA_REPO_URL is required (set in /etc/retro-ha/config.env)"
-  [[ -n "$repo_ref" ]] || die "RETRO_HA_REPO_REF is required (branch/tag/commit)"
+  if [[ -z "$repo_url" ]]; then
+    cover_path "bootstrap:missing-repo-url"
+    die "RETRO_HA_REPO_URL is required (set in /etc/retro-ha/config.env)"
+  fi
+  if [[ -z "$repo_ref" ]]; then
+    cover_path "bootstrap:missing-repo-ref"
+    die "RETRO_HA_REPO_REF is required (branch/tag/commit)"
+  fi
 
   local checkout_dir="${RETRO_HA_CHECKOUT_DIR:-$(retro_ha_path /opt/retro-ha-appliance)}"
 
   if [[ ! -d "$checkout_dir/.git" ]]; then
+    cover_path "bootstrap:clone"
     log "Cloning $repo_url -> $checkout_dir"
     run_cmd rm -rf "$checkout_dir"
     run_cmd git clone --no-checkout "$repo_url" "$checkout_dir"
+  else
+    cover_path "bootstrap:reuse-checkout"
   fi
 
   log "Fetching ref $repo_ref"
@@ -71,18 +83,21 @@ main() {
   run_cmd git -C "$checkout_dir" checkout -f FETCH_HEAD
 
   if [[ ! -x "$checkout_dir/scripts/install.sh" ]]; then
+    cover_path "bootstrap:installer-missing"
     die "Installer not found or not executable: $checkout_dir/scripts/install.sh"
   fi
 
   log "Running installer"
   if [[ "${RETRO_HA_DRY_RUN:-0}" == "1" ]]; then
+    cover_path "bootstrap:installer-dry-run"
     record_call "exec $checkout_dir/scripts/install.sh"
     exit 0
   fi
 
+  cover_path "bootstrap:installer-exec"
   exec "$checkout_dir/scripts/install.sh"
 }
 
-if ! retro_ha_is_sourced; then
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
   main "$@"
 fi

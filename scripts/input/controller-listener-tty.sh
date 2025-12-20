@@ -14,6 +14,23 @@ def log(msg: str) -> None:
 	print(f"controller_listener_tty: {msg}", flush=True)
 
 
+def cover_path(path_id: str) -> None:
+	if os.environ.get("RETRO_HA_PATH_COVERAGE", "0") != "1":
+		return
+	path_file = os.environ.get("RETRO_HA_CALLS_FILE_APPEND") or os.environ.get("RETRO_HA_CALLS_FILE")
+	if not path_file:
+		return
+	try:
+		os.makedirs(os.path.dirname(path_file), exist_ok=True)
+	except Exception:
+		pass
+	try:
+		with open(path_file, "a", encoding="utf-8") as f:
+			f.write(f"PATH {path_id}\n")
+	except Exception:
+		pass
+
+
 def systemctl(*args: str) -> int:
 	return subprocess.call(["systemctl", *args])
 
@@ -61,13 +78,16 @@ def main() -> int:
 		try:
 			fd = os.open(dev, os.O_RDONLY | os.O_NONBLOCK)
 		except OSError as e:
+			cover_path("controller-tty:device-open-failed")
 			log(f"Unable to open {dev}: {e}")
 			continue
 		sel.register(fd, selectors.EVENT_READ, data=dev)
+		cover_path("controller-tty:listening")
 		log(f"Listening on {dev}")
 		opened = True
 
 	if not opened:
+		cover_path("controller-tty:no-devices")
 		log("No controller devices found under /dev/input/by-id/*joystick")
 		return 1
 
@@ -99,7 +119,9 @@ def main() -> int:
 					log("Start pressed -> entering RetroPie mode")
 
 					# Stop HA kiosk first; Conflicts also enforces this.
+					cover_path("controller-tty:trigger-stop-ha")
 					systemctl("stop", "ha-kiosk.service")
+					cover_path("controller-tty:trigger-start-retro")
 					systemctl("start", "retro-mode.service")
 					triggers += 1
 					if max_triggers and triggers >= max_triggers:

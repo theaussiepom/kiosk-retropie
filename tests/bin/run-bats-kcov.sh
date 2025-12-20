@@ -6,9 +6,13 @@ export PATH="/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)"
 
+# Stable repo-root path for tests (avoids depending on $BATS_TEST_DIRNAME-relative paths).
+export RETRO_HA_REPO_ROOT="$ROOT_DIR"
+
 "$ROOT_DIR/tests/bin/fetch-bats.sh" >/dev/null
 
-export BATS_LIB_PATH="$ROOT_DIR/tests/vendor"
+export BATS_LOAD_PATH="$ROOT_DIR/tests:$ROOT_DIR/tests/vendor"
+export BATS_LIB_PATH="$ROOT_DIR/tests/vendor:$ROOT_DIR/tests"
 
 if ! command -v kcov >/dev/null 2>&1; then
   echo "kcov not found on PATH" >&2
@@ -239,7 +243,7 @@ run_kcov_merge() {
 # kcov bash coverage can behave differently depending on whether the traced
 # process exec()s into bats. To keep the original behavior (which already
 # captured coverage from the Bats suite), run Bats under kcov as its own run.
-run_kcov "bats" "$out_dir/bats" "$ROOT_DIR/tests/bin/run-bats.sh" "$@"
+run_kcov "bats" "$out_dir/bats" "$ROOT_DIR/tests/bin/run-bats-integration.sh" "$@"
 
 # Run additional “line coverage” driver paths under kcov.
 run_kcov "driver" "$out_dir/driver" "$ROOT_DIR/tests/bin/kcov-line-coverage-driver.sh"

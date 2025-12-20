@@ -17,6 +17,8 @@ fi
 source "$LIB_DIR/logging.sh"
 # shellcheck source=scripts/lib/common.sh
 source "$LIB_DIR/common.sh"
+# shellcheck source=scripts/lib/path.sh
+source "$LIB_DIR/path.sh"
 
 require_root() {
   if [[ "${RETRO_HA_ALLOW_NON_ROOT:-0}" == "1" ]]; then
@@ -69,20 +71,13 @@ main() {
   local nfs_mount_point="${RETRO_HA_NFS_MOUNT_POINT:-$(retro_ha_path /mnt/retro-ha-roms)}"
 
   # Guardrail: never allow ROMs or saves to live under the NFS mount.
-  local rp
-  rp="$(retro_ha_realpath_m "$nfs_mount_point")"
-  local rr rs rts
-  rr="$(retro_ha_realpath_m "$roms_dir")"
-  rs="$(retro_ha_realpath_m "$saves_dir")"
-  rts="$(retro_ha_realpath_m "$states_dir")"
-
-  if [[ "$rr" == "$rp" || "$rr" == "$rp"/* ]]; then
+  if retro_ha_path_is_under "$nfs_mount_point" "$roms_dir"; then
     die "RETRO_HA_ROMS_DIR must be local (not under $nfs_mount_point): $roms_dir"
   fi
-  if [[ "$rs" == "$rp" || "$rs" == "$rp"/* ]]; then
+  if retro_ha_path_is_under "$nfs_mount_point" "$saves_dir"; then
     die "RETRO_HA_SAVES_DIR must be local (not under $nfs_mount_point): $saves_dir"
   fi
-  if [[ "$rts" == "$rp" || "$rts" == "$rp"/* ]]; then
+  if retro_ha_path_is_under "$nfs_mount_point" "$states_dir"; then
     die "RETRO_HA_STATES_DIR must be local (not under $nfs_mount_point): $states_dir"
   fi
 
@@ -126,4 +121,6 @@ main() {
   log "Storage configured (ROMs=$roms_dir saves=$saves_dir states=$states_dir)"
 }
 
-main "$@"
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+  main "$@"
+fi

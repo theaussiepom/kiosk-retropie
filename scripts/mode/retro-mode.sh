@@ -18,6 +18,8 @@ fi
 source "$LIB_DIR/logging.sh"
 # shellcheck source=scripts/lib/common.sh
 source "$LIB_DIR/common.sh"
+# shellcheck source=scripts/lib/x11.sh
+source "$LIB_DIR/x11.sh"
 
 main() {
   export RETRO_HA_LOG_PREFIX="retro-mode"
@@ -41,30 +43,20 @@ main() {
 
   log "Starting RetroPie (EmulationStation) on vt${vt}, display ${x_display}"
 
-  local runtime_dir="${XDG_RUNTIME_DIR:-$(retro_ha_path "/run/user/$(id -u)")}"
-  local state_dir="${runtime_dir}/retro-ha"
+  local runtime_dir
+  runtime_dir="$(retro_ha_runtime_dir "$(id -u)")"
+  local state_dir
+  state_dir="$(retro_ha_state_dir "$runtime_dir")"
   run_cmd mkdir -p "$state_dir"
 
-  local xinitrc="${state_dir}/retro-xinitrc"
+  local xinitrc
+  xinitrc="$(retro_ha_xinitrc_path "$state_dir" "retro-xinitrc")"
 
   if [[ "${RETRO_HA_DRY_RUN:-0}" == "1" ]]; then
     record_call "write_file $xinitrc"
   else
-    cat > "$xinitrc" << EOF
-#!/usr/bin/env bash
-set -euo pipefail
-
-# Keep display awake.
-if command -v xset >/dev/null 2>&1; then
-  xset s off
-  xset -dpms
-  xset s noblank
-fi
-
-# Optional rotation (xrandr names: normal,left,right,inverted).
-if [[ -n "${RETRO_HA_SCREEN_ROTATION:-}" ]] && command -v xrandr >/dev/null 2>&1; then
-  xrandr -o "${RETRO_HA_SCREEN_ROTATION:-}" || true
-fi
+    retro_ha_xinitrc_prelude > "$xinitrc"
+    cat << 'EOF' >> "$xinitrc"
 
 exec /usr/bin/emulationstation
 EOF
@@ -73,11 +65,14 @@ EOF
   run_cmd chmod 0755 "$xinitrc"
 
   # Ensure we don't inherit a stale X lock/socket.
-  run_cmd rm -f "$(retro_ha_path "/tmp/.X${x_display#:}-lock")" "$(retro_ha_path "/tmp/.X11-unix/X${x_display#:}")" || true
+  local lock1 lock2
+  IFS= read -r lock1 < <(retro_ha_x_lock_paths "$x_display")
+  IFS= read -r lock2 < <(retro_ha_x_lock_paths "$x_display" | tail -n 1)
+  run_cmd rm -f "$lock1" "$lock2" || true
 
   if [[ "${RETRO_HA_DRY_RUN:-0}" == "1" ]]; then
     cover_path "retro-mode:dry-run"
-    record_call "exec xinit $xinitrc -- /usr/lib/xorg/Xorg $x_display vt${vt} -nolisten tcp -keeptty"
+    record_call "$(retro_ha_xinit_exec_record "$xinitrc" "$x_display" "$vt")"
     exit 0
   fi
 
