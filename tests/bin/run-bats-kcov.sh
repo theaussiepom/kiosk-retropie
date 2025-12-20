@@ -94,12 +94,27 @@ run_kcov() {
   local timeout_bin=""
   local timeout_seconds="${KCOV_TIMEOUT_SECONDS:-600}"
 
-  local kcov_cmd=(kcov)
-  if [[ "$kcov_arg_order" == "out_first" ]]; then
-    kcov_cmd+=("$out" "${common_args[@]}" "$cmd" "$@")
-  else
-    kcov_cmd+=("${common_args[@]}" "$out" "$cmd" "$@")
+  build_kcov_cmd() {
+    local order="$1"
+    local -a built=(kcov)
+    if [[ "$order" == "out_first" ]]; then
+      built+=("$out" "${common_args[@]}" "$cmd" "$@")
+    else
+      built+=("${common_args[@]}" "$out" "$cmd" "$@")
+    fi
+    printf '%s\n' "${built[@]}"
+  }
+
+  # Primary cmd based on detected order; keep a fallback to handle distros where
+  # help/usage formatting differs from what we expect.
+  local -a kcov_cmd
+  mapfile -t kcov_cmd < <(build_kcov_cmd "$kcov_arg_order")
+  local alt_order="opts_first"
+  if [[ "$kcov_arg_order" == "opts_first" ]]; then
+    alt_order="out_first"
   fi
+  local -a kcov_cmd_alt
+  mapfile -t kcov_cmd_alt < <(build_kcov_cmd "$alt_order")
 
   echo "kcov step: $label" >&2
   echo "+ ${kcov_cmd[*]}" >&2
@@ -109,19 +124,41 @@ run_kcov() {
   fi
 
   # Capture stdout+stderr to a log file so we can print it on failure.
-  if [[ -n "$timeout_bin" ]]; then
-    if "$timeout_bin" --foreground -k 10s "${timeout_seconds}s" "${kcov_cmd[@]}" >"$log_file" 2>&1; then
-      return 0
-    else
-      # IMPORTANT: capture the kcov/timeout exit status here.
-      local rc=$?
+  run_one() {
+    local -n _cmd_ref=$1
+    local _out_log="$2"
+    if [[ -n "$timeout_bin" ]]; then
+      "$timeout_bin" --foreground -k 10s "${timeout_seconds}s" "${_cmd_ref[@]}" >"$_out_log" 2>&1
+      return $?
     fi
-  elif "${kcov_cmd[@]}" >"$log_file" 2>&1; then
+    "${_cmd_ref[@]}" >"$_out_log" 2>&1
+    return $?
+  }
+
+  local rc=0
+  if run_one kcov_cmd "$log_file"; then
     return 0
   else
-    # IMPORTANT: capture the kcov exit status here. The exit status of an `if`
-    # compound command without an else branch can be 0, which would mask failure.
-    local rc=$?
+    rc=$?
+  fi
+
+  # If kcov failed quickly and didn't tell us why, try the alternate CLI order
+  # once. This is cheap in the failure mode we see on CI (silent exit=1).
+  local log_size=0
+  log_size="$(wc -c <"$log_file" 2>/dev/null || echo 0)"
+  if [[ "$log_size" -lt 200 ]]; then
+    local alt_log_file="$out_dir/${label}.alt.log"
+    echo "kcov produced little/no output; retrying with arg order: $alt_order" >&2
+    echo "+ ${kcov_cmd_alt[*]}" >&2
+    if run_one kcov_cmd_alt "$alt_log_file"; then
+      mv "$alt_log_file" "$log_file"
+      return 0
+    fi
+    # Keep rc from the alternate run if it produced a clearer failure.
+    rc=$?
+    if [[ -s "$alt_log_file" ]]; then
+      mv "$alt_log_file" "$log_file"
+    fi
   fi
 
   if [[ "$rc" -eq 124 ]]; then
@@ -133,11 +170,12 @@ run_kcov() {
   if [[ ! -s "$log_file" ]] || [[ "$(wc -c <"$log_file" 2>/dev/null || echo 0)" -lt 200 ]]; then
     if command -v strace >/dev/null 2>&1; then
       echo "kcov produced little/no output; capturing strace to $strace_file" >&2
-      # Trace process/exec/file opens only; enough to spot missing binaries, perms, etc.
+      # Trace process/exec/file plus writes to stderr; enough to spot missing binaries,
+      # permissions, and any errors kcov/subprocess writes.
       if [[ -n "$timeout_bin" ]]; then
-        "$timeout_bin" --foreground -k 5s 60s strace -f -qq -o "$strace_file" -e trace=process,execve,file "${kcov_cmd[@]}" >/dev/null 2>&1 || true
+        "$timeout_bin" --foreground -k 5s 60s strace -f -qq -s 200 -o "$strace_file" -e trace=process,execve,file,write -e write=2 "${kcov_cmd[@]}" >/dev/null 2>&1 || true
       else
-        strace -f -qq -o "$strace_file" -e trace=process,execve,file "${kcov_cmd[@]}" >/dev/null 2>&1 || true
+        strace -f -qq -s 200 -o "$strace_file" -e trace=process,execve,file,write -e write=2 "${kcov_cmd[@]}" >/dev/null 2>&1 || true
       fi
     fi
   fi
@@ -148,6 +186,9 @@ run_kcov() {
   if [[ -f "$strace_file" ]]; then
     echo "--- $strace_file (last 200 lines) ---" >&2
     tail -n 200 "$strace_file" >&2 || true
+
+    echo "--- $strace_file (execve failures) ---" >&2
+    grep -E 'execve\(.*\) = -1 ' "$strace_file" | tail -n 50 >&2 || true
   fi
   exit "$rc"
 }
