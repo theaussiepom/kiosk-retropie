@@ -246,8 +246,13 @@ run_kcov "bats" "Bash Automated Testing System (bats)" "$out_dir/bats" "$ROOT_DI
 # The coverage run therefore also self-wraps each invoked script in its own kcov run
 # (written to $out_dir/coverage-wrapped) and merges those results.
 mkdir -p "$out_dir/coverage-wrapped"
-KCOV_WRAP=1 KCOV_WRAP_OUT_DIR="$out_dir/coverage-wrapped" \
-  run_kcov "coverage" "coverage" "$out_dir/coverage" "$ROOT_DIR/tests/bin/kcov-line-coverage.sh"
+
+# IMPORTANT: These need to be exported so they are visible to the kcov-run process
+# (and therefore to kcov-line-coverage.sh itself).
+export KCOV_WRAP=1
+export KCOV_WRAP_OUT_DIR="$out_dir/coverage-wrapped"
+run_kcov "coverage" "coverage" "$out_dir/coverage" "$ROOT_DIR/tests/bin/kcov-line-coverage.sh"
+unset -v KCOV_WRAP KCOV_WRAP_OUT_DIR
 
 # Merge into a stable location consumed by assert-kcov-100.sh.
 run_kcov_merge "merge" "$out_dir/kcov-merged" "$out_dir/bats" "$out_dir/coverage" "$out_dir/coverage-wrapped/kcov-merged"
