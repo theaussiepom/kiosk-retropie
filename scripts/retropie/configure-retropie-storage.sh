@@ -24,7 +24,8 @@ require_root() {
   if [[ "${RETRO_HA_ALLOW_NON_ROOT:-0}" == "1" ]]; then
     return 0
   fi
-  if [[ "${EUID:-$(id -u)}" -ne 0 ]]; then
+  local effective_uid="${RETRO_HA_EUID_OVERRIDE:-${EUID:-$(id -u)}}"
+  if [[ "$effective_uid" -ne 0 ]]; then
     die "Must run as root"
   fi
 }

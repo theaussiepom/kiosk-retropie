@@ -6,6 +6,9 @@ After=network-online.target
 # Never re-run once successful.
 ConditionPathExists=!/var/lib/retro-ha/installed
 
+# Avoid systemd start-rate limiting while retrying.
+StartLimitIntervalSec=0
+
 [Service]
 Type=oneshot
 EnvironmentFile=-/etc/retro-ha/config.env
@@ -16,9 +19,6 @@ ExecStart=/usr/local/lib/retro-ha/bootstrap.sh
 # Retry until network is available and installation succeeds.
 Restart=on-failure
 RestartSec=30
-
-# Avoid systemd start-rate limiting while retrying.
-StartLimitIntervalSec=0
 
 [Install]
 WantedBy=multi-user.target

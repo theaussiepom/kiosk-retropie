@@ -1,5 +1,27 @@
 # retro-ha-appliance
 
+## Quick start (dev + CI)
+
+The canonical, repeatable test environment is the devcontainer.
+
+Build the devcontainer image:
+
+```bash
+docker build -t retro-ha-devcontainer -f .devcontainer/Dockerfile .
+```
+
+Run the full CI pipeline inside it:
+
+```bash
+docker run --rm \
+  -v "$PWD:/work" \
+  -w /work \
+  retro-ha-devcontainer \
+  bash -lc './scripts/ci.sh'
+```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the required pre-PR checks.
+
 This repo turns a Raspberry Pi into a dual-mode appliance with strict display ownership:
 
 - Home Assistant kiosk mode (default): full-screen Chromium
@@ -8,9 +30,80 @@ This repo turns a Raspberry Pi into a dual-mode appliance with strict display ow
 The focus is determinism, recoverability, and fail-open behavior.
 If the HA kiosk isn’t healthy, you can still get into RetroPie.
 
+## How it works (plain English)
+
+Think of this as a “single-screen appliance” that can only show one thing at a time.
+
+- Most of the time the Pi is a Home Assistant kiosk (full-screen Chromium).
+- When you press Start on a controller, the Pi stops the kiosk and switches into RetroPie.
+- If the kiosk crashes, the Pi tries to recover into RetroPie automatically (so the screen isn’t just dead).
+
+Under the hood we use `systemd` (the built-in Linux service manager) to start/stop everything, because it’s very
+good at doing exactly that reliably.
+
+### Mode switching at a glance
+
+```mermaid
+flowchart TD
+  HA[ha-kiosk.service\nChromium kiosk] -->|Start button| RETRO[retro-mode.service\nRetroPie]
+  RETRO -->|manual start| HA
+
+  HA -. crashes .-> FAIL[retro-ha-failover.service]
+  FAIL --> RETRO
+```
+
+### Quick glossary
+
+If you don’t live in Linux land every day, these terms come up a lot in the docs:
+
+- `systemd`: the thing that starts services on boot and restarts them if they fail.
+- `unit`/`service`: a `systemd` config file that describes how to run one piece of the appliance.
+- `Xorg`/`xinit`: the display server used to run Chromium and RetroPie in a controlled way.
+- `VT` (virtual terminal): Linux “screens” (VT7/VT8) we use to keep kiosk and Retro separate.
+- `logind`: the part of systemd that manages user sessions and access to input/display hardware.
+- `evdev`: Linux’s standard input event interface (things like controllers show up as `/dev/input/event*`).
+- `sysfs` (`/sys/...`): kernel-provided files used to control LEDs and backlight.
+- `MQTT retained message`: an MQTT message stored by the broker so new subscribers immediately see the latest
+  state.
+- `journalctl`: the command used to read service logs (logs are stored by journald).
+
+## Why we don’t use Docker on the Pi
+
+This project runs directly on Raspberry Pi OS with systemd rather than running the appliance services in Docker
+containers.
+
+Reasons:
+
+- The appliance is tightly integrated with host resources (Xorg/VTs, logind, evdev input devices, sysfs
+  LEDs/backlight, systemd ordering).
+- We want simple, deterministic boot behavior with systemd as the single orchestrator.
+- Keeping runtime dependencies minimal reduces moving parts on a constrained device.
+
+In practice, this makes failures easier to reason about: you can diagnose almost everything with `systemctl` and
+`journalctl`, and the device still behaves sensibly if networking (or MQTT) is down.
+
+Docker is still used for development parity via the devcontainer (toolchain + CI reproducibility), not for the
+production appliance runtime.
+
 ## Documentation
 
 - [Architecture](docs/architecture.md)
+
+## Architecture at a glance
+
+```mermaid
+flowchart TD
+  HA[Home Assistant] -- MQTT --> LED[retro-ha-led-mqtt.service]
+  HA -- MQTT --> BRIGHT[retro-ha-screen-brightness-mqtt.service]
+
+  LED --> SYSLED[/sysfs LEDs/]
+  BRIGHT --> SYSBL[/sysfs backlight/]
+
+  SYSTEMD[systemd] --> LED
+  SYSTEMD --> BRIGHT
+  SYSTEMD --> KIOSK[ha-kiosk.service]
+  SYSTEMD --> RETRO[retro-mode.service]
+```
 
 ## Requirements
 
@@ -191,6 +284,39 @@ Broker settings (same as LED MQTT bridge):
 - `MQTT_TLS` (default: `0`; set to `1` to enable TLS)
 
 ## Home Assistant LED control (optional)
+
+### MQTT integration at a glance
+
+If Home Assistant is running on a different host than the kiosk Pi, MQTT is the bridge.
+
+This diagram shows the message flow (commands go one way, state comes back as retained messages so HA can show the
+current value immediately):
+
+```mermaid
+flowchart LR
+  HA[Home Assistant\n(MQTT integration)]
+  BROKER[MQTT broker]
+
+  LEDSVC[retro-ha-led-mqtt.service]
+  BRISVC[retro-ha-screen-brightness-mqtt.service]
+
+  SYSLED[/sysfs LEDs\n/sys/class/leds/.../]
+  SYSBL[/sysfs backlight\n/sys/class/backlight/.../]
+
+  HA -->|publish\n.../set| BROKER
+  BROKER -->|deliver\n.../set| LEDSVC
+  BROKER -->|deliver\n.../set| BRISVC
+
+  LEDSVC -->|write| SYSLED
+  BRISVC -->|write| SYSBL
+
+  LEDSVC -->|publish retained\n.../state| BROKER
+  BRISVC -->|publish retained\n.../state| BROKER
+  BROKER -->|subscribe\n.../state| HA
+
+  SYSLED -. external change .-> LEDSVC
+  SYSBL -. external change .-> BRISVC
+```
 
 By default the Raspberry Pi board LEDs are kept **on** as a simple “it’s alive” signal. Home Assistant can
 turn them **off** (night mode) by driving sysfs on the appliance.

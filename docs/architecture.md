@@ -2,6 +2,19 @@
 
 This doc is a quick tour of how retro-ha-appliance is put together and what talks to what at runtime.
 
+If you’re new to Raspberry Pi + Linux service plumbing, don’t worry: you don’t need to memorize everything here.
+The main idea is simple — one device, one screen, two modes — and `systemd` is the traffic cop that makes it
+predictable.
+
+## Quick glossary
+
+- `systemd`: the service manager that starts things at boot and restarts them on failure.
+- `unit`/`service`: a `systemd` definition (a `.service` file) that describes how to run something.
+- `Xorg`/`xinit`: how we launch a controlled X session for kiosk/retro.
+- `VT` (virtual terminal): Linux “screens” (we use VT7/VT8) to keep kiosk and retro separate.
+- `sysfs`: kernel files under `/sys/` used for LEDs and backlight.
+- `MQTT retained`: a state message stored by the broker so Home Assistant sees current state immediately.
+
 ## Goals
 
 - Provide two exclusive modes on one Raspberry Pi:
@@ -18,6 +31,32 @@ This doc is a quick tour of how retro-ha-appliance is put together and what talk
 - Running ROMs directly from NFS.
 
 ## High-level component map
+
+```mermaid
+flowchart TD
+  subgraph PI[Raspberry Pi]
+    SYSTEMD[systemd]
+    INSTALL[retro-ha-install.service]
+    KIOSK[ha-kiosk.service]\nChromium kiosk
+    RETRO[retro-mode.service]\nRetroPie
+    LED[retro-ha-led-mqtt.service]
+    BRIGHT[retro-ha-screen-brightness-mqtt.service]
+    SYSLED[/sysfs LEDs/]
+    SYSBL[/sysfs backlight/]
+  end
+
+  SYSTEMD --> INSTALL
+  SYSTEMD --> KIOSK
+  SYSTEMD --> RETRO
+  SYSTEMD --> LED
+  SYSTEMD --> BRIGHT
+
+  HA[Home Assistant] -- MQTT --> LED
+  HA -- MQTT --> BRIGHT
+
+  LED --> SYSLED
+  BRIGHT --> SYSBL
+```
 
 systemd (the Linux service manager) runs the show. Scripts are installed under `/usr/local/lib/retro-ha`
 and configuration is loaded from `/etc/retro-ha/config.env`.
@@ -61,6 +100,30 @@ Optional integration:
 
 First boot is designed to be idempotent (it’s safe to re-run).
 
+If you’re skimming, this is the mental model: cloud-init lays down just enough to let systemd kick off a bootstrap,
+and the bootstrap is responsible for fetching the pinned repo ref and running the real installer.
+
+```mermaid
+sequenceDiagram
+  participant CI as cloud-init
+  participant SD as systemd
+  participant BOOT as bootstrap.sh
+  participant REPO as repo checkout
+  participant INST as scripts/install.sh
+
+  CI->>SD: install retro-ha-install.service
+  CI->>CI: write /etc/retro-ha/config.env
+  SD->>BOOT: start retro-ha-install.service
+  BOOT->>BOOT: check /var/lib/retro-ha/installed
+  alt already installed
+    BOOT-->>SD: exit 0
+  else not installed
+    BOOT->>REPO: clone/fetch RETRO_HA_REPO_URL@RETRO_HA_REPO_REF
+    BOOT->>INST: exec installer from checkout
+    INST-->>SD: enable units, write installed marker
+  end
+```
+
 1. A cloud-init user-data file writes `/etc/retro-ha/config.env` and installs
    `/etc/systemd/system/retro-ha-install.service` and `/usr/local/lib/retro-ha/bootstrap.sh`.
 2. `retro-ha-install.service` runs after `network-online.target`.
@@ -88,6 +151,13 @@ systemd enforces exclusivity:
 Each service is configured to run with a logind session (TTY + `PAMName=login`) so rootless Xorg can
 acquire the seat.
 
+In plain terms: `logind` is what gives a user session permission to talk to the keyboard/controller and the
+display/GPU. By setting the services up like “real” login sessions, we can run Xorg without running everything as
+root.
+
+This is one of the reasons the runtime stays “on the host”: VT + logind + seat ownership is exactly the stuff
+systemd is already good at, and we lean into that instead of trying to re-build it in another layer.
+
 ## Mode switching
 
 ### Manual switching
@@ -97,9 +167,22 @@ acquire the seat.
 
 Because of `Conflicts=`, starting one mode will stop the other.
 
+Here’s the simple picture:
+
+```mermaid
+flowchart TD
+  HA[ha-kiosk.service\nChromium kiosk] <--> RETRO[retro-mode.service\nRetroPie]
+  START[Controller Start button] --> LISTEN[controller listener]
+  LISTEN -->|systemctl start retro-mode.service| RETRO
+```
+
 ### Controller-driven switching
 
-Two Python-based listeners read evdev events from `/dev/input/by-id/*event-joystick`:
+Two small listener scripts (Bash wrappers that run embedded Python) read controller input from Linux’s `evdev`
+interface.
+
+They look under `/dev/input/by-id/` first because those names tend to stay stable across reboots (unlike
+`/dev/input/event0`, which can change).
 
 - `ha-mode-controller-listener.service`:
   - Requires HA kiosk to be active.

@@ -27,33 +27,27 @@ mkdir -p "$out_dir"
 # Prefer the explicit bash parser flag; older kcov versions use different names.
 # Exclude tests and vendored bats libs.
 
-kcov_help="$(kcov --help 2>&1 || true)"
+# Some kcov builds (including Ubuntu packages) hide bash-specific options
+# behind --uncommon-options.
+kcov_help="$(kcov --help --uncommon-options 2>&1 || kcov --help 2>&1 || true)"
 bash_parser_flag=""
-parse_dirs_flag=""
+bash_method_flag=""
 report_type_args=()
-verbosity_args=()
 kcov_arg_order="${KCOV_ARG_ORDER:-opts_first}"
-if grep -Fq -- '--bash-parser' <<<"$kcov_help"; then
-  bash_parser_flag="--bash-parser"
-elif grep -Fq -- '--bash-parse' <<<"$kcov_help"; then
-  # Avoid the ambiguous prefix '--bash-parse' (it can match multiple options).
-  bash_parser_flag=""
+if grep -Fq -- '--bash-parser=cmd' <<<"$kcov_help"; then
+  bash_parser_flag="--bash-parser=/bin/bash"
+elif grep -Fq -- '--bash-parser' <<<"$kcov_help"; then
+  bash_parser_flag="--bash-parser=/bin/bash"
 fi
 
-if grep -Fq -- '--bash-parse-files-in-dirs' <<<"$kcov_help"; then
-  parse_dirs_flag="--bash-parse-files-in-dirs=$ROOT_DIR/scripts"
+if grep -Fq -- '--bash-method=method' <<<"$kcov_help"; then
+  bash_method="${KCOV_BASH_METHOD:-DEBUG}"
+  bash_method_flag="--bash-method=${bash_method}"
 fi
 
 # Some kcov versions only emit coverage.json when JSON reporting is explicitly enabled.
 if grep -Fq -- '--report-type' <<<"$kcov_help"; then
   report_type_args+=(--report-type=html --report-type=json)
-fi
-
-if grep -Fq -- '--verbose' <<<"$kcov_help"; then
-  verbosity_args+=(--verbose)
-fi
-if grep -Fq -- '--debug' <<<"$kcov_help"; then
-  verbosity_args+=(--debug)
 fi
 
 echo "kcov version: $(kcov --version 2>/dev/null || echo unknown)" >&2
@@ -71,14 +65,13 @@ common_args=()
 if [[ -n "$bash_parser_flag" ]]; then
   common_args+=("$bash_parser_flag")
 fi
-if [[ -n "$parse_dirs_flag" ]]; then
-  common_args+=("$parse_dirs_flag")
+if [[ -n "$bash_method_flag" ]]; then
+  common_args+=("$bash_method_flag")
 fi
 common_args+=(
-  "${verbosity_args[@]}"
   "${report_type_args[@]}"
   --include-path="$ROOT_DIR/scripts"
-  --exclude-pattern="$ROOT_DIR/tests,$ROOT_DIR/tests/vendor"
+  --exclude-pattern="$ROOT_DIR/tests,$ROOT_DIR/tests/vendor,$ROOT_DIR/scripts/ci.sh,$ROOT_DIR/scripts/ci"
 )
 
 run_kcov() {
@@ -246,7 +239,14 @@ run_kcov_merge() {
 run_kcov "bats" "$out_dir/bats" "$ROOT_DIR/tests/bin/run-bats-integration.sh" "$@"
 
 # Run additional “line coverage” driver paths under kcov.
-run_kcov "driver" "$out_dir/driver" "$ROOT_DIR/tests/bin/kcov-line-coverage-driver.sh"
+#
+# NOTE: kcov bash coverage does not reliably attribute coverage to scripts
+# executed as separate bash processes in some environments (notably containers).
+# The driver therefore also self-wraps each invoked script in its own kcov run
+# (written to $out_dir/driver-wrapped) and merges those results.
+mkdir -p "$out_dir/driver-wrapped"
+KCOV_WRAP=1 KCOV_WRAP_OUT_DIR="$out_dir/driver-wrapped" \
+  run_kcov "driver" "$out_dir/driver" "$ROOT_DIR/tests/bin/kcov-line-coverage-driver.sh"
 
 # Merge into a stable location consumed by assert-kcov-100.sh.
-run_kcov_merge "merge" "$out_dir/kcov-merged" "$out_dir/bats" "$out_dir/driver"
+run_kcov_merge "merge" "$out_dir/kcov-merged" "$out_dir/bats" "$out_dir/driver" "$out_dir/driver-wrapped/kcov-merged"
