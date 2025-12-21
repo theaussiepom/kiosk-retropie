@@ -98,8 +98,8 @@ jobs:
             retro-ha-devcontainer:ci \
             bash -lc './scripts/ci.sh lint-sh'
 
-  tests:
-    name: tests
+  test-all:
+    name: test-all
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -127,10 +127,10 @@ jobs:
             retro-ha-devcontainer:ci \
             bash -lc './scripts/ci.sh tests'
 
-  coverage:
-    name: coverage
+  test-coverage:
+    name: test-coverage
     runs-on: ubuntu-latest
-    needs: [tests]
+    needs: [test-all]
     steps:
       - uses: actions/checkout@v4
 
