@@ -52,20 +52,9 @@ flowchart TD
   FAIL --> RETRO
 ```
 
-### Quick glossary
+### Glossary
 
-If you don’t live in Linux land every day, these terms come up a lot in the docs:
-
-- `systemd`: the thing that starts services on boot and restarts them if they fail.
-- `unit`/`service`: a `systemd` config file that describes how to run one piece of the appliance.
-- `Xorg`/`xinit`: the display server used to run Chromium and RetroPie in a controlled way.
-- `VT` (virtual terminal): Linux “screens” (VT7/VT8) we use to keep kiosk and Retro separate.
-- `logind`: the part of systemd that manages user sessions and access to input/display hardware.
-- `evdev`: Linux’s standard input event interface (things like controllers show up as `/dev/input/event*`).
-- `sysfs` (`/sys/...`): kernel-provided files used to control LEDs and backlight.
-- `MQTT retained message`: an MQTT message stored by the broker so new subscribers immediately see the latest
-  state.
-- `journalctl`: the command used to read service logs (logs are stored by journald).
+See [docs/glossary.md](docs/glossary.md) for terms used throughout the docs.
 
 ## Why we don’t use Docker on the Pi
 
@@ -88,6 +77,8 @@ production appliance runtime.
 ## Documentation
 
 - [Architecture](docs/architecture.md)
+- [Glossary](docs/glossary.md)
+- [Config examples](docs/config-examples.md)
 
 ## Architecture at a glance
 

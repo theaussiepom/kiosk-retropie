@@ -6,14 +6,9 @@ If you’re new to Raspberry Pi + Linux service plumbing, don’t worry: you don
 The main idea is simple — one device, one screen, two modes — and `systemd` is the traffic cop that makes it
 predictable.
 
-## Quick glossary
+## Glossary
 
-- `systemd`: the service manager that starts things at boot and restarts them on failure.
-- `unit`/`service`: a `systemd` definition (a `.service` file) that describes how to run something.
-- `Xorg`/`xinit`: how we launch a controlled X session for kiosk/retro.
-- `VT` (virtual terminal): Linux “screens” (we use VT7/VT8) to keep kiosk and retro separate.
-- `sysfs`: kernel files under `/sys/` used for LEDs and backlight.
-- `MQTT retained`: a state message stored by the broker so Home Assistant sees current state immediately.
+See [Glossary](glossary.md).
 
 ## Goals
 
