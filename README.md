@@ -45,7 +45,7 @@ good at doing exactly that reliably.
 
 ```mermaid
 flowchart TD
-  HA[ha-kiosk.service\nChromium kiosk] -->|Start button| RETRO[retro-mode.service\nRetroPie]
+  HA["ha-kiosk.service<br/>Chromium kiosk"] -->|Start button| RETRO["retro-mode.service<br/>RetroPie"]
   RETRO -->|manual start| HA
 
   HA -. crashes .-> FAIL[retro-ha-failover.service]
@@ -294,25 +294,25 @@ current value immediately):
 
 ```mermaid
 flowchart LR
-  HA[Home Assistant\n(MQTT integration)]
+  HA["Home Assistant<br/>(MQTT integration)"]
   BROKER[MQTT broker]
 
   LEDSVC[retro-ha-led-mqtt.service]
   BRISVC[retro-ha-screen-brightness-mqtt.service]
 
-  SYSLED[/sysfs LEDs\n/sys/class/leds/.../]
-  SYSBL[/sysfs backlight\n/sys/class/backlight/.../]
+  SYSLED["/sysfs LEDs<br/>/sys/class/leds/.../"]
+  SYSBL["/sysfs backlight<br/>/sys/class/backlight/.../"]
 
-  HA -->|publish\n.../set| BROKER
-  BROKER -->|deliver\n.../set| LEDSVC
-  BROKER -->|deliver\n.../set| BRISVC
+  HA -->|"publish<br/>.../set"| BROKER
+  BROKER -->|"deliver<br/>.../set"| LEDSVC
+  BROKER -->|"deliver<br/>.../set"| BRISVC
 
   LEDSVC -->|write| SYSLED
   BRISVC -->|write| SYSBL
 
-  LEDSVC -->|publish retained\n.../state| BROKER
-  BRISVC -->|publish retained\n.../state| BROKER
-  BROKER -->|subscribe\n.../state| HA
+  LEDSVC -->|"publish retained<br/>.../state"| BROKER
+  BRISVC -->|"publish retained<br/>.../state"| BROKER
+  BROKER -->|"subscribe<br/>.../state"| HA
 
   SYSLED -. external change .-> LEDSVC
   SYSBL -. external change .-> BRISVC

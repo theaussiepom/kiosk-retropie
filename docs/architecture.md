@@ -37,8 +37,8 @@ flowchart TD
   subgraph PI[Raspberry Pi]
     SYSTEMD[systemd]
     INSTALL[retro-ha-install.service]
-    KIOSK[ha-kiosk.service]\nChromium kiosk
-    RETRO[retro-mode.service]\nRetroPie
+    KIOSK["ha-kiosk.service<br/>Chromium kiosk"]
+    RETRO["retro-mode.service<br/>RetroPie"]
     LED[retro-ha-led-mqtt.service]
     BRIGHT[retro-ha-screen-brightness-mqtt.service]
     SYSLED[/sysfs LEDs/]
@@ -171,7 +171,7 @@ Here’s the simple picture:
 
 ```mermaid
 flowchart TD
-  HA[ha-kiosk.service\nChromium kiosk] <--> RETRO[retro-mode.service\nRetroPie]
+  HA["ha-kiosk.service<br/>Chromium kiosk"] <--> RETRO["retro-mode.service<br/>RetroPie"]
   START[Controller Start button] --> LISTEN[controller listener]
   LISTEN -->|systemctl start retro-mode.service| RETRO
 ```
