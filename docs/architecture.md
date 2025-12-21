@@ -45,13 +45,17 @@ flowchart TD
     SYSBL[/sysfs backlight/]
   end
 
+  subgraph HA_BOX[Home Assistant]
+    HA[Home Assistant]
+  end
+
   SYSTEMD --> INSTALL
   SYSTEMD --> KIOSK
   SYSTEMD --> RETRO
   SYSTEMD --> LED
   SYSTEMD --> BRIGHT
 
-  HA[Home Assistant] -- MQTT --> LED
+  HA -- MQTT --> LED
   HA -- MQTT --> BRIGHT
 
   LED --> SYSLED
