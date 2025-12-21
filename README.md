@@ -20,6 +20,12 @@ docker run --rm \
   bash -lc './scripts/ci.sh'
 ```
 
+Or, use the Makefile (requires `make` + Docker on your host):
+
+```bash
+make ci
+```
+
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the required pre-PR checks.
 
 This repo turns a Raspberry Pi into a dual-mode appliance with strict display ownership:
@@ -737,7 +743,7 @@ Recommended targets:
 
 - `./scripts/ci.sh` (runs what GitHub Actions runs: lint + tests + kcov coverage)
 - `make ci` (same idea, if you have `make` installed)
-- `make lint` (shell, yaml, systemd, markdown)
+- `make lint` (runs lint-sh, lint-yaml, lint-systemd, lint-markdown)
 - `make test` (runs unit + integration and prints a path coverage summary)
 - `make test-unit` (fast; runs on every commit)
 - `make test-integration` (slower; run after unit passes)

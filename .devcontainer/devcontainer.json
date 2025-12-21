@@ -7,7 +7,13 @@
   "customizations": {
     "vscode": {
       "settings": {
-        "terminal.integrated.defaultProfile.linux": "bash"
+        "terminal.integrated.defaultProfile.linux": "bash",
+        "editor.formatOnSave": true,
+        "editor.rulers": [
+          120
+        ],
+        "files.trimTrailingWhitespace": true,
+        "files.insertFinalNewline": true
       }
     }
   }

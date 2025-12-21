@@ -2,7 +2,10 @@
 .DS_Store
 
 # Editors
-.vscode/
+.vscode/*
+!.vscode/tasks.json
+!.vscode/settings.json
+!.vscode/extensions.json
 *.swp
 *~
 

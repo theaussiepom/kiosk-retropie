@@ -6,7 +6,7 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$repo_root/ci/lib.sh"
 ci_cd_repo_root
 
-echo "== yaml: yamllint =="
+echo "== lint-yaml: yamllint =="
 ci_require_cmd yamllint
 
 mapfile -d '' yaml_files < <(ci_list_yaml_files || true)

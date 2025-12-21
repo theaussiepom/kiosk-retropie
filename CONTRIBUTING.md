@@ -20,23 +20,27 @@ kcov, markdownlint, systemd-analyze) can change results. The devcontainer keeps 
 
 ### CI pipeline at a glance
 
-This is the same pipeline order used by GitHub Actions:
+These are the same pipeline parts used by GitHub Actions (jobs run in parallel; this diagram is the logical order
+when running locally):
 
 ```mermaid
 flowchart LR
-  shell[shell] --> yaml[yaml] --> systemd[systemd] --> markdown[markdown] --> tests[tests] --> coverage[coverage]
+  lint_sh[lint-sh] --> lint_yaml[lint-yaml]
+  lint_yaml --> lint_systemd[lint-systemd]
+  lint_systemd --> lint_markdown[lint-markdown]
+  lint_markdown --> tests[tests] --> coverage[coverage]
 ```
 
 ### What the stages mean
 
 The pipeline is split into stages so you can run the part you’re working on without waiting for everything.
 
-- `shell`: sanity checks for shell scripts (syntax, shellcheck, formatting).
+- `lint-sh`: sanity checks for shell scripts (syntax, shellcheck, formatting).
   This catches common Bash footguns before you even boot a Pi.
-- `yaml`: lints YAML files (cloud-init examples and GitHub workflow config).
-- `systemd`: verifies `systemd` unit files.
+- `lint-yaml`: lints YAML files (cloud-init examples and GitHub workflow config).
+- `lint-systemd`: verifies `systemd` unit files.
   This doesn’t start services; it checks the unit files are valid and consistent.
-- `markdown`: lints Markdown formatting so docs stay readable.
+- `lint-markdown`: lints Markdown formatting so docs stay readable.
 - `tests`: runs Bats tests (unit + integration) that exercise the scripts.
 - `coverage`: runs the tests under `kcov` and enforces 100% line coverage for `scripts/`.
   That strict gate is intentional: appliance scripts tend to have lots of branches and “only happens on a bad day”
@@ -77,10 +81,10 @@ docker run --rm \
 You can run individual stages by name:
 
 ```bash
-./scripts/ci.sh shell
-./scripts/ci.sh yaml
-./scripts/ci.sh systemd
-./scripts/ci.sh markdown
+./scripts/ci.sh lint-sh
+./scripts/ci.sh lint-yaml
+./scripts/ci.sh lint-systemd
+./scripts/ci.sh lint-markdown
 ./scripts/ci.sh tests
 ./scripts/ci.sh coverage
 ```

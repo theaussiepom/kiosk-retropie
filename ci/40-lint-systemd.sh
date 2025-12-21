@@ -6,7 +6,7 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$repo_root/ci/lib.sh"
 ci_cd_repo_root
 
-echo "== systemd: systemd-analyze verify =="
+echo "== lint-systemd: systemd-analyze verify =="
 ci_require_cmd systemd-analyze
 
 mapfile -d '' service_files < <(ci_list_service_files || true)

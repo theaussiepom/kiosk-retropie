@@ -1,37 +1,82 @@
 SHELL := /usr/bin/env bash
 
-.PHONY: help tools lint lint-sh lint-shell lint-yaml lint-systemd lint-systemd-ci lint-markdown format format-shell test test-unit test-integration path-coverage coverage ci ci-lint
+.PHONY: help tools \
+  container-build container-shell container-run \
+	lint lint-sh lint-yaml lint-systemd lint-markdown \
+  format format-shell \
+  test test-unit test-integration path-coverage coverage \
+	ci
+
+DOCKER ?= docker
+DEVCONTAINER_IMAGE ?= retro-ha-devcontainer:local
+DEVCONTAINER_DOCKERFILE ?= .devcontainer/Dockerfile
+DEVCONTAINER_CONTEXT ?= .
+DEVCONTAINER_WORKDIR ?= /work
+
+container-build:
+	@if command -v "$(DOCKER)" >/dev/null 2>&1; then \
+		$(DOCKER) build -t "$(DEVCONTAINER_IMAGE)" -f "$(DEVCONTAINER_DOCKERFILE)" "$(DEVCONTAINER_CONTEXT)"; \
+	else \
+		echo "docker not found; skipping container build" >&2; \
+	fi
+
+container-shell:
+	@if ! command -v "$(DOCKER)" >/dev/null 2>&1; then \
+		echo "docker not found; container-shell requires Docker on the host" >&2; \
+		exit 2; \
+	fi; \
+	$(DOCKER) run --rm -it \
+		-v "$(CURDIR):$(DEVCONTAINER_WORKDIR)" \
+		-w "$(DEVCONTAINER_WORKDIR)" \
+		"$(DEVCONTAINER_IMAGE)" \
+		bash
+
+# Internal helper: run a command inside the devcontainer.
+# Usage: make container-run CMD='echo hi'
+container-run: container-build
+	@[ -n "$(CMD)" ] || { echo "CMD is required (e.g. make container-run CMD='./scripts/ci.sh')" >&2; exit 2; }
+	@if command -v "$(DOCKER)" >/dev/null 2>&1; then \
+		$(DOCKER) run --rm \
+			-v "$(CURDIR):$(DEVCONTAINER_WORKDIR)" \
+			-w "$(DEVCONTAINER_WORKDIR)" \
+			"$(DEVCONTAINER_IMAGE)" \
+			bash -lc "$(CMD)"; \
+	else \
+		echo "docker not found; running command locally" >&2; \
+		bash -lc "$(CMD)"; \
+	fi
 
 help:
 	@echo "Targets:"
-	@echo "  tools         Install local lint tools (Linux/macOS with brew/apt) - optional"
-	@echo "  lint          Run all linters (matches CI)"
-	@echo "  ci            Run the full CI pipeline locally (lint + tests + kcov coverage)"
-	@echo "  test          Run all bats tests (fetches bats into tests/vendor)"
+	@echo "  container-build Build the devcontainer image ($(DEVCONTAINER_IMAGE))"
+	@echo "  container-shell Start an interactive shell in the devcontainer"
+	@echo "  ci            Run the full CI pipeline in the devcontainer (matches GitHub Actions)"
+	@echo "  lint          Run all lint checks (permissions + naming + lint-*) in one devcontainer run"
+	@echo "  test          Run all bats tests in the devcontainer"
 	@echo "  test-unit     Run unit bats tests only"
 	@echo "  test-integration Run integration bats tests only (includes path coverage check)"
 	@echo "  path-coverage Run path coverage summary (runs tests then prints counts)"
-	@echo "  format        Auto-format where safe (shell scripts)"
-	@echo "  lint-shell    bash -n + shellcheck + shfmt -d"
-	@echo "  lint-sh       alias for lint-shell"
+	@echo "  coverage      Run kcov coverage in the devcontainer"
+	@echo "  format        Auto-format where safe (shell scripts; host toolchain)"
+	@echo "  lint-sh       bash -n + shellcheck + shfmt -d"
 	@echo "  lint-yaml     yamllint"
 	@echo "  lint-systemd  systemd-analyze verify"
 	@echo "  lint-markdown markdownlint"
 
 test:
-	@./scripts/ci.sh tests
+	@$(MAKE) container-run CMD='./scripts/ci.sh tests'
 
 test-unit:
-	@./tests/bin/run-bats-unit.sh
+	@$(MAKE) container-run CMD='./tests/bin/run-bats-unit.sh'
 
 test-integration:
-	@./tests/bin/run-bats-integration.sh
+	@$(MAKE) container-run CMD='./tests/bin/run-bats-integration.sh'
 
 path-coverage:
-	@./tests/bin/recalc-path-coverage.sh --run
+	@$(MAKE) container-run CMD='./tests/bin/recalc-path-coverage.sh --run'
 
 coverage:
-	@./scripts/ci.sh coverage
+	@$(MAKE) container-run CMD='./scripts/ci.sh coverage'
 
 # Optional helper. Use what you already have installed if you prefer.
 tools:
@@ -44,69 +89,27 @@ tools:
 	@echo ""
 	@echo "No automatic install performed."
 
-lint: lint-shell lint-yaml lint-systemd lint-markdown
+# Run all linters in one container (faster than multiple container runs).
+lint:
+	@$(MAKE) container-run CMD='./scripts/ci.sh lint-permissions lint-naming lint-sh lint-yaml lint-systemd lint-markdown'
 
 # Runs the same checks as GitHub Actions.
 # Note: systemd-analyze verify checks that ExecStart binaries exist.
 # In CI we create minimal stubs under /usr/local; the CI script does the same.
 ci:
-	@./scripts/ci.sh
-
-ci-lint:
-	@./scripts/ci.sh sh-lint yaml systemd markdown
+	@$(MAKE) container-run CMD='./scripts/ci.sh'
 
 lint-sh:
-	@./scripts/ci.sh sh-lint
-
-lint-shell: lint-sh
+	@$(MAKE) container-run CMD='./scripts/ci.sh lint-sh'
 
 lint-yaml:
-	@./scripts/ci.sh yaml
+	@$(MAKE) container-run CMD='./scripts/ci.sh lint-yaml'
 
 lint-systemd:
-	@./scripts/ci.sh systemd
-
-lint-systemd-ci:
-	@set -euo pipefail; \
-	shopt -s globstar nullglob; \
-	if ! command -v systemd-analyze >/dev/null 2>&1; then \
-	  echo "Missing systemd-analyze"; \
-	  exit 1; \
-	fi; \
-	if ! command -v sudo >/dev/null 2>&1; then \
-	  echo "Missing sudo (needed to create /usr/local ExecStart stubs for systemd-analyze verify)"; \
-	  exit 1; \
-	fi; \
-	execs=(); \
-	while IFS= read -r line; do \
-	  [[ -n "$$line" ]] || continue; \
-	  execs+=("$${line#*=}"); \
-	done < <(grep -hoE '^(ExecStart|ExecStartPre)=[^ ]+' systemd/**/*.service 2>/dev/null | sort -u || true); \
-	for exe in "$${execs[@]}"; do \
-	  case "$$exe" in \
-	    /usr/local/*) \
-	      sudo mkdir -p "$$(dirname "$$exe")"; \
-	      printf '%s\n' '#!/usr/bin/env bash' 'exit 0' | sudo tee "$$exe" >/dev/null; \
-	      sudo chmod +x "$$exe"; \
-	      ;; \
-	  esac; \
-	done; \
-	units=(systemd/**/*.service systemd/**/*.timer systemd/**/*.target systemd/**/*.path systemd/**/*.socket systemd/**/*.mount); \
-	existing=(); \
-	for u in "$${units[@]}"; do \
-	  [ -f "$$u" ] && existing+=("$$u") || true; \
-	done; \
-	if [ $${#existing[@]} -eq 0 ]; then \
-	  echo "No systemd unit files found under systemd/"; \
-	  exit 0; \
-	fi; \
-	for u in "$${existing[@]}"; do \
-	  echo "systemd-analyze verify $$u"; \
-	  systemd-analyze verify "$$u"; \
-	done
+	@$(MAKE) container-run CMD='./scripts/ci.sh lint-systemd'
 
 lint-markdown:
-	@./scripts/ci.sh markdown
+	@$(MAKE) container-run CMD='./scripts/ci.sh lint-markdown'
 
 format: format-shell
 
