@@ -5,7 +5,8 @@ This repo turns a Raspberry Pi into a dual-mode appliance with strict display ow
 - Home Assistant kiosk mode (default): full-screen Chromium
 - RetroPie mode (on-demand): launched by controller input
 
-The focus is determinism, recoverability, and fail-open behavior (if the HA kiosk isn’t healthy, you can still get into RetroPie).
+The focus is determinism, recoverability, and fail-open behavior.
+If the HA kiosk isn’t healthy, you can still get into RetroPie.
 
 ## Documentation
 
@@ -159,7 +160,8 @@ Safety / loop limits:
 
 - `RETRO_HA_LED_MQTT_ENABLED` (default: `0`; set to `1` to enable)
 - `RETRO_HA_MQTT_TOPIC_PREFIX` (default: `retro-ha`)
-- `RETRO_HA_LED_MQTT_POLL_SEC` (optional, default: `2`; poll sysfs and publish state changes made outside MQTT)
+- `RETRO_HA_LED_MQTT_POLL_SEC` (optional, default: `2`)
+  Poll sysfs and publish state changes made outside MQTT.
 
 Broker settings:
 
@@ -175,8 +177,10 @@ Controls the display backlight brightness via sysfs (`/sys/class/backlight`).
 
 - `RETRO_HA_SCREEN_BRIGHTNESS_MQTT_ENABLED` (default: `0`; set to `1` to enable)
 - `RETRO_HA_MQTT_TOPIC_PREFIX` (default: `retro-ha`)
-- `RETRO_HA_BACKLIGHT_NAME` (optional; which backlight device under `/sys/class/backlight` to control; defaults to first found)
-- `RETRO_HA_SCREEN_BRIGHTNESS_MQTT_POLL_SEC` (optional, default: `2`; poll sysfs and publish state changes made outside MQTT)
+- `RETRO_HA_BACKLIGHT_NAME` (optional)
+  Which backlight device under `/sys/class/backlight` to control; defaults to the first one found.
+- `RETRO_HA_SCREEN_BRIGHTNESS_MQTT_POLL_SEC` (optional, default: `2`)
+  Poll sysfs and publish state changes made outside MQTT.
 
 Broker settings (same as LED MQTT bridge):
 
@@ -194,14 +198,15 @@ turn them **off** (night mode) by driving sysfs on the appliance.
 If Home Assistant is running on a different host than the kiosk Pi, MQTT is the bridge: the appliance
 exposes an **MQTT-controlled** LED switch.
 
-### Overview
+### LED overview
 
 - The Pi runs `retro-ha-led-mqtt.service`.
 - It subscribes to MQTT topics and calls a local sysfs writer.
 - Home Assistant publishes `ON`/`OFF` to those topics.
-- The appliance also periodically polls sysfs and republishes retained state so Home Assistant reflects changes made outside MQTT.
+- The appliance also periodically polls sysfs and republishes retained state,
+  so Home Assistant reflects changes made outside MQTT.
 
-### MQTT topics
+### LED MQTT topics
 
 Default prefix: `retro-ha` (set `RETRO_HA_MQTT_TOPIC_PREFIX`).
 
@@ -221,7 +226,7 @@ State topics (retained, so Home Assistant can see the current state immediately)
 - `retro-ha/led/act/state`
 - `retro-ha/led/pwr/state`
 
-### Home Assistant YAML example
+### LED Home Assistant YAML example
 
 MQTT broker settings are configured in Home Assistant’s MQTT integration.
 
@@ -250,21 +255,22 @@ mqtt:
 
 ## Home Assistant screen brightness control (optional)
 
-### Overview
+### Screen brightness overview
 
 - The Pi runs `retro-ha-screen-brightness-mqtt.service`.
 - Home Assistant publishes brightness percent (0-100).
 - The appliance writes to `/sys/class/backlight/<device>/brightness` and publishes retained state.
-- The appliance also periodically polls sysfs and republishes retained state so Home Assistant reflects changes made outside MQTT.
+- The appliance also periodically polls sysfs and republishes retained state,
+  so Home Assistant reflects changes made outside MQTT.
 
-### MQTT topics
+### Screen brightness MQTT topics
 
 Default prefix: `retro-ha` (set `RETRO_HA_MQTT_TOPIC_PREFIX`).
 
 - Command: `retro-ha/screen/brightness/set` (payload: `0`-`100`)
 - State (retained): `retro-ha/screen/brightness/state` (payload: `0`-`100`)
 
-### Home Assistant YAML example
+### Screen brightness Home Assistant YAML example
 
 Example number entity:
 
@@ -610,6 +616,8 @@ command -v mosquitto_pub || true
 
 Recommended targets:
 
+- `./scripts/ci.sh` (runs what GitHub Actions runs: lint + tests + kcov coverage)
+- `make ci` (same idea, if you have `make` installed)
 - `make lint` (shell, yaml, systemd, markdown)
 - `make test` (runs unit + integration and prints a path coverage summary)
 - `make test-unit` (fast; runs on every commit)
