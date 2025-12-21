@@ -294,7 +294,9 @@ current value immediately):
 
 ```mermaid
 flowchart LR
-  HA["Home Assistant<br/>(MQTT integration)"]
+  subgraph HA_BOX[Home Assistant]
+    HA["Home Assistant<br/>(MQTT integration)"]
+  end
   BROKER[MQTT broker]
 
   LEDSVC[retro-ha-led-mqtt.service]
