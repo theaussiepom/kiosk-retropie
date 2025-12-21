@@ -51,7 +51,7 @@ kcov_wrap_maybe_run_quiet() {
 
   if [[ "${KCOV_WRAP:-0}" == "1" && -f "$script_path" && -x "$script_path" ]]; then
     if [[ -z "$KCOV_BIN" ]]; then
-      echo "kcov-line-coverage-driver [error]: KCOV_WRAP=1 requires kcov on PATH" >&2
+      echo "kcov-line-coverage [error]: KCOV_WRAP=1 requires kcov on PATH" >&2
       return 127
     fi
 
@@ -152,7 +152,7 @@ cat >"$stub_bin/curl" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Minimal id stub for driver coverage.
+# Minimal id stub for coverage coverage.
 # - KCOV_ID_U can override: id -u
 # - KCOV_RETROPI_EXISTS=1 makes: id -u retropi succeed.
 if [[ "${1:-}" == "-u" && -z "${2:-}" ]]; then
@@ -172,7 +172,7 @@ cat >"$stub_bin/sudo" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Minimal sudo stub for driver coverage.
+# Minimal sudo stub for coverage coverage.
 # Supports: sudo -u <user> <cmd>...
 if [[ "${1:-}" == "-u" ]]; then
   shift 2
@@ -185,7 +185,7 @@ cat >"$stub_bin/git" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Minimal git stub for driver coverage.
+# Minimal git stub for coverage coverage.
 cmd="${1:-}"
 
 if [[ "$cmd" == "clone" ]]; then
@@ -209,7 +209,7 @@ cat >"$stub_bin/id" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Minimal id stub for driver coverage.
+# Minimal id stub for coverage coverage.
 # - KCOV_RETROPI_EXISTS=1 makes: id -u retropi succeed.
 if [[ "${1:-}" == "-u" && "${2:-}" == "retropi" ]]; then
   if [[ "${KCOV_RETROPI_EXISTS:-0}" == "1" ]]; then
@@ -446,7 +446,7 @@ record_call "primary-only" >/dev/null
 # common.sh: cover retro_ha_is_sourced() true branch.
 # Trigger it deterministically by making $0 differ from the top stack frame.
 old_argv0="${BASH_ARGV0-}"
-BASH_ARGV0="kcov-driver-fake-argv0"
+BASH_ARGV0="kcov-coverage-fake-argv0"
 retro_ha_is_sourced >/dev/null || true
 if [[ -n "$old_argv0" ]]; then
   BASH_ARGV0="$old_argv0"
@@ -480,7 +480,7 @@ retro_ha_path_is_under "/" "/anything" >/dev/null
 retro_ha_path_is_under "/a" "/b" >/dev/null || true
 
 # Hit remaining uncovered lines in logging.sh.
-warn "driver warn"
+warn "coverage warn"
 
 # Exercise cover-path plumbing and prefix branches.
 export RETRO_HA_PATH_COVERAGE=1
@@ -636,7 +636,7 @@ kcov_wrap_merge() {
   "${MKDIR_BIN:-/bin/mkdir}" -p "$merged_dir"
 
   if [[ ${#KCOV_PART_DIRS[@]} -eq 0 ]]; then
-    echo "kcov-line-coverage-driver [error]: KCOV_WRAP=1 but no kcov parts were produced" >&2
+    echo "kcov-line-coverage [error]: KCOV_WRAP=1 but no kcov parts were produced" >&2
     return 1
   fi
 
@@ -771,7 +771,7 @@ if mv "$ROOT_DIR/scripts/lib" "$hidden_sync_roms_lib" 2>/dev/null; then
   mv "$hidden_sync_roms_lib" "$ROOT_DIR/scripts/lib" 2>/dev/null || true
 fi
 
-# sync-roms.sh rsync missing branch: exclude driver/test stubs from PATH for this run.
+# sync-roms.sh rsync missing branch: exclude coverage/test stubs from PATH for this run.
 run_allow_fail env RETRO_HA_DRY_RUN=1 PATH="/usr/bin:/bin" "$ROOT_DIR/scripts/nfs/sync-roms.sh"
 
 mv "$stub_bin/rsync" "$stub_bin/rsync.__kcov_hidden"

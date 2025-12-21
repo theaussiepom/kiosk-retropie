@@ -76,9 +76,10 @@ common_args+=(
 
 run_kcov() {
   local label="$1"
-  local out="$2"
-  local cmd="$3"
-  shift 3
+  local display_label="$2"
+  local out="$3"
+  local cmd="$4"
+  shift 4
 
   local log_file="$out_dir/${label}.log"
   local strace_file="$out_dir/${label}.strace"
@@ -101,7 +102,7 @@ run_kcov() {
   local -a kcov_cmd
   mapfile -t kcov_cmd < <(build_kcov_cmd "$kcov_arg_order")
 
-  echo "kcov step: $label" >&2
+  echo "kcov step: $display_label" >&2
   echo "+ ${kcov_cmd[*]}" >&2
 
   if command -v timeout >/dev/null 2>&1; then
@@ -130,16 +131,16 @@ run_kcov() {
   # In CI we run Bats once without kcov (for correctness) and a second time under
   # kcov (for coverage). Some kcov/bats combinations can return non-zero while
   # still producing a valid coverage report. When enabled, treat that as success
-  # so we can proceed to driver+merge and still enforce coverage.
+  # so we can proceed to coverage+merge and still enforce coverage.
   if [[ "${KCOV_ALLOW_NONZERO_WITH_REPORT:-0}" == "1" && "$rc" -ne 0 ]]; then
     if find "$out" -maxdepth 4 -name coverage.json -print -quit 2>/dev/null | grep -q .; then
-      echo "kcov step returned non-zero but produced coverage.json; continuing: $label (exit=$rc)" >&2
+      echo "kcov step returned non-zero but produced coverage.json; continuing: $display_label (exit=$rc)" >&2
       return 0
     fi
   fi
 
   if [[ "$rc" -eq 124 ]]; then
-    echo "kcov step timed out after ${timeout_seconds}s: $label" >&2
+    echo "kcov step timed out after ${timeout_seconds}s: $display_label" >&2
   fi
 
   # If kcov failed and produced no output, capture a small strace to help debug
@@ -222,7 +223,7 @@ run_kcov_merge() {
     fi
   fi
 
-  echo "kcov step failed: $label (exit=$rc)" >&2
+  echo "kcov step failed: $display_label (exit=$rc)" >&2
   echo "--- $log_file (last 200 lines) ---" >&2
   tail -n 200 "$log_file" >&2 || true
   if [[ -f "$strace_file" ]]; then
@@ -236,17 +237,17 @@ run_kcov_merge() {
 # kcov bash coverage can behave differently depending on whether the traced
 # process exec()s into bats. To keep the original behavior (which already
 # captured coverage from the Bats suite), run Bats under kcov as its own run.
-run_kcov "bats" "$out_dir/bats" "$ROOT_DIR/tests/bin/run-bats-integration.sh" "$@"
+run_kcov "bats" "Bash Automated Testing System (bats)" "$out_dir/bats" "$ROOT_DIR/tests/bin/run-bats-integration.sh" "$@"
 
-# Run additional “line coverage” driver paths under kcov.
+# Run additional coverage paths under kcov.
 #
 # NOTE: kcov bash coverage does not reliably attribute coverage to scripts
 # executed as separate bash processes in some environments (notably containers).
-# The driver therefore also self-wraps each invoked script in its own kcov run
-# (written to $out_dir/driver-wrapped) and merges those results.
-mkdir -p "$out_dir/driver-wrapped"
-KCOV_WRAP=1 KCOV_WRAP_OUT_DIR="$out_dir/driver-wrapped" \
-  run_kcov "driver" "$out_dir/driver" "$ROOT_DIR/tests/bin/kcov-line-coverage-driver.sh"
+# The coverage run therefore also self-wraps each invoked script in its own kcov run
+# (written to $out_dir/coverage-wrapped) and merges those results.
+mkdir -p "$out_dir/coverage-wrapped"
+KCOV_WRAP=1 KCOV_WRAP_OUT_DIR="$out_dir/coverage-wrapped" \
+  run_kcov "coverage" "coverage" "$out_dir/coverage" "$ROOT_DIR/tests/bin/kcov-line-coverage.sh"
 
 # Merge into a stable location consumed by assert-kcov-100.sh.
-run_kcov_merge "merge" "$out_dir/kcov-merged" "$out_dir/bats" "$out_dir/driver" "$out_dir/driver-wrapped/kcov-merged"
+run_kcov_merge "merge" "$out_dir/kcov-merged" "$out_dir/bats" "$out_dir/coverage" "$out_dir/coverage-wrapped/kcov-merged"
