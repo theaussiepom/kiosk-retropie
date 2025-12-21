@@ -6,7 +6,7 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "$repo_root/ci/lib.sh"
 ci_cd_repo_root
 
-echo "== shell: bash -n =="
+echo "== sh-lint: bash -n =="
 mapfile -d '' shell_files < <(ci_list_shell_files || true)
 if [[ ${#shell_files[@]} -eq 0 ]]; then
   echo "No shell scripts found under scripts/ or ci/, skipping."
@@ -18,7 +18,7 @@ else
   done
 fi
 
-echo "== shell: shellcheck =="
+echo "== sh-lint: shellcheck =="
 ci_require_cmd shellcheck
 if [[ ${#shell_files[@]} -eq 0 ]]; then
   echo "No shell scripts found under scripts/ or ci/, skipping."
@@ -26,7 +26,7 @@ else
   shellcheck "${shell_files[@]}"
 fi
 
-echo "== shell: shfmt =="
+echo "== sh-lint: shfmt =="
 ci_require_cmd shfmt
 if [[ ${#shell_files[@]} -eq 0 ]]; then
   echo "No shell scripts found under scripts/ or ci/, skipping."

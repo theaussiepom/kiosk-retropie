@@ -1,6 +1,6 @@
 SHELL := /usr/bin/env bash
 
-.PHONY: help tools lint lint-shell lint-yaml lint-systemd lint-systemd-ci lint-markdown format format-shell test test-unit test-integration path-coverage coverage ci ci-lint
+.PHONY: help tools lint lint-sh lint-shell lint-yaml lint-systemd lint-systemd-ci lint-markdown format format-shell test test-unit test-integration path-coverage coverage ci ci-lint
 
 help:
 	@echo "Targets:"
@@ -13,6 +13,7 @@ help:
 	@echo "  path-coverage Run path coverage summary (runs tests then prints counts)"
 	@echo "  format        Auto-format where safe (shell scripts)"
 	@echo "  lint-shell    bash -n + shellcheck + shfmt -d"
+	@echo "  lint-sh       alias for lint-shell"
 	@echo "  lint-yaml     yamllint"
 	@echo "  lint-systemd  systemd-analyze verify"
 	@echo "  lint-markdown markdownlint"
@@ -52,10 +53,12 @@ ci:
 	@./scripts/ci.sh
 
 ci-lint:
-	@./scripts/ci.sh shell yaml systemd markdown
+	@./scripts/ci.sh sh-lint yaml systemd markdown
 
-lint-shell:
-	@./scripts/ci.sh shell
+lint-sh:
+	@./scripts/ci.sh sh-lint
+
+lint-shell: lint-sh
 
 lint-yaml:
 	@./scripts/ci.sh yaml

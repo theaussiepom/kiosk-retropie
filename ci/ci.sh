@@ -13,21 +13,27 @@ run_part() {
   "$path"
 }
 
-parts=(10-shell.sh 30-yaml.sh 40-systemd.sh 50-markdown.sh 20-tests.sh 60-coverage.sh)
+# Default pipeline: lint + systemd + coverage.
+# Note: coverage runs the Bats suite under kcov, so running the plain tests stage
+# as part of the default pipeline would duplicate work.
+parts=(05-permissions.sh 10-sh-lint.sh 30-yaml.sh 40-systemd.sh 50-markdown.sh 60-coverage.sh)
 
 if [[ $# -gt 0 ]]; then
   parts=()
   for p in "$@"; do
     case "$p" in
-      shell) parts+=(10-shell.sh) ;;
+      sh-lint) parts+=(10-sh-lint.sh) ;;
+      # Backwards-compatible alias.
+      shell) parts+=(10-sh-lint.sh) ;;
       yaml) parts+=(30-yaml.sh) ;;
       systemd) parts+=(40-systemd.sh) ;;
       markdown) parts+=(50-markdown.sh) ;;
       tests) parts+=(20-tests.sh) ;;
       coverage) parts+=(60-coverage.sh) ;;
+      permissions) parts+=(05-permissions.sh) ;;
       *)
         echo "Unknown CI part: $p" >&2
-        echo "Valid parts: shell yaml systemd markdown tests coverage" >&2
+        echo "Valid parts: sh-lint permissions yaml systemd markdown tests coverage" >&2
         exit 2
         ;;
     esac
