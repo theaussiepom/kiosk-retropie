@@ -1,6 +1,14 @@
 # Architecture
 
-This document describes how retro-ha-appliance is structured and how its components interact at runtime.
+This doc is a quick tour of how retro-ha-appliance is put together and what talks to what at runtime.
+
+If you’re new to Raspberry Pi + Linux service plumbing, don’t worry: you don’t need to memorize everything here.
+The main idea is simple — one device, one screen, two modes — and `systemd` is the traffic cop that makes it
+predictable.
+
+## Glossary
+
+See [Glossary](glossary.md).
 
 ## Goals
 
@@ -11,7 +19,7 @@ This document describes how retro-ha-appliance is structured and how its compone
 - Fail open: if kiosk mode is unhealthy, RetroPie remains reachable.
 - Keep gameplay independent from network storage.
 
-## Non-goals
+## Out of scope
 
 - A full desktop environment.
 - Running both modes simultaneously.
@@ -19,8 +27,38 @@ This document describes how retro-ha-appliance is structured and how its compone
 
 ## High-level component map
 
-Runtime is orchestrated by systemd. Scripts are installed under `/usr/local/lib/retro-ha` and
-configuration is loaded from `/etc/retro-ha/config.env`.
+```mermaid
+flowchart TD
+  subgraph PI[Raspberry Pi]
+    SYSTEMD[systemd]
+    INSTALL[retro-ha-install.service]
+    KIOSK["ha-kiosk.service<br/>Chromium kiosk"]
+    RETRO["retro-mode.service<br/>RetroPie"]
+    LED[retro-ha-led-mqtt.service]
+    BRIGHT[retro-ha-screen-brightness-mqtt.service]
+    SYSLED[/sysfs LEDs/]
+    SYSBL[/sysfs backlight/]
+  end
+
+  subgraph HA_BOX[Home Assistant]
+    HA[Home Assistant]
+  end
+
+  SYSTEMD --> INSTALL
+  SYSTEMD --> KIOSK
+  SYSTEMD --> RETRO
+  SYSTEMD --> LED
+  SYSTEMD --> BRIGHT
+
+  HA -- MQTT --> LED
+  HA -- MQTT --> BRIGHT
+
+  LED --> SYSLED
+  BRIGHT --> SYSBL
+```
+
+systemd (the Linux service manager) runs the show. Scripts are installed under `/usr/local/lib/retro-ha`
+and configuration is loaded from `/etc/retro-ha/config.env`.
 
 ### Systemd units
 
@@ -45,17 +83,45 @@ Periodic maintenance:
 Optional integration:
 
 - `retro-ha-led-mqtt.service`: optional MQTT-driven LED control bridge.
+- `retro-ha-screen-brightness-mqtt.service`: optional MQTT-driven screen brightness control bridge.
 
 ### Installed layout
 
 - `/etc/retro-ha/config.env`: runtime configuration.
 - `/usr/local/lib/retro-ha/*.sh`: installed scripts.
-- `/usr/local/bin/retro-ha-led-mqtt.sh`: MQTT LED bridge entrypoint.
+- `/usr/local/lib/retro-ha/retro-ha-led-mqtt.sh`: MQTT LED bridge (used by systemd).
+- `/usr/local/bin/retro-ha-led-mqtt.sh`: MQTT LED bridge convenience entrypoint.
+- `/usr/local/lib/retro-ha/retro-ha-screen-brightness-mqtt.sh`: MQTT screen brightness bridge (used by systemd).
+- `/usr/local/bin/retro-ha-screen-brightness-mqtt.sh`: MQTT screen brightness convenience entrypoint.
 - `/var/lib/retro-ha/`: appliance state and data (ROMs, saves, marker file).
 
 ## Boot and installation flow
 
-The first boot flow is designed to be idempotent.
+First boot is designed to be idempotent (it’s safe to re-run).
+
+If you’re skimming, this is the mental model: cloud-init lays down just enough to let systemd kick off a bootstrap,
+and the bootstrap is responsible for fetching the pinned repo ref and running the real installer.
+
+```mermaid
+sequenceDiagram
+  participant CI as cloud-init
+  participant SD as systemd
+  participant BOOT as bootstrap.sh
+  participant REPO as repo checkout
+  participant INST as scripts/install.sh
+
+  CI->>SD: install retro-ha-install.service
+  CI->>CI: write /etc/retro-ha/config.env
+  SD->>BOOT: start retro-ha-install.service
+  BOOT->>BOOT: check /var/lib/retro-ha/installed
+  alt already installed
+    BOOT-->>SD: exit 0
+  else not installed
+    BOOT->>REPO: clone/fetch RETRO_HA_REPO_URL@RETRO_HA_REPO_REF
+    BOOT->>INST: exec installer from checkout
+    INST-->>SD: enable units, write installed marker
+  end
+```
 
 1. A cloud-init user-data file writes `/etc/retro-ha/config.env` and installs
    `/etc/systemd/system/retro-ha-install.service` and `/usr/local/lib/retro-ha/bootstrap.sh`.
@@ -67,11 +133,11 @@ The first boot flow is designed to be idempotent.
 4. `scripts/install.sh` installs packages and copies scripts/units into their installed locations,
    enables the required services/timers, then writes the installed marker.
 
-Re-running install without reflashing is supported by deleting the marker file and restarting the unit.
+If you want to re-run install without reflashing, delete the marker file and restart the unit.
 
 ## Mode ownership and display
 
-Both modes start X explicitly via `xinit` and run on fixed VTs:
+Both modes start the X server (Xorg) explicitly via `xinit` and run on fixed VTs (virtual terminals):
 
 - HA kiosk: VT7 (`RETRO_HA_X_VT`, default `7`)
 - Retro mode: VT8 (`RETRO_HA_RETRO_X_VT`, default `8`)
@@ -84,6 +150,13 @@ systemd enforces exclusivity:
 Each service is configured to run with a logind session (TTY + `PAMName=login`) so rootless Xorg can
 acquire the seat.
 
+In plain terms: `logind` is what gives a user session permission to talk to the keyboard/controller and the
+display/GPU. By setting the services up like “real” login sessions, we can run Xorg without running everything as
+root.
+
+This is one of the reasons the runtime stays “on the host”: VT + logind + seat ownership is exactly the stuff
+systemd is already good at, and we lean into that instead of trying to re-build it in another layer.
+
 ## Mode switching
 
 ### Manual switching
@@ -93,9 +166,22 @@ acquire the seat.
 
 Because of `Conflicts=`, starting one mode will stop the other.
 
+Here’s the simple picture:
+
+```mermaid
+flowchart TD
+  HA["ha-kiosk.service<br/>Chromium kiosk"] <--> RETRO["retro-mode.service<br/>RetroPie"]
+  START[Controller Start button] --> LISTEN[controller listener]
+  LISTEN -->|systemctl start retro-mode.service| RETRO
+```
+
 ### Controller-driven switching
 
-Two Python-based listeners read evdev events from `/dev/input/by-id/*event-joystick`:
+Two small listener scripts (Bash wrappers that run embedded Python) read controller input from Linux’s `evdev`
+interface.
+
+They look under `/dev/input/by-id/` first because those names tend to stay stable across reboots (unlike
+`/dev/input/event0`, which can change).
 
 - `ha-mode-controller-listener.service`:
   - Requires HA kiosk to be active.
@@ -136,14 +222,26 @@ The storage design separates gameplay data from network availability.
 
 ## LED behavior and MQTT bridge
 
-LED control is done by writing to sysfs via `ledctl.sh`.
+LED control is done by writing to sysfs (the Linux kernel device filesystem) via `ledctl.sh`.
 
 If enabled, `retro-ha-led-mqtt.service` subscribes to MQTT topics (default prefix `retro-ha`) and calls
-`ledctl.sh` to toggle ACT/PWR LEDs. It also publishes retained state topics for Home Assistant UI.
+`ledctl.sh` to toggle ACT/PWR LEDs.
+
+It publishes retained state topics (MQTT “retained messages”) for Home Assistant UI and periodically
+polls sysfs so Home Assistant also reflects LED changes made outside MQTT.
+
+## Screen brightness and MQTT bridge
+
+Screen brightness control is done by writing to sysfs via `/sys/class/backlight/<device>/brightness`.
+
+If enabled, `retro-ha-screen-brightness-mqtt.service` subscribes to a brightness percent command topic
+(default prefix `retro-ha`), writes the corresponding raw sysfs value, and publishes retained state.
+
+It also periodically polls sysfs so Home Assistant reflects brightness changes made outside MQTT.
 
 ## Observability and debugging
 
-- Journald is the primary log sink.
+- Journald (systemd’s logging) is the primary log sink.
 - Most issues can be diagnosed with:
 
 ```bash

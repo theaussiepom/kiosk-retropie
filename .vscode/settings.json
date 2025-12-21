@@ -1,0 +1,30 @@
+{
+  "editor.formatOnSave": true,
+  "editor.formatOnSaveMode": "file",
+  "editor.rulers": [
+    120
+  ],
+  "files.eol": "\n",
+  "files.encoding": "utf8",
+  "files.trimTrailingWhitespace": true,
+  "files.insertFinalNewline": true,
+  "search.exclude": {
+    "coverage/**": true,
+    "coverage-devcontainer*/**": true
+  },
+  "[shellscript]": {
+    "editor.defaultFormatter": "mkhl.shfmt"
+  },
+  "shfmt.executablePath": "shfmt",
+  "shfmt.flags": [
+    "-i",
+    "2",
+    "-ci",
+    "-sr"
+  ],
+  "yaml.validate": true,
+  "yaml.format.enable": true,
+  "markdownlint.config": {
+    "default": true
+  }
+}

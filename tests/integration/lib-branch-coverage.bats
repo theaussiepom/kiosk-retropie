@@ -1,5 +1,7 @@
 #!/usr/bin/env bats
 
+# shellcheck disable=SC1090,SC1091
+
 RETRO_HA_REPO_ROOT="${RETRO_HA_REPO_ROOT:-$(cd "$BATS_TEST_DIRNAME/../.." && pwd)}"
 
 load "$RETRO_HA_REPO_ROOT/tests/vendor/bats-support/load"
@@ -21,7 +23,7 @@ test_teardown() {
   # X11 helper branches.
   source "$RETRO_HA_REPO_ROOT/scripts/lib/x11.sh"
 
-  XDG_RUNTIME_DIR="$TEST_ROOT/run/user/999"
+  export XDG_RUNTIME_DIR="$TEST_ROOT/run/user/999"
   run retro_ha_runtime_dir 999
   assert_success
 

@@ -1,5 +1,7 @@
 #!/usr/bin/env bats
 
+# shellcheck disable=SC1090,SC1091
+
 load "${RETRO_HA_REPO_ROOT}/tests/vendor/bats-support/load"
 load "${RETRO_HA_REPO_ROOT}/tests/vendor/bats-assert/load"
 
@@ -40,10 +42,10 @@ test_teardown() {
 }
 
 @test "mosq_args includes optional auth and tls" {
-  MQTT_PORT=1999
-  MQTT_USERNAME="u"
-  MQTT_PASSWORD="p"
-  MQTT_TLS=1
+  export MQTT_PORT=1999
+  export MQTT_USERNAME="u"
+  export MQTT_PASSWORD="p"
+  export MQTT_TLS=1
 
   run mosq_args
   assert_success

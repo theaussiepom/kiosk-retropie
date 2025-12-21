@@ -1,0 +1,89 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "lint - all",
+      "type": "shell",
+      "command": "make lint",
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "lint - permissions",
+      "type": "shell",
+      "command": "make container-run CMD='./scripts/ci.sh lint-permissions'",
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "lint - naming",
+      "type": "shell",
+      "command": "make container-run CMD='./scripts/ci.sh lint-naming'",
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "lint - sh",
+      "type": "shell",
+      "command": "make container-run CMD='./scripts/ci.sh lint-sh'",
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "lint - yaml",
+      "type": "shell",
+      "command": "make container-run CMD='./scripts/ci.sh lint-yaml'",
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "lint - systemd",
+      "type": "shell",
+      "command": "make container-run CMD='./scripts/ci.sh lint-systemd'",
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "lint - markdown",
+      "type": "shell",
+      "command": "make container-run CMD='./scripts/ci.sh lint-markdown'",
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "test - all",
+      "type": "shell",
+      "command": "make test",
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "test - unit",
+      "type": "shell",
+      "command": "make test-unit",
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "test - integration",
+      "type": "shell",
+      "command": "make test-integration",
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "test - coverage",
+      "type": "shell",
+      "command": "make coverage",
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "ci (full)",
+      "type": "shell",
+      "command": "make ci",
+      "group": "build",
+      "problemMatcher": []
+    }
+  ]
+}

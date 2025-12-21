@@ -1,13 +1,19 @@
 #!/usr/bin/env bats
 
+# shellcheck disable=SC1090,SC1091
+
+# shellcheck source=../vendor/bats-support/load
 load "${RETRO_HA_REPO_ROOT}/tests/vendor/bats-support/load"
+# shellcheck source=../vendor/bats-assert/load
 load "${RETRO_HA_REPO_ROOT}/tests/vendor/bats-assert/load"
 
 setup() {
   export RETRO_HA_ROOT
   RETRO_HA_ROOT="$(mktemp -d)"
 
+  # shellcheck source=../../scripts/lib/common.sh
   source "${RETRO_HA_REPO_ROOT}/scripts/lib/common.sh"
+  # shellcheck source=../../scripts/lib/x11.sh
   source "${RETRO_HA_REPO_ROOT}/scripts/lib/x11.sh"
 
   unset XDG_RUNTIME_DIR || true
@@ -18,7 +24,7 @@ test_teardown() {
 }
 
 @test "retro_ha_runtime_dir uses XDG_RUNTIME_DIR when set" {
-  XDG_RUNTIME_DIR="/run/user/999"
+  export XDG_RUNTIME_DIR="/run/user/999"
   run retro_ha_runtime_dir 123
   assert_success
   assert_output "/run/user/999"

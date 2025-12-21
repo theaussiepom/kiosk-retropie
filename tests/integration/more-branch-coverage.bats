@@ -1,5 +1,7 @@
 #!/usr/bin/env bats
 
+# shellcheck disable=SC1090,SC1091
+
 RETRO_HA_REPO_ROOT="${RETRO_HA_REPO_ROOT:-$(cd "$BATS_TEST_DIRNAME/../.." && pwd)}"
 
 load "$RETRO_HA_REPO_ROOT/tests/vendor/bats-support/load"
@@ -48,7 +50,7 @@ test_teardown() {
   libdir="$(mktemp -d)"
   printf '#!/usr/bin/env bash\n' >"$libdir/enter-retro-mode.sh"
   chmod +x "$libdir/enter-retro-mode.sh"
-  RETRO_HA_LIBDIR="$libdir"
+  export RETRO_HA_LIBDIR="$libdir"
   run healthcheck_enter_retro_path "$TEST_ROOT/scripts"
   assert_success
 
@@ -85,7 +87,7 @@ test_teardown() {
   libdir="$(mktemp -d)"
   printf '#!/usr/bin/env bash\n' >"$libdir/ledctl.sh"
   chmod +x "$libdir/ledctl.sh"
-  RETRO_HA_LIBDIR="$libdir"
+  export RETRO_HA_LIBDIR="$libdir"
   run retro_ha_ledctl_path "$TEST_ROOT/mode"
   assert_success
 
@@ -139,10 +141,10 @@ test_teardown() {
   assert_success
 
   # mosq_args: explicit port + auth + tls
-  MQTT_PORT=1884
-  MQTT_USERNAME=u
-  MQTT_PASSWORD=p
-  MQTT_TLS=1
+  export MQTT_PORT=1884
+  export MQTT_USERNAME=u
+  export MQTT_PASSWORD=p
+  export MQTT_TLS=1
   run mosq_args
   assert_success
 
@@ -159,7 +161,7 @@ test_teardown() {
   assert_success
 
   # handle_set: ledctl missing
-  LEDCTL_PATH="$TEST_ROOT/missing-ledctl.sh"
+  export LEDCTL_PATH="$TEST_ROOT/missing-ledctl.sh"
   run handle_set act on retro-ha
   assert_failure
 

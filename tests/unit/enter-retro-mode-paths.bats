@@ -1,5 +1,7 @@
 #!/usr/bin/env bats
 
+# shellcheck disable=SC1090,SC1091
+
 load "${RETRO_HA_REPO_ROOT}/tests/vendor/bats-support/load"
 load "${RETRO_HA_REPO_ROOT}/tests/vendor/bats-assert/load"
 
@@ -21,7 +23,7 @@ test_teardown() {
   printf '#!/usr/bin/env bash\n' >"$libdir/ledctl.sh"
   chmod +x "$libdir/ledctl.sh"
 
-  RETRO_HA_LIBDIR="$libdir"
+  export RETRO_HA_LIBDIR="$libdir"
 
   run retro_ha_ledctl_path "/does/not/matter"
   assert_success
@@ -36,7 +38,7 @@ test_teardown() {
   printf '#!/usr/bin/env bash\n' >"$d/ledctl.sh"
   chmod +x "$d/ledctl.sh"
 
-  RETRO_HA_LIBDIR=""
+  export RETRO_HA_LIBDIR=""
 
   run retro_ha_ledctl_path "$d"
   assert_success
@@ -57,7 +59,7 @@ test_teardown() {
   printf '#!/usr/bin/env bash\n' >"$root/leds/ledctl.sh"
   chmod +x "$root/leds/ledctl.sh"
 
-  RETRO_HA_LIBDIR=""
+  export RETRO_HA_LIBDIR=""
 
   run retro_ha_ledctl_path "$root/mode"
   assert_success
@@ -67,7 +69,7 @@ test_teardown() {
 }
 
 @test "retro_ha_ledctl_path final fallback uses retro_ha_libdir" {
-  RETRO_HA_LIBDIR=""
+  export RETRO_HA_LIBDIR=""
 
   run retro_ha_ledctl_path "/definitely/missing"
   assert_success

@@ -11,99 +11,152 @@ permissions:
   contents: read
 
 jobs:
-  shell:
-    name: shell
+  lint-permissions:
+    name: lint-permissions
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install shellcheck
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y shellcheck
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-      - name: Bash syntax check
+      - name: Build devcontainer image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: .devcontainer/Dockerfile
+          tags: retro-ha-devcontainer:ci
+          load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Run stage in devcontainer
         shell: bash
         run: |
           set -euo pipefail
-          shopt -s globstar nullglob
+          docker run --rm \
+            -v "$PWD:/work" \
+            -w /work \
+            retro-ha-devcontainer:ci \
+            bash -lc './scripts/ci.sh lint-permissions'
 
-          files=(scripts/**/*.sh)
-          if [ ${#files[@]} -eq 0 ]; then
-            echo "No shell scripts found under scripts/**/*.sh, skipping."
-            exit 0
-          fi
-
-          for f in "${files[@]}"; do
-            echo "bash -n $f"
-            bash -n "$f"
-          done
-
-      - name: Shellcheck
-        shell: bash
-        run: |
-          set -euo pipefail
-          shopt -s globstar nullglob
-
-          files=(scripts/**/*.sh)
-          if [ ${#files[@]} -eq 0 ]; then
-            echo "No shell scripts found under scripts/**/*.sh, skipping."
-            exit 0
-          fi
-
-          shellcheck "${files[@]}"
-
-      - name: Setup shfmt
-        uses: mfinelli/setup-shfmt@v3
-
-      - name: Enforce shfmt formatting
-        shell: bash
-        run: |
-          set -euo pipefail
-          shopt -s globstar nullglob
-
-          files=(scripts/**/*.sh)
-          if [ ${#files[@]} -eq 0 ]; then
-            echo "No shell scripts found under scripts/**/*.sh, skipping."
-            exit 0
-          fi
-
-          shfmt -d -i 2 -ci -sr "${files[@]}"
-
-  tests:
-    name: tests
+  lint-naming:
+    name: lint-naming
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Run all tests (show Bats output)
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build devcontainer image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: .devcontainer/Dockerfile
+          tags: retro-ha-devcontainer:ci
+          load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Run stage in devcontainer
         shell: bash
         run: |
           set -euo pipefail
-          make test
+          docker run --rm \
+            -v "$PWD:/work" \
+            -w /work \
+            retro-ha-devcontainer:ci \
+            bash -lc './scripts/ci.sh lint-naming'
 
-  coverage:
-    name: coverage (kcov)
-    runs-on: ubuntu-22.04
-    needs: [tests]
+  lint-sh:
+    name: lint-sh
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install kcov
-        run: |
-          sudo apt-get update
-          # Ensure universe is enabled (kcov lives there on Ubuntu 22.04).
-          sudo apt-get install -y software-properties-common
-          sudo add-apt-repository -y universe
-          sudo apt-get update
-          sudo apt-get install -y kcov strace
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-      - name: Run tests under kcov
-        timeout-minutes: 15
+      - name: Build devcontainer image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: .devcontainer/Dockerfile
+          tags: retro-ha-devcontainer:ci
+          load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Run stage in devcontainer
         shell: bash
         run: |
           set -euo pipefail
-          KCOV_ALLOW_NONZERO_WITH_REPORT=1 "$GITHUB_WORKSPACE/tests/bin/run-bats-kcov.sh"
+          docker run --rm \
+            -v "$PWD:/work" \
+            -w /work \
+            retro-ha-devcontainer:ci \
+            bash -lc './scripts/ci.sh lint-sh'
+
+  test-all:
+    name: test-all
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build devcontainer image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: .devcontainer/Dockerfile
+          tags: retro-ha-devcontainer:ci
+          load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Run stage in devcontainer
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -v "$PWD:/work" \
+            -w /work \
+            retro-ha-devcontainer:ci \
+            bash -lc './scripts/ci.sh tests'
+
+  test-coverage:
+    name: test-coverage
+    runs-on: ubuntu-latest
+    needs: [test-all]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build devcontainer image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: .devcontainer/Dockerfile
+          tags: retro-ha-devcontainer:ci
+          load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Run stage in devcontainer
+        timeout-minutes: 20
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -v "$PWD:/work" \
+            -w /work \
+            retro-ha-devcontainer:ci \
+            bash -lc './scripts/ci.sh coverage'
 
       - name: Show kcov output paths
         if: always()
@@ -117,6 +170,11 @@ jobs:
           echo "Searching for kcov logs under coverage/"
           find coverage -maxdepth 2 -name '*.log' -print 2>/dev/null || true
 
+      - name: Show kcov log tails (failure only)
+        if: failure()
+        shell: bash
+        run: |
+          set -euo pipefail
           for f in coverage/*.log; do
             [ -f "$f" ] || continue
             echo "--- $f (last 200 lines) ---"
@@ -143,149 +201,91 @@ jobs:
             coverage/**/*.strace
           if-no-files-found: warn
 
-      - name: Enforce 100% line coverage
-        shell: bash
-        run: |
-          set -euo pipefail
-          "$GITHUB_WORKSPACE/tests/bin/assert-kcov-100.sh"
+  # Coverage enforcement is handled by ./scripts/ci.sh coverage
 
-  yaml:
-    name: yaml
+  lint-yaml:
+    name: lint-yaml
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install yamllint
-        run: |
-          python -m pip install --upgrade pip
-          pip install yamllint
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-      - name: Yamllint
+      - name: Build devcontainer image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: .devcontainer/Dockerfile
+          tags: retro-ha-devcontainer:ci
+          load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Run stage in devcontainer
         shell: bash
         run: |
           set -euo pipefail
-          shopt -s globstar nullglob
+          docker run --rm \
+            -v "$PWD:/work" \
+            -w /work \
+            retro-ha-devcontainer:ci \
+            bash -lc './scripts/ci.sh lint-yaml'
 
-          files=(
-            .github/**/*.yml
-            .github/**/*.yaml
-            cloud-init/**/*.yml
-            cloud-init/**/*.yaml
-            examples/**/*.yml
-            examples/**/*.yaml
-          )
-
-          existing=()
-          for f in "${files[@]}"; do
-            if [ -f "$f" ]; then
-              existing+=("$f")
-            fi
-          done
-
-          if [ ${#existing[@]} -eq 0 ]; then
-            echo "No YAML files found in expected locations, skipping."
-            exit 0
-          fi
-
-          yamllint -c .yamllint.yml "${existing[@]}"
-
-  systemd:
-    name: systemd
+  lint-systemd:
+    name: lint-systemd
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Prepare ExecStart stubs for verification
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build devcontainer image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: .devcontainer/Dockerfile
+          tags: retro-ha-devcontainer:ci
+          load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Run stage in devcontainer
         shell: bash
         run: |
           set -euo pipefail
-          shopt -s globstar nullglob
+          docker run --rm \
+            -v "$PWD:/work" \
+            -w /work \
+            retro-ha-devcontainer:ci \
+            bash -lc './scripts/ci.sh lint-systemd'
 
-          # systemd-analyze verify checks that ExecStart binaries exist.
-          # In CI we verify unit file syntax/semantics without installing the appliance.
-          # Create minimal executable stubs for referenced /usr/local paths.
-          execs=()
-          while IFS= read -r line; do
-            [[ -n "$line" ]] || continue
-            execs+=("${line#*=}")
-          done < <(grep -hoE '^(ExecStart|ExecStartPre)=[^ ]+' systemd/**/*.service 2>/dev/null | sort -u || true)
-
-          for exe in "${execs[@]}"; do
-            case "$exe" in
-              /usr/local/*)
-                sudo mkdir -p "$(dirname "$exe")"
-                printf '%s\n' '#!/usr/bin/env bash' 'exit 0' | sudo tee "$exe" >/dev/null
-                sudo chmod +x "$exe"
-                ;;
-            esac
-          done
-
-      - name: Verify systemd units
-        shell: bash
-        run: |
-          set -euo pipefail
-          shopt -s globstar nullglob
-
-          units=(
-            systemd/**/*.service
-            systemd/**/*.timer
-            systemd/**/*.target
-            systemd/**/*.path
-            systemd/**/*.socket
-            systemd/**/*.mount
-          )
-
-          existing=()
-          for u in "${units[@]}"; do
-            if [ -f "$u" ]; then
-              existing+=("$u")
-            fi
-          done
-
-          if [ ${#existing[@]} -eq 0 ]; then
-            echo "No systemd unit files found under systemd/, skipping."
-            exit 0
-          fi
-
-          for u in "${existing[@]}"; do
-            echo "systemd-analyze verify $u"
-            systemd-analyze verify "$u"
-          done
-
-  markdown:
-    name: markdown
+  lint-markdown:
+    name: lint-markdown
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install markdownlint
-        run: |
-          npm install -g markdownlint-cli
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-      - name: Markdownlint
+      - name: Build devcontainer image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: .devcontainer/Dockerfile
+          tags: retro-ha-devcontainer:ci
+          load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Run stage in devcontainer
         shell: bash
         run: |
           set -euo pipefail
-          shopt -s globstar nullglob
-
-          files=(
-            README.md
-            CHANGELOG.md
-            CONTRIBUTING.md
-            CODE_OF_CONDUCT.md
-            docs/**/*.md
-          )
-
-          existing=()
-          for f in "${files[@]}"; do
-            if [ -f "$f" ]; then
-              existing+=("$f")
-            fi
-          done
-
-          if [ ${#existing[@]} -eq 0 ]; then
-            echo "No markdown files found, skipping."
-            exit 0
-          fi
-
-          markdownlint -c .markdownlint.json "${existing[@]}"
+          docker run --rm \
+            -v "$PWD:/work" \
+            -w /work \
+            retro-ha-devcontainer:ci \
+            bash -lc './scripts/ci.sh lint-markdown'

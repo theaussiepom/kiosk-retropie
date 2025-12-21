@@ -1,0 +1,9 @@
+{
+  "recommendations": [
+    "mkhl.shfmt",
+    "timonwong.shellcheck",
+    "redhat.vscode-yaml",
+    "davidanson.vscode-markdownlint",
+    "coolbear.systemd-unit-file"
+  ]
+}

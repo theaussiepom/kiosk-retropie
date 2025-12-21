@@ -1,5 +1,7 @@
 #!/usr/bin/env bats
 
+# shellcheck disable=SC1090,SC1091
+
 load "${RETRO_HA_REPO_ROOT}/tests/vendor/bats-support/load"
 load "${RETRO_HA_REPO_ROOT}/tests/vendor/bats-assert/load"
 
@@ -45,7 +47,7 @@ test_teardown() {
 }
 
 @test "load_config_env is a no-op when file missing" {
-  RETRO_HA_CONFIG_ENV="${RETRO_HA_ROOT}/missing.env"
+  export RETRO_HA_CONFIG_ENV="${RETRO_HA_ROOT}/missing.env"
 
   unset FOO || true
   load_config_env

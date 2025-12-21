@@ -50,6 +50,7 @@ make_isolated_path_with_stubs() {
 	# tests.
 	local core_tools=(
 		env bash sh
+		sleep
 		cat rm mkdir rmdir mv cp ln chmod touch
 		cut grep sed awk tr sort
 		date mktemp head tail

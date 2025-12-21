@@ -19,13 +19,18 @@ if not candidates:
     print(f"No kcov coverage.json found under: {out_dir}", file=sys.stderr)
     sys.exit(2)
 
-# Prefer merged coverage if present.
-preferred = None
-for p in candidates:
-    if p.endswith(os.path.join("kcov-merged", "coverage.json")):
-        preferred = p
-        break
-coverage_path = preferred or sorted(candidates)[0]
+# Prefer the top-level merged coverage if present.
+expected_top_level = os.path.join(out_dir, "kcov-merged", "kcov-merged", "coverage.json")
+if os.path.exists(expected_top_level):
+    coverage_path = expected_top_level
+else:
+    # Fall back to any merged coverage.
+    preferred = None
+    for p in sorted(candidates):
+        if p.endswith(os.path.join("kcov-merged", "coverage.json")):
+            preferred = p
+            break
+    coverage_path = preferred or sorted(candidates)[0]
 
 with open(coverage_path, "r", encoding="utf-8") as f:
     data = json.load(f)

@@ -1,5 +1,7 @@
 #!/usr/bin/env bats
 
+# shellcheck disable=SC1090,SC1091
+
 load "${RETRO_HA_REPO_ROOT}/tests/vendor/bats-support/load"
 load "${RETRO_HA_REPO_ROOT}/tests/vendor/bats-assert/load"
 

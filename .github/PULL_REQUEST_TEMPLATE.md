@@ -4,5 +4,5 @@
 
 ## Checklist
 
-- [ ] CI passes
-- [ ] Aligned with docs/architecture.md
+- [ ] CI passes (`./scripts/ci.sh` in the devcontainer)
+- [ ] Design matches the constraints in docs/architecture.md

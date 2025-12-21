@@ -1,5 +1,7 @@
 #!/usr/bin/env bats
 
+# shellcheck disable=SC1090,SC1091
+
 RETRO_HA_REPO_ROOT="${RETRO_HA_REPO_ROOT:-$(cd "$BATS_TEST_DIRNAME/../.." && pwd)}"
 
 load "$RETRO_HA_REPO_ROOT/tests/vendor/bats-support/load"
@@ -44,7 +46,7 @@ teardown() {
 	echo '#!/usr/bin/env bash' >"$libdir/ledctl.sh"
 	echo 'exit 0' >>"$libdir/ledctl.sh"
 	chmod +x "$libdir/ledctl.sh"
-	RETRO_HA_LIBDIR="$libdir"
+	export RETRO_HA_LIBDIR="$libdir"
 	run retro_ha_ledctl_path
 	assert_success
 	assert_output "$libdir/ledctl.sh"

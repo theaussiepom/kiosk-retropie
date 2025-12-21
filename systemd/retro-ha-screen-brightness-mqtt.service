@@ -1,0 +1,17 @@
+[Unit]
+Description=retro-ha screen brightness control via MQTT
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=-/etc/retro-ha/config.env
+ExecStart=/usr/local/lib/retro-ha/retro-ha-screen-brightness-mqtt.sh
+Restart=on-failure
+RestartSec=2
+
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

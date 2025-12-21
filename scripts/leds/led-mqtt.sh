@@ -35,6 +35,19 @@ source "$LIB_DIR/common.sh"
 
 LEDCTL_PATH="${RETRO_HA_LEDCTL_PATH:-$(retro_ha_path /usr/local/lib/retro-ha/ledctl.sh)}"
 
+__retro_ha_led_mqtt_poller_pid=""
+__retro_ha_led_mqtt_sub_pid=""
+
+led_mqtt_cleanup() {
+  if [[ -n "${__retro_ha_led_mqtt_poller_pid:-}" ]]; then
+    kill "${__retro_ha_led_mqtt_poller_pid}" 2> /dev/null || true
+  fi
+  if [[ -n "${__retro_ha_led_mqtt_sub_pid:-}" ]]; then
+    kill "${__retro_ha_led_mqtt_sub_pid}" 2> /dev/null || true
+  fi
+  exec 3<&- 2> /dev/null || true
+}
+
 mosq_args() {
   local args=()
 
@@ -87,6 +100,100 @@ publish_state() {
     args+=("$line")
   done <<< "$(mosq_args)"
   run_cmd mosquitto_pub "${args[@]}" -t "$state_topic" -m "$payload" -r
+}
+
+led_state_payload() {
+  local target="$1" # act|pwr
+
+  local led_name=""
+  case "$target" in
+    act) led_name="${RETRO_HA_ACT_LED:-led0}" ;;
+    pwr) led_name="${RETRO_HA_PWR_LED:-led1}" ;;
+    *)
+      cover_path "led-mqtt:state-invalid-target"
+      return 1
+      ;;
+  esac
+
+  local dir
+  dir="$(retro_ha_path "/sys/class/leds/${led_name}")"
+  local brightness_file="$dir/brightness"
+  if [[ ! -f "$brightness_file" ]]; then
+    cover_path "led-mqtt:state-brightness-missing"
+    return 1
+  fi
+
+  local raw
+  raw="$(tr -d '[:space:]' < "$brightness_file" 2> /dev/null || true)"
+  if [[ ! "$raw" =~ ^[0-9]+$ ]]; then
+    cover_path "led-mqtt:state-brightness-invalid"
+    return 1
+  fi
+
+  if ((raw > 0)); then
+    cover_path "led-mqtt:state-on"
+    printf '%s\n' "ON"
+  else
+    cover_path "led-mqtt:state-off"
+    printf '%s\n' "OFF"
+  fi
+}
+
+publish_led_states_once() {
+  local prefix="$1"
+
+  local payload
+  if payload="$(led_state_payload act)"; then
+    cover_path "led-mqtt:state-publish-act"
+    publish_state act "$payload" "$prefix" || true
+  fi
+  if payload="$(led_state_payload pwr)"; then
+    cover_path "led-mqtt:state-publish-pwr"
+    publish_state pwr "$payload" "$prefix" || true
+  fi
+}
+
+led_state_poller() {
+  local prefix="$1"
+
+  local poll_sec="${RETRO_HA_LED_MQTT_POLL_SEC:-2}"
+  local max_loops="${RETRO_HA_LED_MQTT_MAX_LOOPS:-0}"
+  local loops=0
+
+  local last_act=""
+  local last_pwr=""
+
+  while true; do
+    local payload
+
+    if payload="$(led_state_payload act)"; then
+      if [[ "$payload" != "$last_act" ]]; then
+        cover_path "led-mqtt:state-change-act"
+        publish_state act "$payload" "$prefix" || true
+        last_act="$payload"
+      else
+        cover_path "led-mqtt:state-same-act"
+      fi
+    fi
+
+    if payload="$(led_state_payload pwr)"; then
+      if [[ "$payload" != "$last_pwr" ]]; then
+        cover_path "led-mqtt:state-change-pwr"
+        publish_state pwr "$payload" "$prefix" || true
+        last_pwr="$payload"
+      else
+        cover_path "led-mqtt:state-same-pwr"
+      fi
+    fi
+
+    loops=$((loops + 1))
+    if [[ "$max_loops" != "0" && "$loops" -ge "$max_loops" ]]; then
+      cover_path "led-mqtt:state-max-loops"
+      return 0
+    fi
+
+    sleep "$poll_sec"
+  done
 }
 
 handle_set() {
@@ -163,8 +270,22 @@ main() {
 
   cover_path "led-mqtt:subscribing"
 
+  # Publish initial state so HA is in sync even if a change happened outside MQTT.
+  cover_path "led-mqtt:state-initial"
+  publish_led_states_once "$prefix"
+
+  # Background poller: keep HA in sync with any non-MQTT changes.
+  led_state_poller "$prefix" &
+  __retro_ha_led_mqtt_poller_pid=$!
+
+  # Start subscriber via process substitution so we can track its PID and clean up.
+  exec 3< <(mosquitto_sub "${args[@]}" -v -t "$topic_filter")
+  __retro_ha_led_mqtt_sub_pid=$!
+
+  trap led_mqtt_cleanup EXIT INT TERM
+
   # -v prints "<topic> <payload>" per line.
-  mosquitto_sub "${args[@]}" -v -t "$topic_filter" | while read -r topic payload; do
+  while read -r topic payload <&3; do
     # topic: <prefix>/led/<target>/set
     local target
     target="${topic#"${prefix}/led/"}"

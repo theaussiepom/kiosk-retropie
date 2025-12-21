@@ -1,5 +1,7 @@
 #!/usr/bin/env bats
 
+# shellcheck disable=SC1090,SC1091
+
 RETRO_HA_REPO_ROOT="${RETRO_HA_REPO_ROOT:-$(cd "$BATS_TEST_DIRNAME/../.." && pwd)}"
 
 load "$RETRO_HA_REPO_ROOT/tests/vendor/bats-support/load"
@@ -12,6 +14,16 @@ setup() {
 
 teardown() {
 	teardown_test_root
+}
+
+# Helper to assert a file does NOT contain a substring.
+refute_file_contains() {
+	local file="$1"
+	local needle="$2"
+	if [[ ! -f "$file" ]]; then
+		return 0
+	fi
+	! grep -Fq -- "$needle" "$file"
 }
 
 @test "mount-nfs is fail-open when NFS not configured" {
@@ -54,14 +66,4 @@ teardown() {
 	assert_file_contains "$TEST_ROOT/calls.log" "rsync"
 	assert_file_contains "$TEST_ROOT/calls.log" "$mp/nes/"
 	refute_file_contains "$TEST_ROOT/calls.log" "$mp/snes/"
-}
-
-# Helper to assert a file does NOT contain a substring.
-refute_file_contains() {
-	local file="$1"
-	local needle="$2"
-	if [[ ! -f "$file" ]]; then
-		return 0
-	fi
-	! grep -Fq -- "$needle" "$file"
 }

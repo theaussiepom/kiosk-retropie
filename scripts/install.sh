@@ -129,6 +129,11 @@ install_files() {
     run_cmd ln -sf "$lib_dir/retro-ha-led-mqtt.sh" "$bin_dir/retro-ha-led-mqtt.sh"
   fi
 
+  if [[ -d "$repo_root/scripts/screen" ]]; then
+    run_cmd install -m 0755 "$repo_root/scripts/screen/screen-brightness-mqtt.sh" "$lib_dir/retro-ha-screen-brightness-mqtt.sh"
+    run_cmd ln -sf "$lib_dir/retro-ha-screen-brightness-mqtt.sh" "$bin_dir/retro-ha-screen-brightness-mqtt.sh"
+  fi
+
   if [[ -f "$repo_root/scripts/mode/ha-kiosk.sh" ]]; then
     run_cmd install -m 0755 "$repo_root/scripts/mode/ha-kiosk.sh" "$lib_dir/ha-kiosk.sh"
   fi
@@ -189,6 +194,9 @@ install_files() {
   if [[ -f "$repo_root/systemd/retro-ha-led-mqtt.service" ]]; then
     run_cmd install -m 0644 "$repo_root/systemd/retro-ha-led-mqtt.service" "$systemd_dir/retro-ha-led-mqtt.service"
   fi
+  if [[ -f "$repo_root/systemd/retro-ha-screen-brightness-mqtt.service" ]]; then
+    run_cmd install -m 0644 "$repo_root/systemd/retro-ha-screen-brightness-mqtt.service" "$systemd_dir/retro-ha-screen-brightness-mqtt.service"
+  fi
   if [[ -f "$repo_root/systemd/emergency-retro-launch.service" ]]; then
     run_cmd install -m 0644 "$repo_root/systemd/emergency-retro-launch.service" "$systemd_dir/emergency-retro-launch.service"
   fi
@@ -236,6 +244,7 @@ enable_services() {
 
   # Optional components.
   run_cmd systemctl enable retro-ha-led-mqtt.service > /dev/null 2>&1 || true
+  run_cmd systemctl enable retro-ha-screen-brightness-mqtt.service > /dev/null 2>&1 || true
 
   # Fail-open safety net (periodic).
   run_cmd systemctl enable healthcheck.timer > /dev/null 2>&1 || true

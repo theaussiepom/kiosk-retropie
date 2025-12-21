@@ -1,5 +1,7 @@
 #!/usr/bin/env bats
 
+# shellcheck disable=SC1090,SC1091
+
 RETRO_HA_REPO_ROOT="${RETRO_HA_REPO_ROOT:-$(cd "$BATS_TEST_DIRNAME/../.." && pwd)}"
 
 load "$RETRO_HA_REPO_ROOT/tests/vendor/bats-support/load"
@@ -46,18 +48,18 @@ SH
   run retro_ha_root
   assert_success
 
-  RETRO_HA_ROOT="$TEST_ROOT/"
+  export RETRO_HA_ROOT="$TEST_ROOT/"
   run retro_ha_root
   assert_success
 
   # path branches
-  RETRO_HA_ROOT="$TEST_ROOT"
+  export RETRO_HA_ROOT="$TEST_ROOT"
   run retro_ha_path "relative"
   assert_success
-  RETRO_HA_ROOT="/"
+  export RETRO_HA_ROOT="/"
   run retro_ha_path "/etc/hosts"
   assert_success
-  RETRO_HA_ROOT="$TEST_ROOT"
+  export RETRO_HA_ROOT="$TEST_ROOT"
   run retro_ha_path "/etc/hosts"
   assert_success
 
@@ -99,13 +101,14 @@ SH
   assert_success
 
   # logging.sh branches
+  # shellcheck source=../../scripts/lib/logging.sh
   source "$RETRO_HA_REPO_ROOT/scripts/lib/logging.sh"
 
   unset RETRO_HA_LOG_PREFIX
   run retro_ha_log_prefix
   assert_success
 
-  RETRO_HA_LOG_PREFIX="x"
+  export RETRO_HA_LOG_PREFIX="x"
   run retro_ha_log_prefix
   assert_success
 

@@ -1,5 +1,7 @@
 #!/usr/bin/env bats
 
+# shellcheck disable=SC1090,SC1091
+
 RETRO_HA_REPO_ROOT="${RETRO_HA_REPO_ROOT:-$(cd "$BATS_TEST_DIRNAME/../.." && pwd)}"
 
 load "$RETRO_HA_REPO_ROOT/tests/vendor/bats-support/load"
@@ -147,4 +149,90 @@ EOF
 	assert_file_contains "$TEST_ROOT/calls.log" "${ledctl} all on"
 	assert_file_contains "$TEST_ROOT/calls.log" "retro-ha/led/act/state"
 	assert_file_contains "$TEST_ROOT/calls.log" "retro-ha/led/pwr/state"
+}
+
+@test "led-mqtt poller publishes state when LED brightness changes outside MQTT" {
+	export MQTT_HOST="mqtt.local"
+	export RETRO_HA_DRY_RUN=1
+	export RETRO_HA_LED_MQTT_POLL_SEC=0.05
+	export RETRO_HA_LED_MQTT_MAX_LOOPS=3
+
+	# Create a fake sysfs LED state under RETRO_HA_ROOT.
+	mkdir -p "$TEST_ROOT/sys/class/leds/led0" "$TEST_ROOT/sys/class/leds/led1"
+	echo 0 >"$TEST_ROOT/sys/class/leds/led0/brightness"
+	echo 0 >"$TEST_ROOT/sys/class/leds/led1/brightness"
+
+	make_isolated_path_with_stubs dirname
+	source "$RETRO_HA_REPO_ROOT/scripts/leds/led-mqtt.sh"
+
+	led_state_poller "retro-ha" &
+	local poll_pid=$!
+
+	# After the first loop publishes OFF, flip ACT to ON.
+	sleep 0.08
+	echo 1 >"$TEST_ROOT/sys/class/leds/led0/brightness"
+
+	wait "$poll_pid"
+
+	assert_file_contains "$TEST_ROOT/calls.log" "-t retro-ha/led/act/state"
+	assert_file_contains "$TEST_ROOT/calls.log" "-m OFF"
+	assert_file_contains "$TEST_ROOT/calls.log" "-m ON"
+}
+
+@test "led-mqtt initial state publish helper covers publish-act/pwr" {
+	export MQTT_HOST="mqtt.local"
+	export RETRO_HA_DRY_RUN=1
+
+	mkdir -p "$TEST_ROOT/sys/class/leds/led0" "$TEST_ROOT/sys/class/leds/led1"
+	echo 1 >"$TEST_ROOT/sys/class/leds/led0/brightness"
+	echo 0 >"$TEST_ROOT/sys/class/leds/led1/brightness"
+
+	make_isolated_path_with_stubs dirname
+	source "$RETRO_HA_REPO_ROOT/scripts/leds/led-mqtt.sh"
+
+	run publish_led_states_once "retro-ha"
+	assert_success
+	assert_file_contains "$TEST_ROOT/calls.log" "PATH led-mqtt:state-publish-act"
+	assert_file_contains "$TEST_ROOT/calls.log" "PATH led-mqtt:state-publish-pwr"
+}
+
+@test "led-mqtt led_state_payload covers invalid target" {
+	make_isolated_path_with_stubs dirname
+	source "$RETRO_HA_REPO_ROOT/scripts/leds/led-mqtt.sh"
+
+	run led_state_payload "nope"
+	assert_failure
+	assert_file_contains "$TEST_ROOT/calls.log" "PATH led-mqtt:state-invalid-target"
+}
+
+@test "led-mqtt led_state_payload covers invalid brightness content" {
+	# Fake sysfs with invalid brightness.
+	mkdir -p "$TEST_ROOT/sys/class/leds/led0"
+	echo "nope" >"$TEST_ROOT/sys/class/leds/led0/brightness"
+
+	make_isolated_path_with_stubs dirname
+	source "$RETRO_HA_REPO_ROOT/scripts/leds/led-mqtt.sh"
+
+	run led_state_payload act
+	assert_failure
+	assert_file_contains "$TEST_ROOT/calls.log" "PATH led-mqtt:state-brightness-invalid"
+}
+
+@test "led-mqtt poller covers max-loops exit" {
+	export MQTT_HOST="mqtt.local"
+	export RETRO_HA_DRY_RUN=1
+	export RETRO_HA_LED_MQTT_POLL_SEC=0
+	export RETRO_HA_LED_MQTT_MAX_LOOPS=1
+
+	# Fake sysfs so state reads succeed.
+	mkdir -p "$TEST_ROOT/sys/class/leds/led0" "$TEST_ROOT/sys/class/leds/led1"
+	echo 0 >"$TEST_ROOT/sys/class/leds/led0/brightness"
+	echo 0 >"$TEST_ROOT/sys/class/leds/led1/brightness"
+
+	make_isolated_path_with_stubs dirname
+	source "$RETRO_HA_REPO_ROOT/scripts/leds/led-mqtt.sh"
+
+	run led_state_poller "retro-ha"
+	assert_success
+	assert_file_contains "$TEST_ROOT/calls.log" "PATH led-mqtt:state-max-loops"
 }
