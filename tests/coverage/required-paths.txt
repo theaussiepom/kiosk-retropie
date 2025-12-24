@@ -24,6 +24,8 @@ controller-tty:no-devices
 controller-tty:listening
 controller-tty:trigger-stop-ha
 controller-tty:trigger-start-retro
+controller-tty:trigger-stop-retro
+controller-tty:trigger-start-ha
 controller-tty:device-open-failed
 
 lib-common:is-sourced-true
@@ -90,6 +92,7 @@ enter-retro-mode:ledctl-libdir
 enter-retro-mode:ledctl-scriptdir
 enter-retro-mode:ledctl-scriptdir-leds
 enter-retro-mode:ledctl-fallback
+enter-retro-mode:skip-ledctl
 
 led-mqtt:disabled
 led-mqtt:missing-mqtt-host
