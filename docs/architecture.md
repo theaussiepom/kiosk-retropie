@@ -190,7 +190,19 @@ They look under `/dev/input/by-id/` first because those names tend to stay stabl
   - Runs outside X and stays enabled.
   - On Start button press, stops HA and starts Retro.
 
-The Start button key code defaults to `315` (`BTN_START`) and can be overridden.
+Controller codes are configurable to support different hardware:
+
+- Enter Retro (HA -> Retro): `RETRO_HA_RETRO_ENTER_TRIGGER_CODE` (default `315`)
+- Exit Retro (Retro -> HA): press `RETRO_HA_RETRO_EXIT_SECOND_CODE` (default `304`), then press
+  `RETRO_HA_RETRO_EXIT_TRIGGER_CODE` (default `315`) within `RETRO_HA_COMBO_WINDOW_SEC` (default `0.75`).
+
+To discover your controller’s codes on the Pi:
+
+```bash
+sudo retro-ha-controller-codes.sh
+```
+
+Legacy variables `RETRO_HA_START_BUTTON_CODE` and `RETRO_HA_A_BUTTON_CODE` remain supported.
 
 ## Fail-open behavior
 

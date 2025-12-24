@@ -71,8 +71,28 @@ def devices() -> list[str]:
 
 
 def main() -> int:
-	start_code = int(os.environ.get("RETRO_HA_START_BUTTON_CODE", "315"))  # BTN_START
-	a_code = int(os.environ.get("RETRO_HA_A_BUTTON_CODE", "304"))  # BTN_SOUTH (commonly "A")
+	# Configurable controller codes.
+	# Backwards-compatible fallbacks:
+	# - RETRO_HA_START_BUTTON_CODE (legacy enter/exit trigger)
+	# - RETRO_HA_A_BUTTON_CODE (legacy exit combo second button)
+	enter_trigger_code = int(
+		os.environ.get(
+			"RETRO_HA_RETRO_ENTER_TRIGGER_CODE",
+			os.environ.get("RETRO_HA_START_BUTTON_CODE", "315"),
+		)
+	)
+	exit_trigger_code = int(
+		os.environ.get(
+			"RETRO_HA_RETRO_EXIT_TRIGGER_CODE",
+			os.environ.get("RETRO_HA_START_BUTTON_CODE", "315"),
+		)
+	)
+	exit_second_code = int(
+		os.environ.get(
+			"RETRO_HA_RETRO_EXIT_SECOND_CODE",
+			os.environ.get("RETRO_HA_A_BUTTON_CODE", "304"),
+		)
+	)
 	combo_window_sec = float(os.environ.get("RETRO_HA_COMBO_WINDOW_SEC", "0.75"))
 	debounce_sec = float(os.environ.get("RETRO_HA_START_DEBOUNCE_SEC", "1.0"))
 	max_triggers = int(os.environ.get("RETRO_HA_MAX_TRIGGERS", "0"))
@@ -122,9 +142,9 @@ def main() -> int:
 				_sec, _usec, etype, code, value = struct.unpack_from(fmt, data, off)
 				if etype == 1 and value == 1:
 					now = time.time()
-					if code == a_code:
+					if code == exit_second_code:
 						last_a = now
-					elif code == start_code:
+					elif code == enter_trigger_code or code == exit_trigger_code:
 						last_start = now
 
 						# Debounce only the START button triggers.
@@ -134,10 +154,10 @@ def main() -> int:
 
 						retro_active = is_active("retro-mode.service")
 
-						# Combo behavior: Start + A while Retro is active returns to HA.
+						# Combo behavior: Exit trigger + exit second while Retro is active returns to HA.
 						# We treat the combo as: (A pressed within window) AND Retro active.
-						if retro_active and (now - last_a) <= combo_window_sec:
-							log("Start+A pressed -> returning to HA kiosk mode")
+						if retro_active and code == exit_trigger_code and (now - last_a) <= combo_window_sec:
+							log("Exit combo pressed -> returning to HA kiosk mode")
 							cover_path("controller-tty:trigger-stop-retro")
 							systemctl("stop", "retro-mode.service")
 							cover_path("controller-tty:trigger-start-ha")
@@ -151,7 +171,11 @@ def main() -> int:
 						if retro_active:
 							continue
 
-						log("Start pressed -> entering RetroPie mode")
+						# Only enter Retro when the *enter* trigger is pressed.
+						if code != enter_trigger_code:
+							continue
+
+						log("Enter Retro trigger pressed -> entering RetroPie mode")
 						# Stop HA kiosk first; Conflicts also enforces this.
 						cover_path("controller-tty:trigger-stop-ha")
 						systemctl("stop", "ha-kiosk.service")
