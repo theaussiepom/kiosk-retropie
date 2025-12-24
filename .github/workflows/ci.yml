@@ -352,4 +352,4 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          ./tests/bin/run-bats-hw.sh
+          bash ./tests/bin/run-bats-hw.sh

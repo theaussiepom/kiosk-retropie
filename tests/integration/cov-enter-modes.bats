@@ -40,8 +40,9 @@ teardown() {
 @test "enter-retro-mode supports RETRO_HA_SKIP_LEDCTL=1" {
 	export RETRO_HA_SKIP_LEDCTL=1
 
-	run bash "$RETRO_HA_REPO_ROOT/scripts/mode/enter-retro-mode.sh"
-	assert_success
+	# Source + call main in-process so kcov line coverage can see this branch.
+	source "$RETRO_HA_REPO_ROOT/scripts/mode/enter-retro-mode.sh"
+	main
 	assert_file_contains "$TEST_ROOT/calls.log" "systemctl stop ha-kiosk.service"
 	assert_file_contains "$TEST_ROOT/calls.log" "systemctl start retro-mode.service"
 
