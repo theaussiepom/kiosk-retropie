@@ -40,6 +40,16 @@ def is_active(unit: str) -> bool:
 
 
 def devices() -> list[str]:
+	# Test injection: allow explicit device list (paths) to avoid relying on real /dev/input.
+	# Format: colon/comma/space-separated list.
+	explicit = os.environ.get("RETRO_HA_INPUT_DEVICES", "").strip()
+	if explicit:
+		paths: list[str] = []
+		for token in [t for t in explicit.replace(",", ":").split(":") if t.strip()]:
+			p = token.strip()
+			paths.append(p)
+		return paths
+
 	# Prefer event devices for consistent key codes.
 	by_id_dir = os.environ.get("RETRO_HA_INPUT_BY_ID_DIR", "/dev/input/by-id")
 	by_id = glob.glob(os.path.join(by_id_dir, "*event-joystick"))
@@ -62,10 +72,14 @@ def devices() -> list[str]:
 
 def main() -> int:
 	start_code = int(os.environ.get("RETRO_HA_START_BUTTON_CODE", "315"))  # BTN_START
+	a_code = int(os.environ.get("RETRO_HA_A_BUTTON_CODE", "304"))  # BTN_SOUTH (commonly "A")
+	combo_window_sec = float(os.environ.get("RETRO_HA_COMBO_WINDOW_SEC", "0.75"))
 	debounce_sec = float(os.environ.get("RETRO_HA_START_DEBOUNCE_SEC", "1.0"))
 	max_triggers = int(os.environ.get("RETRO_HA_MAX_TRIGGERS", "0"))
 	max_loops = int(os.environ.get("RETRO_HA_MAX_LOOPS", "0"))
 	last_fire = 0.0
+	last_start = 0.0
+	last_a = 0.0
 	triggers = 0
 	loops = 0
 
@@ -106,26 +120,46 @@ def main() -> int:
 			# Process in chunks.
 			for off in range(0, len(data) - (len(data) % size), size):
 				_sec, _usec, etype, code, value = struct.unpack_from(fmt, data, off)
-				# EV_KEY press
-				if etype == 1 and code == start_code and value == 1:
+				if etype == 1 and value == 1:
 					now = time.time()
-					if now - last_fire < debounce_sec:
-						continue
-					last_fire = now
+					if code == a_code:
+						last_a = now
+					elif code == start_code:
+						last_start = now
 
-					if is_active("retro-mode.service"):
-						continue
+						# Debounce only the START button triggers.
+						if now - last_fire < debounce_sec:
+							continue
+						last_fire = now
 
-					log("Start pressed -> entering RetroPie mode")
+						retro_active = is_active("retro-mode.service")
 
-					# Stop HA kiosk first; Conflicts also enforces this.
-					cover_path("controller-tty:trigger-stop-ha")
-					systemctl("stop", "ha-kiosk.service")
-					cover_path("controller-tty:trigger-start-retro")
-					systemctl("start", "retro-mode.service")
-					triggers += 1
-					if max_triggers and triggers >= max_triggers:
-						return 0
+						# Combo behavior: Start + A while Retro is active returns to HA.
+						# We treat the combo as: (A pressed within window) AND Retro active.
+						if retro_active and (now - last_a) <= combo_window_sec:
+							log("Start+A pressed -> returning to HA kiosk mode")
+							cover_path("controller-tty:trigger-stop-retro")
+							systemctl("stop", "retro-mode.service")
+							cover_path("controller-tty:trigger-start-ha")
+							systemctl("start", "ha-kiosk.service")
+							triggers += 1
+							if max_triggers and triggers >= max_triggers:
+								return 0
+							continue
+
+						# Default behavior: Start enters Retro when not already active.
+						if retro_active:
+							continue
+
+						log("Start pressed -> entering RetroPie mode")
+						# Stop HA kiosk first; Conflicts also enforces this.
+						cover_path("controller-tty:trigger-stop-ha")
+						systemctl("stop", "ha-kiosk.service")
+						cover_path("controller-tty:trigger-start-retro")
+						systemctl("start", "retro-mode.service")
+						triggers += 1
+						if max_triggers and triggers >= max_triggers:
+							return 0
 
 
 if __name__ == "__main__":

@@ -3,6 +3,11 @@ name: ci
 
 on:
   workflow_dispatch:
+    inputs:
+      ref:
+        description: "Git ref to test (branch/tag/SHA). Defaults to the current ref."
+        required: false
+        type: string
   pull_request:
   push:
     branches: ["**"]
@@ -289,3 +294,62 @@ jobs:
             -w /work \
             retro-ha-devcontainer:ci \
             bash -lc './scripts/ci.sh lint-markdown'
+
+  runner-unit-tests:
+    name: runner-unit-tests (no container)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    needs:
+      - lint-permissions
+      - lint-naming
+      - lint-sh
+      - lint-yaml
+      - lint-systemd
+      - lint-markdown
+      - test-all
+      - test-coverage
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run unit tests on runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./tests/bin/run-bats-unit.sh
+
+  arm64-hw-integration:
+    name: arm64-hw-integration (self-hosted Linux ARM64)
+    runs-on: [self-hosted, Linux, ARM64]
+    timeout-minutes: 30
+    needs:
+      - lint-permissions
+      - lint-naming
+      - lint-sh
+      - lint-yaml
+      - lint-systemd
+      - lint-markdown
+      - test-all
+    # SECURITY: never run untrusted fork PR code on a self-hosted runner.
+    if: |
+      (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) ||
+      github.event_name == 'workflow_dispatch'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.ref || github.ref }}
+
+      - name: Host info (Raspberry Pi OS sanity)
+        shell: bash
+        run: |
+          set -euo pipefail
+          uname -a
+          cat /etc/os-release || true
+          bash --version | head -n 1
+          systemctl --version | head -n 1 || true
+
+      - name: Run HW integration tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./tests/bin/run-bats-hw.sh
