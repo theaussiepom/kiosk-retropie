@@ -66,6 +66,8 @@ install:lock-acquired
 install:marker-after-lock
 install:user-exists
 install:user-created
+install:chromium-profile-default
+install:chromium-profile-configured
 install:chromium-browser-pkg
 install:chromium-pkg
 install:chromium-none

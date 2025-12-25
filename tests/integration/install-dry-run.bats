@@ -28,3 +28,11 @@ teardown() {
 	assert_file_contains "$TEST_ROOT/calls.log" "systemctl"
 	assert_file_contains "$TEST_ROOT/calls.log" "write_marker"
 }
+
+@test "install.sh dry-run covers configured Chromium profile dir path" {
+	export KIOSK_CHROMIUM_PROFILE_DIR="$TEST_ROOT/var/lib/kiosk-retropie/chromium-profile"
+
+	run bash "$KIOSK_RETROPIE_REPO_ROOT/scripts/install.sh"
+	assert_success
+	assert_file_contains "$TEST_ROOT/calls.log" "PATH install:chromium-profile-configured"
+}
