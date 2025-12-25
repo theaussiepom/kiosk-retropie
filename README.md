@@ -1,5 +1,10 @@
 # kiosk-retropie
 
+kiosk-retropie is a Bash-first Raspberry Pi appliance that can switch a single display between two modes: a
+full-screen Chromium kiosk for day-to-day use, and an on-demand RetroPie session triggered by controller input.
+It’s designed to boot predictably, recover automatically from failures, and keep your saves safe even if
+networking (or NFS/MQTT) is unavailable.
+
 ## Quick start (dev + CI)
 
 The canonical, repeatable test environment is the devcontainer.
@@ -28,13 +33,8 @@ make ci
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the required pre-PR checks.
 
-This repo turns a Raspberry Pi into a dual-mode appliance with strict display ownership:
-
-- Kiosk mode (default): full-screen Chromium
-- RetroPie mode (on-demand): launched by controller input
-
-The focus is determinism, recoverability, and fail-open behavior.
-If the kiosk isn’t healthy, you can still get into RetroPie.
+Services are managed by `systemd` and run as a dedicated user (`retropi`) so Xorg/Chromium and input devices
+work cleanly without running the main kiosk loop as root.
 
 ## How it works (plain English)
 
@@ -159,6 +159,9 @@ cd /opt/kiosk-retropie
 sudo ./scripts/install.sh
 ```
 
+The installer creates the `retropi` user if it does not already exist, and installs systemd units that run
+kiosk/Retro mode under that account.
+
 ## Configuration
 
 Runtime configuration lives in `/etc/kiosk-retropie/config.env`.
@@ -246,7 +249,11 @@ Chromium profile directory:
 
 This is Chromium’s “user profile” directory (cookies, local storage, cache, preferences). Set it if you want the
 kiosk to keep state across restarts and/or you want to control where that state is stored. The directory must be
-writable by the user running the kiosk service.
+writable by the user running the kiosk service (by default, `retropi`).
+
+If you set `KIOSK_CHROMIUM_PROFILE_DIR` to a path outside `retropi`’s home (for example under `/var/lib`), make
+sure it’s owned by `retropi:retropi` (or otherwise writable by that user). If the variable is already set when
+you run `./scripts/install.sh`, the installer will create the directory and `chown` it to `retropi`.
 
 ### ROM sync from NFS (optional)
 
@@ -309,12 +316,17 @@ Safety / loop limits:
 - `RETROPIE_MAX_TRIGGERS` (optional; max trigger events before exiting)
 - `RETROPIE_MAX_LOOPS` (optional; max poll loops before exiting)
 
+These exist primarily for testing and diagnostics. They cause the controller listener loop to exit after a bounded
+number of iterations/events instead of running forever. Leave them unset (or `0`) for normal appliance operation.
+
 ### LED MQTT bridge (optional)
 
 - `KIOSK_LED_MQTT_ENABLED` (default: `0`; set to `1` to enable)
 - `KIOSK_MQTT_TOPIC_PREFIX` (default: `kiosk-retropie`)
 - `KIOSK_LED_MQTT_POLL_SEC` (optional, default: `2`)
   Poll sysfs and publish state changes made outside MQTT.
+- `KIOSK_LED_MQTT_MAX_LOOPS` (optional, default: `0`)
+  Max poll loops before exiting (`0` means run forever).
 
 Broker settings:
 
@@ -337,6 +349,8 @@ Controls the display backlight brightness via sysfs (`/sys/class/backlight`).
   Which backlight device under `/sys/class/backlight` to control; defaults to the first one found.
 - `KIOSK_SCREEN_BRIGHTNESS_MQTT_POLL_SEC` (optional, default: `2`)
   Poll sysfs and publish state changes made outside MQTT.
+- `KIOSK_SCREEN_BRIGHTNESS_MQTT_MAX_LOOPS` (optional, default: `0`)
+  Max poll loops before exiting (`0` means run forever).
 
 Broker settings (same as LED MQTT bridge):
 

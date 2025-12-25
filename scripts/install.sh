@@ -56,6 +56,19 @@ ensure_user() {
   done
 }
 
+ensure_kiosk_profile_dir() {
+  local user="retropi"
+  local profile_dir="${KIOSK_CHROMIUM_PROFILE_DIR:-${KIOSK_RETROPIE_CHROMIUM_PROFILE_DIR:-}}"
+  if [[ -z "$profile_dir" ]]; then
+    cover_path "install:chromium-profile-default"
+    return 0
+  fi
+
+  cover_path "install:chromium-profile-configured"
+  run_cmd mkdir -p "$profile_dir"
+  run_cmd chown -R "$user:$user" "$profile_dir"
+}
+
 install_packages() {
   export DEBIAN_FRONTEND=noninteractive
 
@@ -282,6 +295,9 @@ main() {
 
   log "Ensuring user retropi"
   ensure_user
+
+  log "Ensuring kiosk Chromium profile dir is writable"
+  ensure_kiosk_profile_dir
 
   log "Installing packages"
   install_packages
