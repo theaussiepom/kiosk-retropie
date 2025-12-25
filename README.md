@@ -4,8 +4,8 @@ This repo is a set of scripts + systemd units that turn a Raspberry Pi into a si
 Most of the time it boots straight into a full-screen Chromium kiosk, but you can drop into RetroPie on demand
 with a controller button press.
 
-It’s built to be boring in the best way: predictable boots, clean mode switching, sensible failover, and local
-saves that still work even when networking (or NFS/MQTT) isn’t behaving.
+It’s built to be dependable: predictable boots, clean mode switching, sensible failover, and local saves that
+still work even when networking (or NFS/MQTT) isn’t behaving.
 
 ## Quick start (dev + CI)
 
