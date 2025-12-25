@@ -4,14 +4,84 @@ set -euo pipefail
 calls_file="${RETRO_HA_CALLS_FILE:-/dev/null}"
 printf 'systemctl %q\n' "$*" >>"$calls_file" || true
 
+state_file="${SYSTEMCTL_STATE_FILE:-}"
+
+read_active_units() {
+	if [[ -n "$state_file" && -f "$state_file" ]]; then
+		cat "$state_file"
+		return 0
+	fi
+	# Backwards-compatible behavior for existing tests.
+	# If no state file is configured, fall back to the env-driven flags.
+	local active=":"
+	if [[ "${SYSTEMCTL_ACTIVE_HA:-1}" == "0" ]]; then
+		active+="ha-kiosk.service:"
+	fi
+	if [[ "${SYSTEMCTL_ACTIVE_RETRO:-1}" == "0" ]]; then
+		active+="retro-mode.service:"
+	fi
+	printf '%s\n' "$active"
+}
+
+write_active_units() {
+	local active="$1"
+	[[ -n "$state_file" ]] || return 0
+	mkdir -p "${state_file%/*}" 2>/dev/null || true
+	printf '%s\n' "$active" >"$state_file" 2>/dev/null || true
+}
+
+active_has() {
+	local active="$1"
+	local unit="$2"
+	[[ "$active" == *":${unit}:"* ]]
+}
+
+active_add() {
+	local active="$1"
+	local unit="$2"
+	if active_has "$active" "$unit"; then
+		printf '%s\n' "$active"
+		return 0
+	fi
+	printf '%s\n' "${active}${unit}:"
+}
+
+active_del() {
+	local active="$1"
+	local unit="$2"
+	printf '%s\n' "${active//:${unit}:/":"}"
+}
+
 # Minimal behavior for unit tests.
 if [[ "$1" == "is-active" && "$2" == "--quiet" ]]; then
 	unit="$3"
-	case "$unit" in
-		retro-mode.service) exit "${SYSTEMCTL_ACTIVE_RETRO:-1}" ;;
-		ha-kiosk.service) exit "${SYSTEMCTL_ACTIVE_HA:-1}" ;;
-		*) exit 1 ;;
-	esac
+	active="$(read_active_units)"
+	if active_has "$active" "$unit"; then
+		exit 0
+	fi
+	exit 3
+fi
+
+if [[ "$1" == "start" ]]; then
+	unit="${2:-}"
+	active="$(read_active_units)"
+	active="$(active_add "$active" "$unit")"
+	# Simulate the known unit conflicts for mode switching.
+	if [[ "$unit" == "retro-mode.service" ]]; then
+		active="$(active_del "$active" "ha-kiosk.service")"
+	elif [[ "$unit" == "ha-kiosk.service" ]]; then
+		active="$(active_del "$active" "retro-mode.service")"
+	fi
+	write_active_units "$active"
+	exit 0
+fi
+
+if [[ "$1" == "stop" ]]; then
+	unit="${2:-}"
+	active="$(read_active_units)"
+	active="$(active_del "$active" "$unit")"
+	write_active_units "$active"
+	exit 0
 fi
 
 exit 0

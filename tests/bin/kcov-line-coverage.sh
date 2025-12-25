@@ -1234,6 +1234,14 @@ chmod +x "$tmp_lib/ledctl.sh"
 run_allow_fail env RETRO_HA_DRY_RUN=1 RETRO_HA_LIBDIR="$tmp_lib" "$ROOT_DIR/scripts/mode/enter-retro-mode.sh"
 run_allow_fail env RETRO_HA_DRY_RUN=1 RETRO_HA_LIBDIR= "$ROOT_DIR/scripts/mode/enter-retro-mode.sh"
 
+# Cover RETRO_HA_SKIP_LEDCTL branch.
+run_allow_fail env RETRO_HA_DRY_RUN=1 RETRO_HA_LIBDIR= RETRO_HA_SKIP_LEDCTL=1 "$ROOT_DIR/scripts/mode/enter-retro-mode.sh"
+
+# controller-codes.sh: execute once to include in coverage (it will fail without devices).
+empty_by_id="$work_dir/empty-by-id"
+mkdir -p "$empty_by_id"
+run_allow_fail env RETRO_HA_INPUT_BY_ID_DIR="$empty_by_id" "$ROOT_DIR/scripts/input/controller-codes.sh"
+
 # Cover scripts/mode/lib selection in enter-retro-mode.
 mode_lib_link="$ROOT_DIR/scripts/mode/lib"
 if [[ ! -e "$mode_lib_link" ]]; then

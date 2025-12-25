@@ -165,6 +165,58 @@ Runtime configuration lives in `/etc/retro-ha/config.env`.
 
 Start with [examples/config.env.example](examples/config.env.example).
 
+### Controller button codes (entry/exit)
+
+Controller button codes come from Linux evdev. Different controllers can emit different codes,
+so the entry/exit buttons are configurable.
+
+To discover codes on the Pi:
+
+```bash
+sudo retro-ha-controller-codes.sh
+```
+
+Press the buttons you want to use and note the `code=` values.
+
+Then set these in `/etc/retro-ha/config.env`:
+
+- `RETRO_HA_RETRO_ENTER_TRIGGER_CODE` (optional, default `315`): button code that enters Retro (HA -> Retro)
+- `RETRO_HA_RETRO_EXIT_TRIGGER_CODE` (optional, default `315`): button code that triggers the exit combo
+- `RETRO_HA_RETRO_EXIT_SECOND_CODE` (optional, default `304`): second button for exit combo (press this, then trigger)
+- `RETRO_HA_COMBO_WINDOW_SEC` (optional, default `0.75`): max seconds between the second button and trigger
+- `RETRO_HA_START_DEBOUNCE_SEC` (optional, default `1.0`): debounce for trigger presses
+
+#### On-device calibration checklist
+
+1. SSH into the Pi.
+1. Discover the button codes:
+
+    ```bash
+    sudo retro-ha-controller-codes.sh
+    ```
+
+    Press the buttons you want to use and note the `code=` values.
+
+1. Update `/etc/retro-ha/config.env` with the codes you chose:
+    Set `RETRO_HA_RETRO_ENTER_TRIGGER_CODE` for HA -> Retro.
+  For Retro -> HA, set `RETRO_HA_RETRO_EXIT_SECOND_CODE` and `RETRO_HA_RETRO_EXIT_TRIGGER_CODE`
+  (second button first, then trigger).
+
+1. Restart the listeners so they pick up the new config:
+
+    ```bash
+    sudo systemctl restart ha-mode-controller-listener.service emergency-retro-launch.service
+    ```
+
+1. Verify behavior:
+    From HA kiosk: press your enter trigger and confirm Retro starts.
+    From Retro: press your exit combo (second button, then trigger within `RETRO_HA_COMBO_WINDOW_SEC`) and confirm HA returns.
+
+Backwards compatibility:
+
+- `RETRO_HA_START_BUTTON_CODE` (legacy) still works as the default trigger code.
+- `RETRO_HA_A_BUTTON_CODE` (legacy) still works as the default exit second code.
+
 ### Repo pinning (first boot installer)
 
 The first-boot bootstrap and installer fetch this repo using:

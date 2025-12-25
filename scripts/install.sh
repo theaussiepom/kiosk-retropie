@@ -153,6 +153,10 @@ install_files() {
   if [[ -f "$repo_root/scripts/input/controller-listener-ha-mode.sh" ]]; then
     run_cmd install -m 0755 "$repo_root/scripts/input/controller-listener-ha-mode.sh" "$lib_dir/controller-listener-ha-mode.sh"
   fi
+  if [[ -f "$repo_root/scripts/input/controller-codes.sh" ]]; then
+    run_cmd install -m 0755 "$repo_root/scripts/input/controller-codes.sh" "$lib_dir/controller-codes.sh"
+    run_cmd ln -sf "$lib_dir/controller-codes.sh" "$bin_dir/retro-ha-controller-codes.sh"
+  fi
   if [[ -f "$repo_root/scripts/healthcheck.sh" ]]; then
     run_cmd install -m 0755 "$repo_root/scripts/healthcheck.sh" "$lib_dir/healthcheck.sh"
   fi

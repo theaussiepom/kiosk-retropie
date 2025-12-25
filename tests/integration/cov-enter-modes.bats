@@ -37,6 +37,21 @@ teardown() {
 	assert_file_contains "$TEST_ROOT/calls.log" "ledctl.sh all on"
 }
 
+@test "enter-retro-mode supports RETRO_HA_SKIP_LEDCTL=1" {
+	export RETRO_HA_SKIP_LEDCTL=1
+
+	# Source + call main in-process so kcov line coverage can see this branch.
+	source "$RETRO_HA_REPO_ROOT/scripts/mode/enter-retro-mode.sh"
+	main
+	assert_file_contains "$TEST_ROOT/calls.log" "systemctl stop ha-kiosk.service"
+	assert_file_contains "$TEST_ROOT/calls.log" "systemctl start retro-mode.service"
+
+	# Should not attempt to force LEDs via ledctl.
+	if [[ -f "$TEST_ROOT/calls.log" ]]; then
+		! /usr/bin/grep -Fq -- "ledctl.sh all on" "$TEST_ROOT/calls.log"
+	fi
+}
+
 @test "enter-retro-mode ledctl path selection covers all branches" {
 	source "$RETRO_HA_REPO_ROOT/scripts/mode/enter-retro-mode.sh"
 

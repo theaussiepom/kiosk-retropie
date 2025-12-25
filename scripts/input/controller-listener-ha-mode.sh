@@ -59,7 +59,15 @@ def devices() -> list[str]:
 
 
 def main() -> int:
-	start_code = int(os.environ.get("RETRO_HA_START_BUTTON_CODE", "315"))
+	# Configurable controller codes.
+	# Backwards-compatible fallbacks:
+	# - RETRO_HA_START_BUTTON_CODE (legacy)
+	enter_code = int(
+		os.environ.get(
+			"RETRO_HA_RETRO_ENTER_TRIGGER_CODE",
+			os.environ.get("RETRO_HA_START_BUTTON_CODE", "315"),
+		)
+	)
 	debounce_sec = float(os.environ.get("RETRO_HA_START_DEBOUNCE_SEC", "1.0"))
 	max_triggers = int(os.environ.get("RETRO_HA_MAX_TRIGGERS", "0"))
 	max_loops = int(os.environ.get("RETRO_HA_MAX_LOOPS", "0"))
@@ -114,7 +122,7 @@ def main() -> int:
 
 			for off in range(0, len(data) - (len(data) % size), size):
 				_sec, _usec, etype, code, value = struct.unpack_from(fmt, data, off)
-				if etype == 1 and code == start_code and value == 1:
+				if etype == 1 and code == enter_code and value == 1:
 					now = time.time()
 					if now - last_fire < debounce_sec:
 						continue

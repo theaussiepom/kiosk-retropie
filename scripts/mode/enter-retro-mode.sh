@@ -67,10 +67,14 @@ main() {
   svc_stop ha-kiosk.service || true
 
   # RetroPie mode should force LEDs on.
-  local ledctl
-  ledctl="$(retro_ha_ledctl_path "$SCRIPT_DIR")"
-  if [[ -x "$ledctl" ]]; then
-    run_cmd "$ledctl" all on || true
+  if [[ "${RETRO_HA_SKIP_LEDCTL:-0}" == "1" ]]; then
+    cover_path "enter-retro-mode:skip-ledctl"
+  else
+    local ledctl
+    ledctl="$(retro_ha_ledctl_path "$SCRIPT_DIR")"
+    if [[ -x "$ledctl" ]]; then
+      run_cmd "$ledctl" all on || true
+    fi
   fi
 
   svc_start retro-mode.service
