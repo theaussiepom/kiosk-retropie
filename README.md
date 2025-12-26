@@ -94,7 +94,7 @@ flowchart TD
 
 1. Use Raspberry Pi Imager to flash Raspberry Pi OS.
 1. Provide cloud-init user-data (first-boot provisioning) based on
-  [examples/user-data.example.yml](examples/user-data.example.yml).
+  [examples/user.data.yml](examples/user.data.yml).
 1. Fill in at least:
 
 ```bash
@@ -127,7 +127,7 @@ sudo apt-get install -y --no-install-recommends ca-certificates curl git
 
 ```bash
 sudo mkdir -p /etc/kiosk-retropie
-sudo cp /path/to/kiosk-retropie/examples/config.env.example /etc/kiosk-retropie/config.env
+sudo cp /path/to/kiosk-retropie/examples/config.env /etc/kiosk-retropie/config.env
 sudo nano /etc/kiosk-retropie/config.env
 ```
 
@@ -146,7 +146,7 @@ kiosk/Retro mode under that account.
 
 Runtime configuration lives in `/etc/kiosk-retropie/config.env`.
 
-Start with [examples/config.env.example](examples/config.env.example).
+Start with [examples/config.env](examples/config.env).
 
 Some variables are “obvious plumbing” (e.g. `NFS_SERVER`), while others are application-specific and assume a bit
 of knowledge about what the appliance is doing (e.g. `KIOSK_CHROMIUM_PROFILE_DIR`). The application-specific

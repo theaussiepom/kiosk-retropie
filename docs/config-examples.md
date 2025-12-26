@@ -4,8 +4,8 @@ This project is configured via `/etc/kiosk-retropie/config.env`.
 
 This repo provides two canonical examples:
 
-1) Manual install (config file only): [examples/config.env.example](../examples/config.env.example)
-2) Flashing install (Pi Imager / cloud-init): [examples/user-data.example.yml](../examples/user-data.example.yml)
+1) Manual install (config file only): [examples/config.env](../examples/config.env)
+2) Flashing install (Pi Imager / cloud-init): [examples/user.data.yml](../examples/user.data.yml)
 
 Notes:
 
@@ -24,7 +24,7 @@ How to use it:
 
   ```bash
   sudo mkdir -p /etc/kiosk-retropie
-  sudo cp /opt/kiosk-retropie/examples/config.env.example /etc/kiosk-retropie/config.env
+  sudo cp /opt/kiosk-retropie/examples/config.env /etc/kiosk-retropie/config.env
   ```
 
 1. Edit `/etc/kiosk-retropie/config.env` and fill in at least `KIOSK_URL`.
