@@ -137,10 +137,6 @@ write_files:
       WantedBy=multi-user.target
 
 runcmd:
-  - [
-      bash,
-      -lc,
-      "apt-get update && apt-get install -y --no-install-recommends ca-certificates curl git",
-    ]
+  - [bash, -lc, "apt-get update && apt-get install -y --no-install-recommends ca-certificates curl git"]
   - [bash, -lc, "systemctl daemon-reload"]
   - [bash, -lc, "systemctl enable --now kiosk-retropie-install.service"]
