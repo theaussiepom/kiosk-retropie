@@ -23,7 +23,7 @@ source "$LIB_DIR/backup.sh"
 main() {
   export KIOSK_RETROPIE_LOG_PREFIX="save-backup"
 
-  local enabled="${RETROPIE_SAVE_BACKUP_ENABLED:-${KIOSK_RETROPIE_SAVE_BACKUP_ENABLED:-0}}"
+  local enabled="${RETROPIE_SAVE_BACKUP_ENABLED:-${KIOSK_RETROPIE_SAVE_BACKUP_ENABLED:-1}}"
   if [[ "$enabled" != "1" ]]; then
     cover_path "save-backup:disabled"
     exit 0
@@ -37,18 +37,33 @@ main() {
   fi
 
   local user="retropi"
-  local saves_dir="${RETROPIE_SAVES_DIR:-${KIOSK_RETROPIE_SAVES_DIR:-$(kiosk_retropie_path /var/lib/kiosk-retropie/retropie/saves)}}"
-  local states_dir="${RETROPIE_STATES_DIR:-${KIOSK_RETROPIE_STATES_DIR:-$(kiosk_retropie_path /var/lib/kiosk-retropie/retropie/states)}}"
-  local backup_root="${RETROPIE_SAVE_BACKUP_DIR:-${KIOSK_RETROPIE_SAVE_BACKUP_DIR:-$(kiosk_retropie_path /mnt/kiosk-retropie-backup)}}"
-  local backup_subdir="${RETROPIE_SAVE_BACKUP_SUBDIR:-${KIOSK_RETROPIE_SAVE_BACKUP_SUBDIR:-kiosk-retropie-saves}}"
+  local saves_dir
+  saves_dir="$(kiosk_retropie_path /var/lib/kiosk-retropie/retropie/saves)"
+  local states_dir
+  states_dir="$(kiosk_retropie_path /var/lib/kiosk-retropie/retropie/states)"
+
+  local mount_point
+  mount_point="$(kiosk_retropie_path /mnt/kiosk-retropie-nfs)"
+
+  local hostname_default
+  hostname_default="${HOSTNAME:-}"
+  if [[ -z "$hostname_default" ]] && command -v hostname > /dev/null 2>&1; then
+    hostname_default="$(hostname -s 2> /dev/null || hostname 2> /dev/null || true)"
+  fi
+  if [[ -z "$hostname_default" ]]; then
+    hostname_default="kiosk-retropie"
+  fi
+
+  local backup_root="$mount_point/backups"
+  local backup_subdir="${RETROPIE_SAVE_BACKUP_SUBDIR:-${KIOSK_RETROPIE_SAVE_BACKUP_SUBDIR:-$hostname_default}}"
   local delete="${RETROPIE_SAVE_BACKUP_DELETE:-${KIOSK_RETROPIE_SAVE_BACKUP_DELETE:-0}}"
 
-  # Mount backup destination (rw) if configured.
-  run_cmd "$SCRIPT_DIR/mount-nfs-backup.sh" || true
+  # Ensure NFS is mounted (fails closed on missing config; fail-open if mount fails).
+  run_cmd "$SCRIPT_DIR/mount-nfs.sh"
 
-  if ! mountpoint -q "$backup_root"; then
+  if ! mountpoint -q "$mount_point"; then
     cover_path "save-backup:not-mounted"
-    log "Backup mount not available at $backup_root; skipping"
+    log "Backup mount not available at $mount_point; skipping"
     exit 0
   fi
 

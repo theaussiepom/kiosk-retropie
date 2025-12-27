@@ -58,15 +58,27 @@ ensure_user() {
 
 ensure_kiosk_profile_dir() {
   local user="retropi"
-  local profile_dir="${KIOSK_CHROMIUM_PROFILE_DIR:-${KIOSK_RETROPIE_CHROMIUM_PROFILE_DIR:-}}"
-  if [[ -z "$profile_dir" ]]; then
-    cover_path "install:chromium-profile-default"
-    return 0
-  fi
-
-  cover_path "install:chromium-profile-configured"
+  local profile_dir
+  profile_dir="$(kiosk_retropie_path /var/lib/kiosk-retropie/chromium-profile)"
+  cover_path "install:chromium-profile-fixed"
   run_cmd mkdir -p "$profile_dir"
   run_cmd chown -R "$user:$user" "$profile_dir"
+}
+
+validate_required_config() {
+  # Configuration is mandatory, but runtime use of NFS is fail-open.
+  local url="${KIOSK_URL:-}"
+  local nfs_server="${NFS_SERVER:-}"
+
+  if [[ -z "$url" ]]; then
+    cover_path "install:missing-kiosk-url"
+    die "KIOSK_URL is required"
+  fi
+  if [[ -z "$nfs_server" ]]; then
+    cover_path "install:missing-nfs-server"
+    die "NFS_SERVER is required"
+  fi
+  cover_path "install:config-ok"
 }
 
 install_packages() {
@@ -273,6 +285,8 @@ main() {
   load_config_env
   export KIOSK_RETROPIE_LOG_PREFIX="kiosk-retropie install"
 
+  validate_required_config
+
   if [[ -f "$MARKER_FILE" ]]; then
     cover_path "install:marker-present-early"
     log "Already installed ($MARKER_FILE present)"
@@ -305,9 +319,9 @@ main() {
   log "Installing files"
   install_files
 
-  if [[ "${RETROPIE_INSTALL:-${KIOSK_RETROPIE_INSTALL_RETROPIE:-0}}" == "1" ]]; then
+  if [[ "${RETROPIE_INSTALL:-${KIOSK_RETROPIE_INSTALL_RETROPIE:-1}}" == "1" ]]; then
     cover_path "install:optional-retropie-enabled"
-    log "Installing RetroPie (optional)"
+    log "Installing RetroPie"
     run_cmd "${KIOSK_RETROPIE_LIBDIR:-$(kiosk_retropie_path /usr/local/lib/kiosk-retropie)}/install-retropie.sh" || log "RetroPie install failed (continuing)"
   else
     cover_path "install:optional-retropie-disabled"

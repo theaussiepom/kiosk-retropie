@@ -10,5 +10,10 @@ echo "== coverage: kcov =="
 ci_require_cmd kcov
 ci_require_cmd strace
 
+# Write kcov output to a temp folder by default.
+# This avoids deleting the committed ./coverage directory when running locally.
+export KCOV_OUT_DIR="${KCOV_OUT_DIR:-$repo_root/tests/.tmp/kcov}"
+mkdir -p "${KCOV_OUT_DIR%/*}" 2> /dev/null || true
+
 KCOV_ALLOW_NONZERO_WITH_REPORT=1 "$repo_root/tests/bin/run-bats-kcov.sh"
 "$repo_root/tests/bin/assert-kcov-100.sh"

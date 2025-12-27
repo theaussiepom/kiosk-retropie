@@ -193,8 +193,13 @@ They look under `/dev/input/by-id/` first because those names tend to stay stabl
 Controller codes are configurable to support different hardware:
 
 - Enter Retro (kiosk -> Retro): `RETROPIE_ENTER_TRIGGER_CODE` (default `315`)
-- Exit Retro (Retro -> kiosk): press `RETROPIE_EXIT_SECOND_CODE` (default `304`), then press
-  `RETROPIE_EXIT_TRIGGER_CODE` (default `315`) within `RETROPIE_COMBO_WINDOW_SEC` (default `0.75`).
+- Exit Retro (Retro -> kiosk): press `RETROPIE_EXIT_SEQUENCE_CODES` (default `315,304`) within
+  `RETROPIE_COMBO_WINDOW_SEC` (default `0.75`).
+
+Timing knobs:
+
+- `RETROPIE_START_DEBOUNCE_SEC` (default `1.0`): minimum seconds between actions to avoid double-triggering.
+- `RETROPIE_COMBO_WINDOW_SEC` (default `0.75`): max seconds allowed to complete the exit sequence.
 
 To discover your controller’s codes on the Pi:
 
@@ -218,7 +223,7 @@ The storage design separates gameplay data from network availability.
 ### ROMs
 
 - ROMs live locally (default: `/var/lib/kiosk-retropie/retropie/roms`).
-- If NFS is configured, `boot-sync.service` attempts to mount a share read-only and sync ROMs into the
+- If NFS is configured, `boot-sync.service` attempts to mount a share and sync ROMs into the
   local directory.
 - If NFS is down, ROM sync is skipped and the device continues to work with the last local ROM set.
 
@@ -227,7 +232,7 @@ The storage design separates gameplay data from network availability.
 - Saves and savestates are always local:
   - `RETROPIE_SAVES_DIR` (default: `/var/lib/kiosk-retropie/retropie/saves`)
   - `RETROPIE_STATES_DIR` (default: `/var/lib/kiosk-retropie/retropie/states`)
-- Optional backup to NFS is implemented as a periodic rsync job and is disabled by default.
+- Optional backup to NFS is implemented as a periodic rsync job and is enabled by default.
 - Backup explicitly skips while `retro-mode.service` is active.
 
 ## LED behavior and MQTT bridge

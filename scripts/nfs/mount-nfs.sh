@@ -21,20 +21,35 @@ source "$LIB_DIR/common.sh"
 main() {
   export KIOSK_RETROPIE_LOG_PREFIX="mount-nfs"
 
-  local server="${NFS_SERVER:-}"
-  local export_path="${NFS_ROMS_PATH:-${NFS_PATH:-}}"
-  local mount_point="${RETROPIE_NFS_MOUNT_POINT:-${KIOSK_RETROPIE_NFS_MOUNT_POINT:-$(kiosk_retropie_path /mnt/kiosk-retropie-roms)}}"
-  local mount_opts="${RETROPIE_NFS_MOUNT_OPTIONS:-${KIOSK_RETROPIE_NFS_MOUNT_OPTIONS:-ro}}"
+  local server_spec="${NFS_SERVER:-}"
+  local server=""
+  local export_path=""
+  local mount_point
+  mount_point="$(kiosk_retropie_path /mnt/kiosk-retropie-nfs)"
+  local mount_opts="rw"
 
-  if [[ -n "${NFS_PATH:-}" && -z "${NFS_ROMS_PATH:-}" ]]; then
-    cover_path "mount-nfs:legacy-nfs-path"
-    log "Using legacy NFS_PATH; prefer NFS_ROMS_PATH"
+  # Default export path when NFS_SERVER is a bare host.
+  local default_export_path="/export/kiosk-retropie"
+
+  # Back-compat: allow legacy NFS_ROMS_PATH, treating it as the share root.
+  # (Deprecated in favor of NFS_SERVER=host:/export/path).
+  if [[ -n "${NFS_ROMS_PATH:-}" ]]; then
+    cover_path "mount-nfs:legacy-roms-path"
+    log "Using legacy NFS_ROMS_PATH as share root; prefer NFS_SERVER=host:/export/path"
+    server="$server_spec"
+    export_path="${NFS_ROMS_PATH}"
+  elif [[ -n "$server_spec" && "$server_spec" == *":/"* ]]; then
+    server="${server_spec%%:/*}"
+    export_path="${server_spec#"$server":}"
+  else
+    server="$server_spec"
+    export_path="$default_export_path"
   fi
 
-  if [[ -z "$server" || -z "$export_path" ]]; then
-    cover_path "mount-nfs:not-configured"
-    log "NFS not configured (set NFS_SERVER and NFS_ROMS_PATH); skipping"
-    exit 0
+  if [[ -z "$server" ]]; then
+    cover_path "mount-nfs:missing-config"
+    log "NFS config missing (set NFS_SERVER to either host or host:/export/path)"
+    exit 2
   fi
 
   require_cmd mount
@@ -60,6 +75,18 @@ main() {
 
   cover_path "mount-nfs:mount-success"
 
+  # Create required subfolders inside the share.
+  # Backups are expected to be writable; ROMs may or may not exist.
+  if ! run_cmd mkdir -p "$mount_point/backups"; then
+    cover_path "mount-nfs:mkdir-failed"
+    log "Mounted but unable to create required dirs (need rw share): $mount_point/backups"
+    exit 0
+  fi
+
+  # Best-effort: do not fail if we cannot create roms/.
+  run_cmd mkdir -p "$mount_point/roms" || true
+
+  cover_path "mount-nfs:dirs-ready"
   log "Mounted successfully"
 }
 

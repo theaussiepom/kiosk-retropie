@@ -24,8 +24,8 @@ Usage:
   ledctl.sh (act|pwr|all) (on|off)
 
 Environment overrides (typically from /etc/kiosk-retropie/config.env):
-  KIOSK_ACT_LED              LED sysfs name for "ACT" (default: led0)
-  KIOSK_PWR_LED              LED sysfs name for "PWR" (default: led1)
+  KIOSK_ACT_LED              LED sysfs name for "ACT" (default: ledact)
+  KIOSK_PWR_LED              LED sysfs name for "PWR" (default: ledpwr)
   KIOSK_ACT_LED_TRIGGER_ON   Trigger to restore when turning ACT on (default: mmc0)
   KIOSK_PWR_LED_TRIGGER_ON   Trigger to restore when turning PWR on (default: default-on)
 
@@ -105,8 +105,8 @@ main() {
   local which="$1"
   local state="$2"
 
-  local act_led="${KIOSK_ACT_LED:-${KIOSK_RETROPIE_ACT_LED:-led0}}"
-  local pwr_led="${KIOSK_PWR_LED:-${KIOSK_RETROPIE_PWR_LED:-led1}}"
+  local act_led="${KIOSK_ACT_LED:-${KIOSK_RETROPIE_ACT_LED:-ledact}}"
+  local pwr_led="${KIOSK_PWR_LED:-${KIOSK_RETROPIE_PWR_LED:-ledpwr}}"
 
   local act_on_trigger="${KIOSK_ACT_LED_TRIGGER_ON:-${KIOSK_RETROPIE_ACT_LED_TRIGGER_ON:-mmc0}}"
   local pwr_on_trigger="${KIOSK_PWR_LED_TRIGGER_ON:-${KIOSK_RETROPIE_PWR_LED_TRIGGER_ON:-default-on}}"

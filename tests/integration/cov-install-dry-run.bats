@@ -13,6 +13,7 @@ setup() {
 	# Allow running installer logic without root.
 	export KIOSK_RETROPIE_ALLOW_NON_ROOT=1
 	export KIOSK_RETROPIE_DRY_RUN=1
+	write_config_env $'KIOSK_URL=https://example.invalid\nNFS_SERVER=server\nNFS_PATH=/export/kiosk-retropie'
 }
 
 teardown() {
@@ -30,9 +31,7 @@ teardown() {
 }
 
 @test "install.sh dry-run covers configured Chromium profile dir path" {
-	export KIOSK_CHROMIUM_PROFILE_DIR="$TEST_ROOT/var/lib/kiosk-retropie/chromium-profile"
-
 	run bash "$KIOSK_RETROPIE_REPO_ROOT/scripts/install.sh"
 	assert_success
-	assert_file_contains "$TEST_ROOT/calls.log" "PATH install:chromium-profile-configured"
+	assert_file_contains "$TEST_ROOT/calls.log" "PATH install:chromium-profile-fixed"
 }

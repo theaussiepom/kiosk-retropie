@@ -158,9 +158,9 @@ EOF
 	export KIOSK_LED_MQTT_MAX_LOOPS=3
 
 	# Create a fake sysfs LED state under KIOSK_RETROPIE_ROOT.
-	mkdir -p "$TEST_ROOT/sys/class/leds/led0" "$TEST_ROOT/sys/class/leds/led1"
-	echo 0 >"$TEST_ROOT/sys/class/leds/led0/brightness"
-	echo 0 >"$TEST_ROOT/sys/class/leds/led1/brightness"
+	mkdir -p "$TEST_ROOT/sys/class/leds/ledact" "$TEST_ROOT/sys/class/leds/ledpwr"
+	echo 0 >"$TEST_ROOT/sys/class/leds/ledact/brightness"
+	echo 0 >"$TEST_ROOT/sys/class/leds/ledpwr/brightness"
 
 	make_isolated_path_with_stubs dirname
 	source "$KIOSK_RETROPIE_REPO_ROOT/scripts/leds/led-mqtt.sh"
@@ -170,7 +170,7 @@ EOF
 
 	# After the first loop publishes OFF, flip ACT to ON.
 	sleep 0.08
-	echo 1 >"$TEST_ROOT/sys/class/leds/led0/brightness"
+	echo 1 >"$TEST_ROOT/sys/class/leds/ledact/brightness"
 
 	wait "$poll_pid"
 
@@ -183,9 +183,9 @@ EOF
 	export MQTT_HOST="mqtt.local"
 	export KIOSK_RETROPIE_DRY_RUN=1
 
-	mkdir -p "$TEST_ROOT/sys/class/leds/led0" "$TEST_ROOT/sys/class/leds/led1"
-	echo 1 >"$TEST_ROOT/sys/class/leds/led0/brightness"
-	echo 0 >"$TEST_ROOT/sys/class/leds/led1/brightness"
+	mkdir -p "$TEST_ROOT/sys/class/leds/ledact" "$TEST_ROOT/sys/class/leds/ledpwr"
+	echo 1 >"$TEST_ROOT/sys/class/leds/ledact/brightness"
+	echo 0 >"$TEST_ROOT/sys/class/leds/ledpwr/brightness"
 
 	make_isolated_path_with_stubs dirname
 	source "$KIOSK_RETROPIE_REPO_ROOT/scripts/leds/led-mqtt.sh"
@@ -207,8 +207,8 @@ EOF
 
 @test "led-mqtt led_state_payload covers invalid brightness content" {
 	# Fake sysfs with invalid brightness.
-	mkdir -p "$TEST_ROOT/sys/class/leds/led0"
-	echo "nope" >"$TEST_ROOT/sys/class/leds/led0/brightness"
+	mkdir -p "$TEST_ROOT/sys/class/leds/ledact"
+	echo "nope" >"$TEST_ROOT/sys/class/leds/ledact/brightness"
 
 	make_isolated_path_with_stubs dirname
 	source "$KIOSK_RETROPIE_REPO_ROOT/scripts/leds/led-mqtt.sh"
@@ -225,9 +225,9 @@ EOF
 	export KIOSK_LED_MQTT_MAX_LOOPS=1
 
 	# Fake sysfs so state reads succeed.
-	mkdir -p "$TEST_ROOT/sys/class/leds/led0" "$TEST_ROOT/sys/class/leds/led1"
-	echo 0 >"$TEST_ROOT/sys/class/leds/led0/brightness"
-	echo 0 >"$TEST_ROOT/sys/class/leds/led1/brightness"
+	mkdir -p "$TEST_ROOT/sys/class/leds/ledact" "$TEST_ROOT/sys/class/leds/ledpwr"
+	echo 0 >"$TEST_ROOT/sys/class/leds/ledact/brightness"
+	echo 0 >"$TEST_ROOT/sys/class/leds/ledpwr/brightness"
 
 	make_isolated_path_with_stubs dirname
 	source "$KIOSK_RETROPIE_REPO_ROOT/scripts/leds/led-mqtt.sh"

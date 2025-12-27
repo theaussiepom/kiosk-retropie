@@ -107,8 +107,8 @@ led_state_payload() {
 
   local led_name=""
   case "$target" in
-    act) led_name="${KIOSK_ACT_LED:-${KIOSK_RETROPIE_ACT_LED:-led0}}" ;;
-    pwr) led_name="${KIOSK_PWR_LED:-${KIOSK_RETROPIE_PWR_LED:-led1}}" ;;
+    act) led_name="${KIOSK_ACT_LED:-${KIOSK_RETROPIE_ACT_LED:-ledact}}" ;;
+    pwr) led_name="${KIOSK_PWR_LED:-${KIOSK_RETROPIE_PWR_LED:-ledpwr}}" ;;
     *)
       cover_path "led-mqtt:state-invalid-target"
       return 1

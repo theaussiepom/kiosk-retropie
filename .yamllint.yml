@@ -12,3 +12,4 @@ rules:
     ignore: |
       /cloud-init/user-data.example.yml
       /examples/user.data.yml
+      /examples/pi-imager/user-data.example.yml

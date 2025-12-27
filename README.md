@@ -168,10 +168,9 @@ Press the buttons you want to use and note the `code=` values.
 Then set these in `/etc/kiosk-retropie/config.env`:
 
 - `RETROPIE_ENTER_TRIGGER_CODE` (optional, default `315`): button code that enters Retro (kiosk -> Retro)
-- `RETROPIE_EXIT_TRIGGER_CODE` (optional, default `315`): button code that triggers the exit combo
-- `RETROPIE_EXIT_SECOND_CODE` (optional, default `304`): second button for exit combo (press this, then trigger)
-- `RETROPIE_COMBO_WINDOW_SEC` (optional, default `0.75`): max seconds between the second button and trigger
-- `RETROPIE_START_DEBOUNCE_SEC` (optional, default `1.0`): debounce for trigger presses
+- `RETROPIE_EXIT_SEQUENCE_CODES` (optional, default `315,304`): comma-delimited exit sequence (Retro -> kiosk)
+- `RETROPIE_COMBO_WINDOW_SEC` (optional, default `0.75`): max seconds allowed to complete the exit sequence
+- `RETROPIE_START_DEBOUNCE_SEC` (optional, default `1.0`): minimum seconds between actions (prevents double-triggers)
 
 #### On-device calibration checklist
 
@@ -187,8 +186,7 @@ Then set these in `/etc/kiosk-retropie/config.env`:
 1. Update `/etc/kiosk-retropie/config.env` with the codes you chose:
 
     - Set `RETROPIE_ENTER_TRIGGER_CODE` for kiosk -> Retro.
-    - For Retro -> kiosk, set `RETROPIE_EXIT_SECOND_CODE` and `RETROPIE_EXIT_TRIGGER_CODE`
-      (second button first, then trigger).
+    - For Retro -> kiosk, set `RETROPIE_EXIT_SEQUENCE_CODES` (for example `315,304`).
 
 1. Restart the listeners so they pick up the new config:
 
@@ -199,8 +197,7 @@ Then set these in `/etc/kiosk-retropie/config.env`:
 1. Verify behavior:
 
     - From kiosk: press your enter trigger and confirm Retro starts.
-    - From Retro: press your exit combo (second button, then trigger within
-      `RETROPIE_COMBO_WINDOW_SEC`) and confirm kiosk returns.
+    - From Retro: press your exit sequence within `RETROPIE_COMBO_WINDOW_SEC` and confirm kiosk returns.
 
 ### Repo pinning (first boot installer)
 
@@ -241,15 +238,11 @@ ROMs are stored locally and can be synced from NFS on boot.
 
 Required to enable NFS sync:
 
-- `NFS_SERVER` (e.g. `192.168.1.20`)
-- `NFS_ROMS_PATH` (e.g. `/export/retropie`)
+- `NFS_SERVER` (e.g. `nas` or `nas:/export/kiosk-retropie`)
 
-Optional variables:
+If `NFS_SERVER` is a bare host (e.g. `nas`), the default export path is `/export/kiosk-retropie`.
 
-- `RETROPIE_NFS_MOUNT_POINT` (default: `/mnt/kiosk-retropie-roms`)
-- `RETROPIE_NFS_MOUNT_OPTIONS` (default: `ro`)
-
-`NFS_ROMS_PATH` should point at the ROM root (no extra subdir setting).
+The NFS share root is expected to contain `roms/` (for ROM sync) and `backups/` (for backups).
 
 - `RETROPIE_ROMS_DIR` (default: `/var/lib/kiosk-retropie/retropie/roms`)
 - `RETROPIE_ROMS_SYNC_DELETE` (default: `0`; set to `1` to mirror deletions from NFS)
@@ -272,16 +265,11 @@ Save files and save states are always local:
 An optional periodic backup copies local saves/states to NFS.
 It never runs during gameplay (it skips while `retro-mode.service` is active).
 
-- `RETROPIE_SAVE_BACKUP_ENABLED` (default: `0`; set to `1` to enable)
-- `RETROPIE_SAVE_BACKUP_DIR` (default: `/mnt/kiosk-retropie-backup`)
-- `RETROPIE_SAVE_BACKUP_SUBDIR` (default: `kiosk-retropie-saves`)
+- `RETROPIE_SAVE_BACKUP_ENABLED` (default: `1`; set to `0` to disable)
+- `RETROPIE_SAVE_BACKUP_SUBDIR` (default: `<hostname>`)
 - `RETROPIE_SAVE_BACKUP_DELETE` (default: `0`)
 
-Backup NFS settings:
-
-- `NFS_SERVER`
-- `NFS_SAVE_BACKUP_PATH`
-- `RETROPIE_SAVE_BACKUP_NFS_MOUNT_OPTIONS` (default: `rw`)
+Backup destination defaults to: `/mnt/kiosk-retropie-nfs/backups/<hostname>/`.
 
 ### Controller listeners (advanced)
 
@@ -750,14 +738,14 @@ journalctl -u boot-sync.service -b --no-pager
 1. Validate config:
 
 ```bash
-grep -n '^NFS_SERVER=\|^NFS_ROMS_PATH=' /etc/kiosk-retropie/config.env || true
+grep -n '^NFS_SERVER=' /etc/kiosk-retropie/config.env || true
 ```
 
 1. Confirm mount status:
 
 ```bash
-mountpoint -q /mnt/kiosk-retropie-roms && echo "mounted" || echo "not mounted"
-mount | grep kiosk-retropie-roms || true
+mountpoint -q /mnt/kiosk-retropie-nfs && echo "mounted" || echo "not mounted"
+mount | grep kiosk-retropie-nfs || true
 ```
 
 ### Save/state backup problems (optional)

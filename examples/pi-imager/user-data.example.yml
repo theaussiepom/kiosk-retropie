@@ -1,4 +1,4 @@
-#cloud-config
+#cloud-config  # yamllint disable-line rule:comments
 ---
 # Example Pi Imager user-data.
 # Copy/adjust for your environment.
@@ -7,11 +7,14 @@ write_files:
   - path: /etc/kiosk-retropie/config.env
     permissions: "0644"
     content: |
-      # Required (kiosk)
+      # Core config (required)
+      KIOSK_RETROPIE_REPO_URL=https://github.com/theaussiepom/kiosk-retropie.git
+      KIOSK_RETROPIE_REPO_REF=main
+
+      # App config (examples)
       KIOSK_URL=
 
-      # Required (NFS)
-      # NFS config is mandatory, but runtime is fail-open: if NFS is unreachable, the appliance continues running.
+      # NFS config (required)
       # You can set NFS in either of these forms:
       #   - NFS_SERVER=nas                    # uses default export: /export/kiosk-retropie
       #   - NFS_SERVER=nas:/export/kiosk-retropie
@@ -21,45 +24,16 @@ write_files:
       #   - backups/<hostname>/     (created on demand for save/state backups)
       NFS_SERVER=
 
-      # Optional: display
-      # Rotation: normal | left | right | inverted
-      # KIOSK_SCREEN_ROTATION=normal
-
-      # Xorg virtual terminals (VTs) used by kiosk vs Retro mode
-      # KIOSK_X_VT=7
-      # RETROPIE_X_VT=8
-
-      # Optional: ROM sync knobs
-      # RETROPIE_ROMS_SYNC_DELETE=0
-      # RETROPIE_ROMS_SYSTEMS=nes,snes,megadrive,psx
-      # RETROPIE_ROMS_EXCLUDE_SYSTEMS=
-
-      # Optional: periodic save/state backup (skips while in Retro mode)
-      # Backups are enabled by default. Set to 0 to disable:
-      # RETROPIE_SAVE_BACKUP_ENABLED=0
-      # RETROPIE_SAVE_BACKUP_SUBDIR=kiosk-retropie
-      # RETROPIE_SAVE_BACKUP_DELETE=0
-
-      # Optional: MQTT bridges (LEDs and/or screen brightness)
-      # Broker settings (required if any MQTT bridge is enabled)
-      # MQTT_HOST=192.168.1.50
-      # MQTT_PORT=1883
+      # MQTT LED control (optional)
+      # Disabled by default (set to 1 to enable)
+      KIOSK_LED_MQTT_ENABLED=0
+      MQTT_HOST=
       # MQTT_USERNAME=
       # MQTT_PASSWORD=
-      # MQTT_TLS=0
 
-      # Root topic prefix for all MQTT topics (use a unique prefix per device if you run multiple kiosks)
-      # KIOSK_MQTT_TOPIC_PREFIX=kiosk-retropie
-
-      # LED MQTT bridge
-      # KIOSK_LED_MQTT_ENABLED=0
-      # KIOSK_LED_MQTT_POLL_SEC=2
-
-      # Screen brightness MQTT bridge
-      # KIOSK_SCREEN_BRIGHTNESS_MQTT_ENABLED=0
-      # KIOSK_SCREEN_BRIGHTNESS_MQTT_POLL_SEC=2
-      # Discover backlight names with: ls -1 /sys/class/backlight
-      # KIOSK_BACKLIGHT_NAME=backlight
+      # Optional: LED sysfs names (defaults)
+      # KIOSK_ACT_LED=ledact
+      # KIOSK_PWR_LED=ledpwr
 
   - path: /usr/local/lib/kiosk-retropie/bootstrap.sh
     permissions: "0755"
@@ -121,11 +95,6 @@ write_files:
 
       [Service]
       Type=oneshot
-      # Pin to a tag/commit for deterministic installs.
-      Environment=KIOSK_RETROPIE_REPO_URL=https://github.com/theaussiepom/kiosk-retropie.git
-      Environment=KIOSK_RETROPIE_REPO_REF=main
-      # Optional: where to clone to
-      # Environment=KIOSK_RETROPIE_CHECKOUT_DIR=/opt/kiosk-retropie
       EnvironmentFile=-/etc/kiosk-retropie/config.env
       ExecStart=/usr/local/lib/kiosk-retropie/bootstrap.sh
       Restart=on-failure

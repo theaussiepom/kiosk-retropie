@@ -12,11 +12,11 @@ setup() {
   setup_test_root
 
   # Fake LED sysfs under KIOSK_RETROPIE_ROOT.
-  mkdir -p "$TEST_ROOT/sys/class/leds/led0" "$TEST_ROOT/sys/class/leds/led1"
-  echo "none [mmc0] timer" > "$TEST_ROOT/sys/class/leds/led0/trigger"
-  echo "none default-on" > "$TEST_ROOT/sys/class/leds/led1/trigger"
-  echo 0 > "$TEST_ROOT/sys/class/leds/led0/brightness"
-  echo 0 > "$TEST_ROOT/sys/class/leds/led1/brightness"
+  mkdir -p "$TEST_ROOT/sys/class/leds/ledact" "$TEST_ROOT/sys/class/leds/ledpwr"
+  echo "none [mmc0] timer" > "$TEST_ROOT/sys/class/leds/ledact/trigger"
+  echo "none default-on" > "$TEST_ROOT/sys/class/leds/ledpwr/trigger"
+  echo 0 > "$TEST_ROOT/sys/class/leds/ledact/brightness"
+  echo 0 > "$TEST_ROOT/sys/class/leds/ledpwr/brightness"
 }
 
 teardown() {

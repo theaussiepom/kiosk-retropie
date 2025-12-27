@@ -66,8 +66,10 @@ install:lock-acquired
 install:marker-after-lock
 install:user-exists
 install:user-created
-install:chromium-profile-default
-install:chromium-profile-configured
+install:chromium-profile-fixed
+install:config-ok
+install:missing-kiosk-url
+install:missing-nfs-server
 install:chromium-browser-pkg
 install:chromium-pkg
 install:chromium-none
@@ -189,21 +191,18 @@ ledctl:pwr-on-unsupported
 leds-on:run
 leds-off:run
 
-mount-nfs:not-configured
-mount-nfs:legacy-nfs-path
 mount-nfs:already-mounted
+mount-nfs:missing-config
+mount-nfs:legacy-roms-path
 mount-nfs:mount-attempt
 mount-nfs:mount-failed
 mount-nfs:mount-success
+mount-nfs:mkdir-failed
+mount-nfs:dirs-ready
 
 mount-nfs-backup:disabled
-mount-nfs-backup:not-configured
-mount-nfs-backup:legacy-server-ignored
-mount-nfs-backup:legacy-path
-mount-nfs-backup:already-mounted
-mount-nfs-backup:mount-attempt
-mount-nfs-backup:mount-failed
-mount-nfs-backup:mount-success
+mount-nfs-backup:legacy-backup-path-ignored
+mount-nfs-backup:delegate
 
 sync-roms:rsync-missing
 sync-roms:not-mounted
