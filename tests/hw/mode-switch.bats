@@ -157,13 +157,14 @@ wait_for_exit() {
 		RETROPIE_START_DEBOUNCE_SEC=0 \
 		RETROPIE_MAX_TRIGGERS=1 \
 		RETROPIE_MAX_LOOPS=200 \
+		RETROPIE_EXIT_SEQUENCE_CODES=315,304 \
 		RETROPIE_COMBO_WINDOW_SEC=5 \
 		SYSTEMCTL_STATE_FILE="$state_file" \
 		bash "$KIOSK_RETROPIE_REPO_ROOT/scripts/input/controller-listener-tty.sh" >"$LISTENER_LOG" 2>&1 &
 	local pid=$!
 
-	# A then Start (single write so the listener sees a tight combo).
-	emit_key_presses "$fifo" 304 315
+	# Start then A (single write so the listener sees the full sequence).
+	emit_key_presses "$fifo" 315 304
 	wait_for_exit "$pid" 5
 
 	assert_calls_contains "systemctl stop retro-mode.service"

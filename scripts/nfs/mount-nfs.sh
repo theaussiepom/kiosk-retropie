@@ -39,8 +39,8 @@ main() {
     server="$server_spec"
     export_path="${NFS_ROMS_PATH}"
   elif [[ -n "$server_spec" && "$server_spec" == *":/"* ]]; then
-    server="${server_spec%%:/*}"
-    export_path="${server_spec#"$server":}"
+    printf -v server '%s' "${server_spec%%:*}"
+    printf -v export_path '%s' "${server_spec#*:}"
   else
     server="$server_spec"
     export_path="$default_export_path"
