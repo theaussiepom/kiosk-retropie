@@ -366,13 +366,32 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          missing=()
           for cmd in mosquitto mosquitto_pub mosquitto_sub; do
             if ! command -v "$cmd" >/dev/null 2>&1; then
-              echo "Missing required command for hardware tests: $cmd" >&2
-              echo "Install packages (example on Debian/Raspberry Pi OS):" >&2
-              echo "  sudo apt-get install -y mosquitto mosquitto-clients" >&2
+              missing+=("$cmd")
+            fi
+          done
+
+          if (( ${#missing[@]} > 0 )); then
+            echo "Missing MQTT tooling: ${missing[*]}" >&2
+
+            if command -v apt-get >/dev/null 2>&1; then
+              echo "Installing mosquitto tooling via apt-get..." >&2
+              sudo -n apt-get update
+              sudo -n apt-get install -y mosquitto mosquitto-clients
+            else
+              echo "Cannot auto-install because apt-get is unavailable." >&2
+              echo "Install mosquitto + clients on the runner, then re-run." >&2
               exit 1
             fi
+          fi
+
+          for cmd in mosquitto mosquitto_pub mosquitto_sub; do
+            command -v "$cmd" >/dev/null 2>&1 || {
+              echo "MQTT tooling still missing after install: $cmd" >&2
+              exit 1
+            }
           done
 
       - name: Ensure uinput device (required for controller hardware tests)
