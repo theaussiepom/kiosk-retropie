@@ -104,10 +104,20 @@ set -euo pipefail
 
 # Minimal apt-cache stub for install.sh coverage.
 # Control behavior with KCOV_APT_CACHE_MODE:
-#   browser  -> apt-cache show chromium-browser succeeds
-#   chromium -> apt-cache show chromium succeeds
+#   browser  -> apt-cache policy chromium-browser has a Candidate
+#   chromium -> apt-cache policy chromium has a Candidate
 #   none     -> both fail
 mode="${KCOV_APT_CACHE_MODE:-none}"
+
+if [[ "${1:-}" == "policy" ]]; then
+  pkg="${2:-}"
+  case "$mode:$pkg" in
+    browser:chromium-browser) printf '%s\n' "Candidate: 1" ;;
+    chromium:chromium) printf '%s\n' "Candidate: 1" ;;
+    *) printf '%s\n' "Candidate: (none)" ;;
+  esac
+  exit 0
+fi
 
 if [[ "${1:-}" == "show" ]]; then
   pkg="${2:-}"
