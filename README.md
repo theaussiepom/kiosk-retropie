@@ -451,6 +451,24 @@ cd /opt/kiosk-retropie
 sudo ./scripts/install.sh
 ```
 
+## Why we don’t use Docker on the Pi
+
+This project runs directly on Raspberry Pi OS with systemd rather than running the appliance services in Docker
+containers.
+
+Reasons:
+
+- The appliance is tightly integrated with host resources (Xorg/VTs, logind, evdev input devices, sysfs
+  LEDs/backlight, systemd ordering).
+- We want simple, deterministic boot behavior with systemd as the single orchestrator.
+- Keeping runtime dependencies minimal reduces moving parts on a constrained device.
+
+In practice, you can diagnose most issues with `systemctl` and `journalctl`, and the device still behaves
+sensibly if networking (or MQTT) is down.
+
+Docker is still used for development parity via the devcontainer (toolchain + CI reproducibility), not for the
+production appliance runtime.
+
 ## Troubleshooting
 
 This section focuses on diagnosing issues on a Raspberry Pi running kiosk-retropie.
@@ -685,24 +703,6 @@ journalctl -u kiosk-retropie-led-mqtt.service -b --no-pager
 command -v mosquitto_sub || true
 command -v mosquitto_pub || true
 ```
-
-## Why we don’t use Docker on the Pi
-
-This project runs directly on Raspberry Pi OS with systemd rather than running the appliance services in Docker
-containers.
-
-Reasons:
-
-- The appliance is tightly integrated with host resources (Xorg/VTs, logind, evdev input devices, sysfs
-  LEDs/backlight, systemd ordering).
-- We want simple, deterministic boot behavior with systemd as the single orchestrator.
-- Keeping runtime dependencies minimal reduces moving parts on a constrained device.
-
-In practice, you can diagnose most issues with `systemctl` and `journalctl`, and the device still behaves
-sensibly if networking (or MQTT) is down.
-
-Docker is still used for development parity via the devcontainer (toolchain + CI reproducibility), not for the
-production appliance runtime.
 
 ## Development
 
