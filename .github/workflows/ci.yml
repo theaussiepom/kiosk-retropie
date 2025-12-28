@@ -374,6 +374,17 @@ jobs:
           sudo -n install -m 0644 \
             systemd/kiosk-retropie-screen-brightness-mqtt.service \
             "$systemd_dir/kiosk-retropie-screen-brightness-mqtt.service"
+          sudo -n install -m 0644 \
+            systemd/kiosk-retropie-home-assistant-mqtt.service \
+            "$systemd_dir/kiosk-retropie-home-assistant-mqtt.service"
+
+          # Install the scripts expected by these units.
+          lib_dir=/usr/local/lib/kiosk-retropie
+          sudo -n install -d "$lib_dir" "$lib_dir/lib"
+          sudo -n install -m 0755 scripts/lib/common.sh "$lib_dir/lib/common.sh"
+          sudo -n install -m 0755 scripts/lib/logging.sh "$lib_dir/lib/logging.sh"
+          sudo -n install -m 0755 scripts/lib/path.sh "$lib_dir/lib/path.sh"
+          sudo -n install -m 0755 scripts/mqtt/home-assistant-mqtt.sh "$lib_dir/kiosk-retropie-home-assistant-mqtt.sh"
           sudo -n systemctl daemon-reload
 
       - name: Ensure MQTT tooling (required for MQTT bridge hardware tests)
