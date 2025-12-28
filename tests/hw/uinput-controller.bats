@@ -49,6 +49,22 @@ wait_for_file() {
   return 1
 }
 
+wait_for_file_contains() {
+  local file="$1"
+  local needle="$2"
+  local timeout_sec="${3:-5}"
+  local end=$((SECONDS + timeout_sec))
+
+  while ((SECONDS < end)); do
+    if assert_file_contains "$file" "$needle"; then
+      return 0
+    fi
+    sleep 0.05
+  done
+
+  return 1
+}
+
 wait_for_exit() {
   local pid="$1"
   local timeout_sec="${2:-5}"
@@ -276,10 +292,26 @@ emit_combo() {
   # Default enter is Start (315).
   emit_combo 315
 
-  wait_for_exit "$pid" 8
+  if ! wait_for_file_contains "$calls_file" "systemctl stop kiosk.service" 8; then
+    echo "DEBUG systemctl calls:" >&2
+    cat "$calls_file" >&2 || true
+    echo "DEBUG listener log:" >&2
+    sed -n '1,200p' "$TEST_DIR/listener.log" >&2 || true
+    echo "DEBUG uinput emitter log:" >&2
+    sed -n '1,200p' "$TEST_DIR/uinput.log" >&2 || true
+    fail "Expected systemctl stop kiosk.service"
+  fi
+  if ! wait_for_file_contains "$calls_file" "systemctl start retro-mode.service" 8; then
+    echo "DEBUG systemctl calls:" >&2
+    cat "$calls_file" >&2 || true
+    echo "DEBUG listener log:" >&2
+    sed -n '1,200p' "$TEST_DIR/listener.log" >&2 || true
+    echo "DEBUG uinput emitter log:" >&2
+    sed -n '1,200p' "$TEST_DIR/uinput.log" >&2 || true
+    fail "Expected systemctl start retro-mode.service"
+  fi
 
-  assert_file_contains "$calls_file" "systemctl stop kiosk.service"
-  assert_file_contains "$calls_file" "systemctl start retro-mode.service"
+  wait_for_exit "$pid" 8 || true
 }
 
 @test "TTY listener triggers exit combo via real uinput events" {
@@ -298,10 +330,26 @@ emit_combo() {
 
   emit_combo 315 304
 
-  wait_for_exit "$pid" 8
+  if ! wait_for_file_contains "$SYSTEMCTL_CALLS_FILE" "systemctl stop retro-mode.service" 8; then
+    echo "DEBUG systemctl calls:" >&2
+    cat "$SYSTEMCTL_CALLS_FILE" >&2 || true
+    echo "DEBUG listener log:" >&2
+    sed -n '1,200p' "$TEST_DIR/listener-exit.log" >&2 || true
+    echo "DEBUG uinput emitter log:" >&2
+    sed -n '1,200p' "$TEST_DIR/uinput.log" >&2 || true
+    fail "Expected systemctl stop retro-mode.service"
+  fi
+  if ! wait_for_file_contains "$SYSTEMCTL_CALLS_FILE" "systemctl start kiosk.service" 8; then
+    echo "DEBUG systemctl calls:" >&2
+    cat "$SYSTEMCTL_CALLS_FILE" >&2 || true
+    echo "DEBUG listener log:" >&2
+    sed -n '1,200p' "$TEST_DIR/listener-exit.log" >&2 || true
+    echo "DEBUG uinput emitter log:" >&2
+    sed -n '1,200p' "$TEST_DIR/uinput.log" >&2 || true
+    fail "Expected systemctl start kiosk.service"
+  fi
 
-  assert_file_contains "$SYSTEMCTL_CALLS_FILE" "systemctl stop retro-mode.service"
-  assert_file_contains "$SYSTEMCTL_CALLS_FILE" "systemctl start kiosk.service"
+  wait_for_exit "$pid" 8 || true
 }
 
 @test "Kiosk-mode listener starts retro via real uinput events" {
@@ -324,7 +372,15 @@ emit_combo() {
 
   emit_combo 315
 
-  wait_for_exit "$pid" 8
+  if ! wait_for_file_contains "$SYSTEMCTL_CALLS_FILE" "systemctl start retro-mode.service" 8; then
+    echo "DEBUG systemctl calls:" >&2
+    cat "$SYSTEMCTL_CALLS_FILE" >&2 || true
+    echo "DEBUG listener log:" >&2
+    sed -n '1,200p' "$TEST_DIR/kiosk-listener.log" >&2 || true
+    echo "DEBUG uinput emitter log:" >&2
+    sed -n '1,200p' "$TEST_DIR/uinput.log" >&2 || true
+    fail "Expected systemctl start retro-mode.service"
+  fi
 
-  assert_file_contains "$SYSTEMCTL_CALLS_FILE" "systemctl start retro-mode.service"
+  wait_for_exit "$pid" 8 || true
 }
