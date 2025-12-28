@@ -19,6 +19,25 @@ need_root_or_sudo() {
   have_passwordless_sudo
 }
 
+# Convenience: assert a file contains a substring.
+# This is intentionally local to this HW test file so it doesn't depend on any
+# repo test helper loading conventions.
+assert_file_contains() {
+  local file="$1"
+  local needle="$2"
+
+  [[ -f "$file" ]] || return 1
+
+  local grep_bin="grep"
+  if [[ -x /usr/bin/grep ]]; then
+    grep_bin="/usr/bin/grep"
+  elif [[ -x /bin/grep ]]; then
+    grep_bin="/bin/grep"
+  fi
+
+  "$grep_bin" -Fq -- "$needle" "$file"
+}
+
 wait_for_file() {
   local file="$1"
   local timeout_sec="${2:-5}"
