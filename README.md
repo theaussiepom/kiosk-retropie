@@ -249,8 +249,8 @@ number of iterations/events instead of running forever. Leave them unset (or `0`
 
 ### LED MQTT bridge (optional)
 
-- `KIOSK_LED_MQTT_ENABLED` (default: `0`; set to `1` to enable)
-- `KIOSK_MQTT_TOPIC_PREFIX` (default: `kiosk-retropie`)
+- `MQTT_LED_ENABLED` (default: `0`; set to `1` to enable)
+- `MQTT_TOPIC_PREFIX` (default: `<hostname>`)
 - `KIOSK_LED_MQTT_POLL_SEC` (optional, default: `2`)
   Poll sysfs and publish state changes made outside MQTT.
 - `KIOSK_LED_MQTT_MAX_LOOPS` (optional, default: `0`)
@@ -264,15 +264,15 @@ Broker settings:
 - `MQTT_PASSWORD` (optional)
 - `MQTT_TLS` (default: `0`; set to `1` to enable TLS)
 
-`KIOSK_MQTT_TOPIC_PREFIX` controls the root topic used by the MQTT bridges (for example
+`MQTT_TOPIC_PREFIX` controls the root topic used by the MQTT bridges (for example
 `<prefix>/led/act/set`). If you run multiple kiosks on one broker, give each kiosk a unique prefix.
 
 ### Screen brightness MQTT bridge (optional)
 
 Controls the display backlight brightness via sysfs (`/sys/class/backlight`).
 
-- `KIOSK_SCREEN_BRIGHTNESS_MQTT_ENABLED` (default: `0`; set to `1` to enable)
-- `KIOSK_MQTT_TOPIC_PREFIX` (default: `kiosk-retropie`)
+- `MQTT_SCREEN_BRIGHTNESS_ENABLED` (default: `0`; set to `1` to enable)
+- `MQTT_TOPIC_PREFIX` (default: `<hostname>`)
 - `KIOSK_SCREEN_BRIGHTNESS_MQTT_POLL_SEC` (optional, default: `2`)
   Poll sysfs and publish state changes made outside MQTT.
 - `KIOSK_SCREEN_BRIGHTNESS_MQTT_MAX_LOOPS` (optional, default: `0`)
@@ -287,6 +287,30 @@ Broker settings (same as LED MQTT bridge):
 - `MQTT_TLS` (default: `0`; set to `1` to enable TLS)
 
 Backlight selection is handled by the application.
+
+### Home Assistant MQTT discovery + control (optional)
+
+When enabled, the appliance publishes Home Assistant MQTT Discovery config (retained) so Home Assistant can
+auto-create entities (similar to Zigbee2MQTT).
+
+- `MQTT_HOME_ASSISTANT_ENABLED` (default: `0`; set to `1` to enable)
+- `MQTT_HOME_ASSISTANT_DISCOVERY_PREFIX` (default: `homeassistant`)
+- `MQTT_HOME_ASSISTANT_NODE_ID` (optional; defaults to a sanitized `MQTT_TOPIC_PREFIX`)
+
+Entities published include:
+
+- Mode switch (kiosk vs RetroPie)
+- ROM sync button
+- Screen rotation select
+- Selected non-sensitive config values as sensors (`<prefix>/config/...`)
+
+Control topics (under `<prefix>`):
+
+- `<prefix>/mode/set` (payload: `ON|OFF|RETROPIE|KIOSK`)
+- `<prefix>/mode/state` (payload: `ON|OFF`, retained)
+- `<prefix>/roms/sync/press` (payload: `PRESS`)
+- `<prefix>/screen/rotation/set` (payload: `normal|left|right|inverted`)
+- `<prefix>/screen/rotation/state` (payload: `normal|left|right|inverted`, retained)
 
 ## MQTT LED control (optional)
 
@@ -312,7 +336,7 @@ exposes an **MQTT-controlled** LED switch.
 
 ### LED MQTT topics
 
-Default prefix: `kiosk-retropie` (set `KIOSK_MQTT_TOPIC_PREFIX`).
+Default prefix: `<hostname>` (override with `MQTT_TOPIC_PREFIX`).
 
 Command topics:
 
@@ -369,7 +393,7 @@ mqtt:
 
 ### Screen brightness MQTT topics
 
-Default prefix: `kiosk-retropie` (set `KIOSK_MQTT_TOPIC_PREFIX`).
+Default prefix: `<hostname>` (override with `MQTT_TOPIC_PREFIX`).
 
 - Command: `kiosk-retropie/screen/brightness/set` (payload: `0`-`100`)
 - State (retained): `kiosk-retropie/screen/brightness/state` (payload: `0`-`100`)

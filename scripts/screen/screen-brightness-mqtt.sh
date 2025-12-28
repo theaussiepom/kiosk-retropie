@@ -7,7 +7,7 @@ set -euo pipefail
 #   - mosquitto_sub + mosquitto_pub (package: mosquitto-clients)
 #   - a writable sysfs backlight device under /sys/class/backlight
 #
-# Topics (default prefix: kiosk-retropie):
+# Topics (default prefix: <hostname>):
 #   <prefix>/screen/brightness/set   payload: 0-100 (percent)
 # State topic (retained):
 #   <prefix>/screen/brightness/state payload: 0-100
@@ -74,6 +74,14 @@ mosq_args() {
   fi
 
   printf '%s\n' "${args[@]}"
+}
+
+default_topic_prefix() {
+  if command -v hostname > /dev/null 2>&1; then
+    hostname -s 2> /dev/null || hostname 2> /dev/null || printf '%s\n' "kiosk-retropie"
+  else
+    printf '%s\n' "kiosk-retropie"
+  fi
 }
 
 backlight_dir() {
@@ -289,7 +297,7 @@ main() {
     die "MQTT_HOST is required"
   fi
 
-  local prefix="${MQTT_TOPIC_PREFIX:-${KIOSK_MQTT_TOPIC_PREFIX:-${KIOSK_RETROPIE_MQTT_TOPIC_PREFIX:-kiosk-retropie}}}"
+  local prefix="${MQTT_TOPIC_PREFIX:-${KIOSK_MQTT_TOPIC_PREFIX:-${KIOSK_RETROPIE_MQTT_TOPIC_PREFIX:-$(default_topic_prefix)}}}"
   local topic_filter="${prefix}/screen/brightness/set"
 
   local args=()
