@@ -144,7 +144,8 @@ set -euo pipefail
 calls_file="${SYSTEMCTL_CALLS_FILE:?}"
 state_file="${SYSTEMCTL_STATE_FILE:?}"
 
-printf 'systemctl %q\n' "$*" >>"$calls_file"
+# Log commands in a human-readable form so tests can assert via substring match.
+printf 'systemctl %s\n' "$*" >>"$calls_file"
 
 cmd="${1:-}"
 shift || true
