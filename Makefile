@@ -114,6 +114,15 @@ lint-markdown:
 format: format-shell
 
 format-shell:
+	@if command -v go >/dev/null 2>&1; then \
+	  gopath="$$(go env GOPATH 2>/dev/null || true)"; \
+	  if [ -n "$$gopath" ] && [ -d "$$gopath/bin" ]; then \
+	    case ":$$PATH:" in *":$$gopath/bin:"*) ;; *) export PATH="$$gopath/bin:$$PATH";; esac; \
+	  fi; \
+	fi; \
+	if [ -n "$$HOME" ] && [ -d "$$HOME/go/bin" ]; then \
+	  case ":$$PATH:" in *":$$HOME/go/bin:"*) ;; *) export PATH="$$HOME/go/bin:$$PATH";; esac; \
+	fi; \
 	@files=(); \
 	if [ -d scripts ]; then \
 	  while IFS= read -r -d '' f; do files+=("$$f"); done < <(find scripts -type f -name '*.sh' -print0); \

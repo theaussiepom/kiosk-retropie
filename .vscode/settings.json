@@ -22,6 +22,9 @@
     "-ci",
     "-sr"
   ],
+  "terminal.integrated.env.linux": {
+    "PATH": "${env:GOPATH}/bin:${env:HOME}/go/bin:${env:PATH}"
+  },
   "yaml.validate": true,
   "yaml.format.enable": true,
   "markdownlint.config": {

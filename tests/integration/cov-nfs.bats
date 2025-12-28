@@ -26,16 +26,15 @@ teardown() {
 	teardown_test_root
 }
 
-@test "mount-nfs is fail-open when NFS not configured" {
+@test "mount-nfs is a no-op when NFS not configured" {
 	run bash "$KIOSK_RETROPIE_REPO_ROOT/scripts/nfs/mount-nfs.sh"
 	assert_success
+	assert_output --partial "NFS disabled"
+	assert_file_contains "$TEST_ROOT/calls.log" "PATH mount-nfs:disabled"
 }
 
 @test "mount-nfs calls mount when not mounted" {
-	export NFS_SERVER=nas
-	export NFS_ROMS_PATH=/export/roms
-	mp="$TEST_ROOT/mnt/kiosk-retropie-roms"
-	mkdir -p "$mp"
+	export NFS_SERVER=nas:/export/roms
 
 	# Not mounted initially.
 	export MOUNTPOINT_PATHS=$''
@@ -44,26 +43,24 @@ teardown() {
 	run bash "$KIOSK_RETROPIE_REPO_ROOT/scripts/nfs/mount-nfs.sh"
 	assert_success
 	assert_file_contains "$TEST_ROOT/calls.log" "mount -t nfs"
+	assert_file_contains "$TEST_ROOT/calls.log" "PATH mount-nfs:dirs-ready"
 }
 
 @test "sync-roms rsyncs only allowed systems" {
-	# Pretend NFS is mounted.
-	mp="$TEST_ROOT/mnt/kiosk-retropie-roms"
-	mkdir -p "$mp/nes" "$mp/snes"
-	export MOUNTPOINT_PATHS="$mp"
+	export NFS_SERVER=nas:/export/kiosk-retropie
 
-	# Avoid mount attempt.
-	export NFS_SERVER=
-	export NFS_ROMS_PATH=
+	# Pretend NFS is mounted.
+	mp="$TEST_ROOT/mnt/kiosk-retropie-nfs"
+	mkdir -p "$mp/roms/nes" "$mp/roms/snes"
+	export MOUNTPOINT_PATHS="$mp\n"
 
 	# Allowlist only nes.
-	export KIOSK_RETROPIE_ROMS_SYSTEMS="nes"
-	export KIOSK_RETROPIE_ROMS_EXCLUDE_SYSTEMS="snes"
+	export NFS_ROMS_SYSTEMS="nes"
 
 	run bash "$KIOSK_RETROPIE_REPO_ROOT/scripts/nfs/sync-roms.sh"
 	assert_success
 
 	assert_file_contains "$TEST_ROOT/calls.log" "rsync"
-	assert_file_contains "$TEST_ROOT/calls.log" "$mp/nes/"
-	refute_file_contains "$TEST_ROOT/calls.log" "$mp/snes/"
+	assert_file_contains "$TEST_ROOT/calls.log" "$mp/roms/nes/"
+	refute_file_contains "$TEST_ROOT/calls.log" "$mp/roms/snes/"
 }

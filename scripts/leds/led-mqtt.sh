@@ -107,8 +107,8 @@ led_state_payload() {
 
   local led_name=""
   case "$target" in
-    act) led_name="${KIOSK_ACT_LED:-${KIOSK_RETROPIE_ACT_LED:-led0}}" ;;
-    pwr) led_name="${KIOSK_PWR_LED:-${KIOSK_RETROPIE_PWR_LED:-led1}}" ;;
+    act) led_name="led-act" ;;
+    pwr) led_name="led-pwr" ;;
     *)
       cover_path "led-mqtt:state-invalid-target"
       return 1
@@ -156,8 +156,8 @@ publish_led_states_once() {
 led_state_poller() {
   local prefix="$1"
 
-  local poll_sec="${KIOSK_LED_MQTT_POLL_SEC:-${KIOSK_RETROPIE_LED_MQTT_POLL_SEC:-2}}"
-  local max_loops="${KIOSK_LED_MQTT_MAX_LOOPS:-${KIOSK_RETROPIE_LED_MQTT_MAX_LOOPS:-0}}"
+  local poll_sec="${MQTT_LED_POLL_SEC:-${KIOSK_LED_MQTT_POLL_SEC:-${KIOSK_RETROPIE_LED_MQTT_POLL_SEC:-2}}}"
+  local max_loops="${MQTT_LED_MAX_LOOPS:-${KIOSK_LED_MQTT_MAX_LOOPS:-${KIOSK_RETROPIE_LED_MQTT_MAX_LOOPS:-0}}}"
   local loops=0
 
   local last_act=""
@@ -245,9 +245,9 @@ handle_set() {
 main() {
   export KIOSK_RETROPIE_LOG_PREFIX="kiosk-retropie-led-mqtt"
 
-  if [[ "${KIOSK_LED_MQTT_ENABLED:-${KIOSK_RETROPIE_LED_MQTT_ENABLED:-0}}" != "1" ]]; then
+  if [[ "${MQTT_LED_ENABLED:-${KIOSK_LED_MQTT_ENABLED:-${KIOSK_RETROPIE_LED_MQTT_ENABLED:-0}}}" != "1" ]]; then
     cover_path "led-mqtt:disabled"
-    log "KIOSK_LED_MQTT_ENABLED!=1; exiting (disabled)."
+    log "MQTT_LED_ENABLED!=1; exiting (disabled)."
     exit 0
   fi
 
@@ -256,7 +256,7 @@ main() {
     die "MQTT_HOST is required"
   fi
 
-  local prefix="${KIOSK_MQTT_TOPIC_PREFIX:-${KIOSK_RETROPIE_MQTT_TOPIC_PREFIX:-kiosk-retropie}}"
+  local prefix="${MQTT_TOPIC_PREFIX:-${KIOSK_MQTT_TOPIC_PREFIX:-${KIOSK_RETROPIE_MQTT_TOPIC_PREFIX:-kiosk-retropie}}}"
   local topic_filter="${prefix}/led/+/set"
 
   local args=()

@@ -348,8 +348,86 @@ jobs:
           bash --version | head -n 1
           systemctl --version | head -n 1 || true
 
+      - name: Ensure passwordless sudo (required for sysfs hardware tests)
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v sudo >/dev/null 2>&1; then
+            echo "sudo is required on the self-hosted runner for hardware tests" >&2
+            exit 1
+          fi
+          if ! sudo -n true >/dev/null 2>&1; then
+            echo "Hardware tests need passwordless sudo to write /sys (LEDs/backlight)." >&2
+            echo "Configure the runner user with NOPASSWD for sudo, then re-run." >&2
+            exit 1
+          fi
+
+      - name: Install required systemd units (for HW tests)
+        shell: bash
+        run: |
+          set -euo pipefail
+          systemd_dir=/etc/systemd/system
+          sudo -n install -d "$systemd_dir"
+          sudo -n install -m 0644 \
+            systemd/kiosk-retropie-led-mqtt.service \
+            "$systemd_dir/kiosk-retropie-led-mqtt.service"
+          sudo -n install -m 0644 \
+            systemd/kiosk-retropie-screen-brightness-mqtt.service \
+            "$systemd_dir/kiosk-retropie-screen-brightness-mqtt.service"
+          sudo -n systemctl daemon-reload
+
+      - name: Ensure MQTT tooling (required for MQTT bridge hardware tests)
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=()
+          for cmd in mosquitto mosquitto_pub mosquitto_sub; do
+            if ! command -v "$cmd" >/dev/null 2>&1; then
+              missing+=("$cmd")
+            fi
+          done
+
+          if (( ${#missing[@]} > 0 )); then
+            echo "Missing MQTT tooling: ${missing[*]}" >&2
+
+            if command -v apt-get >/dev/null 2>&1; then
+              echo "Installing mosquitto tooling via apt-get..." >&2
+              sudo -n apt-get update
+              sudo -n apt-get install -y mosquitto mosquitto-clients
+            else
+              echo "Cannot auto-install because apt-get is unavailable." >&2
+              echo "Install mosquitto + clients on the runner, then re-run." >&2
+              exit 1
+            fi
+          fi
+
+          for cmd in mosquitto mosquitto_pub mosquitto_sub; do
+            command -v "$cmd" >/dev/null 2>&1 || {
+              echo "MQTT tooling still missing after install: $cmd" >&2
+              exit 1
+            }
+          done
+
+      - name: Ensure uinput device (required for controller hardware tests)
+        shell: bash
+        run: |
+          set -euo pipefail
+          if command -v modprobe >/dev/null 2>&1; then
+            # Ensure input modules are loaded so uinput devices appear under /dev/input/event*.
+            sudo -n modprobe uinput 2>/dev/null || true
+            sudo -n modprobe evdev 2>/dev/null || true
+          fi
+          if [[ ! -e /dev/uinput ]]; then
+            echo "Missing /dev/uinput on runner." >&2
+            echo "Load it with: sudo modprobe uinput" >&2
+            echo "To persist: ensure uinput module loads at boot." >&2
+            exit 1
+          fi
+
       - name: Run HW integration tests
         shell: bash
         run: |
           set -euo pipefail
-          bash ./tests/bin/run-bats-hw.sh
+          export KIOSK_RETROPIE_HW_REQUIRE_UNITS=1
+          export KIOSK_RETROPIE_HW_REQUIRE_UINPUT=1
+          sudo -E bash ./tests/bin/run-bats-hw.sh

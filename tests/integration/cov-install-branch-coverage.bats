@@ -12,6 +12,8 @@ setup() {
   setup_test_root
   export KIOSK_RETROPIE_ALLOW_NON_ROOT=1
   export KIOSK_RETROPIE_DRY_RUN=1
+
+  write_config_env $'KIOSK_URL=https://example.invalid\nNFS_SERVER=server\nNFS_PATH=/export/kiosk-retropie'
 }
 
 test_teardown() {
@@ -43,7 +45,7 @@ test_teardown() {
   export ID_RETROPI_EXISTS=1
   export APT_CACHE_HAS_CHROMIUM_BROWSER=0
   export APT_CACHE_HAS_CHROMIUM=0
-  export KIOSK_RETROPIE_INSTALL_RETROPIE=0
+  export RETROPIE_INSTALL=0
 
   rm -f "$TEST_ROOT/var/lib/kiosk-retropie/installed"
   unset KIOSK_RETROPIE_STUB_FLOCK_TOUCH_MARKER || true
@@ -86,7 +88,7 @@ test_teardown() {
   export ID_RETROPI_EXISTS=1
   export APT_CACHE_HAS_CHROMIUM_BROWSER=1
   export APT_CACHE_HAS_CHROMIUM=0
-  export KIOSK_RETROPIE_INSTALL_RETROPIE=0
+  export RETROPIE_INSTALL=0
 
   rm -f "$TEST_ROOT/var/lib/kiosk-retropie/installed"
   unset KIOSK_RETROPIE_STUB_FLOCK_TOUCH_MARKER || true
@@ -100,7 +102,7 @@ test_teardown() {
   export ID_RETROPI_EXISTS=0
   export APT_CACHE_HAS_CHROMIUM_BROWSER=0
   export APT_CACHE_HAS_CHROMIUM=1
-  export KIOSK_RETROPIE_INSTALL_RETROPIE=1
+  export RETROPIE_INSTALL=1
 
   rm -f "$TEST_ROOT/var/lib/kiosk-retropie/installed"
   unset KIOSK_RETROPIE_STUB_FLOCK_TOUCH_MARKER || true

@@ -9,6 +9,3 @@ rules:
     allowed-values: ["true", "false", "on", "off", "yes", "no"]
   comments:
     min-spaces-from-content: 1
-    ignore: |
-      /cloud-init/user-data.example.yml
-      /examples/user.data.yml

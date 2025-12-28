@@ -12,6 +12,7 @@ setup() {
 	setup_test_root
 	export KIOSK_RETROPIE_ALLOW_NON_ROOT=1
 	export KIOSK_RETROPIE_DRY_RUN=1
+	write_config_env $'KIOSK_URL=https://example.invalid\nNFS_SERVER=server\nNFS_PATH=/export/kiosk-retropie'
 }
 
 teardown() {

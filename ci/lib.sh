@@ -13,8 +13,36 @@ ci_cd_repo_root() {
   cd "$root"
 }
 
+ci_maybe_add_go_bin_to_path() {
+  # If tooling is installed via: `go install ...@latest`, binaries typically land in:
+  # - $(go env GOPATH)/bin
+  # - $HOME/go/bin (common default)
+  # Add these to PATH (idempotently) so CI can pick up host-installed tools.
+
+  local home="${HOME:-}"
+
+  if command -v go > /dev/null 2>&1; then
+    local gopath
+    gopath="$(go env GOPATH 2> /dev/null || true)"
+    if [[ -n "$gopath" && -d "$gopath/bin" ]]; then
+      case ":$PATH:" in
+        *":$gopath/bin:"*) : ;;
+        *) PATH="$gopath/bin:$PATH" ;;
+      esac
+    fi
+  fi
+
+  if [[ -n "$home" && -d "$home/go/bin" ]]; then
+    case ":$PATH:" in
+      *":$home/go/bin:"*) : ;;
+      *) PATH="$home/go/bin:$PATH" ;;
+    esac
+  fi
+}
+
 ci_require_cmd() {
   local cmd="$1"
+  ci_maybe_add_go_bin_to_path
   if ! command -v "$cmd" > /dev/null 2>&1; then
     echo "Missing required command: $cmd" >&2
     return 1
@@ -52,7 +80,7 @@ ci_list_shell_files() {
 }
 
 ci_list_yaml_files() {
-  ci_find0 .github cloud-init examples -- -type f \( -name '*.yml' -o -name '*.yaml' \)
+  ci_find0 .github examples -- -type f \( -name '*.yml' -o -name '*.yaml' \)
 }
 
 ci_list_unit_files() {

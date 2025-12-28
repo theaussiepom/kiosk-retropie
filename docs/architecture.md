@@ -2,7 +2,6 @@
 
 This doc is a quick tour of how kiosk-retropie is put together and what talks to what at runtime.
 
-If you’re new to Raspberry Pi + Linux service plumbing, don’t worry: you don’t need to memorize everything here.
 The main idea is simple — one device, one screen, two modes — and `systemd` is the traffic cop that makes it
 predictable.
 
@@ -31,7 +30,6 @@ See [Glossary](glossary.md).
 flowchart TD
   subgraph PI[Raspberry Pi]
     SYSTEMD[systemd]
-    INSTALL[kiosk-retropie-install.service]
     KIOSK["kiosk.service<br/>Chromium kiosk"]
     RETRO["retro-mode.service<br/>RetroPie"]
     LED[kiosk-retropie-led-mqtt.service]
@@ -44,7 +42,6 @@ flowchart TD
     CLIENT[Dashboard/controller]
   end
 
-  SYSTEMD --> INSTALL
   SYSTEMD --> KIOSK
   SYSTEMD --> RETRO
   SYSTEMD --> LED
@@ -61,10 +58,6 @@ systemd (the Linux service manager) runs the show. Scripts are installed under `
 and configuration is loaded from `/etc/kiosk-retropie/config.env`.
 
 ### Systemd units
-
-Install-time:
-
-- `kiosk-retropie-install.service`: one-time installer (first boot; retried until it succeeds).
 
 Mode and switching:
 
@@ -97,50 +90,22 @@ Optional integration:
 
 ## Boot and installation flow
 
-First boot is designed to be idempotent (it’s safe to re-run).
+Installation is designed to be idempotent (it’s safe to re-run).
 
-If you’re skimming, this is the mental model: cloud-init lays down just enough to let systemd kick off a bootstrap,
-and the bootstrap is responsible for fetching the pinned repo ref and running the real installer.
+1. You create `/etc/kiosk-retropie/config.env`.
+2. You clone the repo onto the Pi.
+3. You run `sudo ./scripts/install.sh` from that checkout.
+4. `scripts/install.sh` installs packages, copies scripts/units into place, enables the required services/timers,
+   then writes an installed marker under `/var/lib/kiosk-retropie/installed`.
 
-```mermaid
-sequenceDiagram
-  participant CI as cloud-init
-  participant SD as systemd
-  participant BOOT as bootstrap.sh
-  participant REPO as repo checkout
-  participant INST as scripts/install.sh
-
-  CI->>SD: install kiosk-retropie-install.service
-  CI->>CI: write /etc/kiosk-retropie/config.env
-  SD->>BOOT: start kiosk-retropie-install.service
-  BOOT->>BOOT: check /var/lib/kiosk-retropie/installed
-  alt already installed
-    BOOT-->>SD: exit 0
-  else not installed
-    BOOT->>REPO: clone/fetch KIOSK_RETROPIE_REPO_URL@KIOSK_RETROPIE_REPO_REF
-    BOOT->>INST: exec installer from checkout
-    INST-->>SD: enable units, write installed marker
-  end
-```
-
-1. A cloud-init user-data file writes `/etc/kiosk-retropie/config.env` and installs
-   `/etc/systemd/system/kiosk-retropie-install.service` and `/usr/local/lib/kiosk-retropie/bootstrap.sh`.
-2. `kiosk-retropie-install.service` runs after `network-online.target`.
-3. `bootstrap.sh` checks for `/var/lib/kiosk-retropie/installed`:
-   - If present, it exits successfully.
-   - Otherwise it clones/fetches the repo (pinned by `KIOSK_RETROPIE_REPO_URL` + `KIOSK_RETROPIE_REPO_REF`) and execs
-     `scripts/install.sh` from that checkout.
-4. `scripts/install.sh` installs packages and copies scripts/units into their installed locations,
-   enables the required services/timers, then writes the installed marker.
-
-If you want to re-run install without reflashing, delete the marker file and restart the unit.
+If you want to re-run install without reflashing, delete the marker file and re-run `sudo ./scripts/install.sh`.
 
 ## Mode ownership and display
 
 Both modes start the X server (Xorg) explicitly via `xinit` and run on fixed VTs (virtual terminals):
 
-- Kiosk: VT7 (`KIOSK_X_VT`, default `7`)
-- Retro mode: VT8 (`RETROPIE_X_VT`, default `8`)
+- Kiosk: VT7 (`X_VT_KIOSK`, default `7`)
+- Retro mode: VT8 (`X_VT_RETROPIE`, default `8`)
 
 systemd enforces exclusivity:
 
@@ -193,8 +158,13 @@ They look under `/dev/input/by-id/` first because those names tend to stay stabl
 Controller codes are configurable to support different hardware:
 
 - Enter Retro (kiosk -> Retro): `RETROPIE_ENTER_TRIGGER_CODE` (default `315`)
-- Exit Retro (Retro -> kiosk): press `RETROPIE_EXIT_SECOND_CODE` (default `304`), then press
-  `RETROPIE_EXIT_TRIGGER_CODE` (default `315`) within `RETROPIE_COMBO_WINDOW_SEC` (default `0.75`).
+- Exit Retro (Retro -> kiosk): press and hold `RETROPIE_EXIT_SEQUENCE_CODES` (default `315,304`) together
+  (order doesn't matter) within `RETROPIE_COMBO_WINDOW_SEC` (default `0.75`).
+
+Timing knobs:
+
+- `RETROPIE_ACTION_DEBOUNCE_SEC` (default `1.0`): minimum seconds between actions to avoid double-triggering.
+- `RETROPIE_COMBO_WINDOW_SEC` (default `0.75`): max seconds between first and last button press in the exit combo.
 
 To discover your controller’s codes on the Pi:
 
@@ -218,16 +188,16 @@ The storage design separates gameplay data from network availability.
 ### ROMs
 
 - ROMs live locally (default: `/var/lib/kiosk-retropie/retropie/roms`).
-- If NFS is configured, `boot-sync.service` attempts to mount a share read-only and sync ROMs into the
+- If NFS is configured, `boot-sync.service` attempts to mount a share and sync ROMs into the
   local directory.
 - If NFS is down, ROM sync is skipped and the device continues to work with the last local ROM set.
 
 ### Saves and states
 
-- Saves and savestates are always local:
-  - `RETROPIE_SAVES_DIR` (default: `/var/lib/kiosk-retropie/retropie/saves`)
-  - `RETROPIE_STATES_DIR` (default: `/var/lib/kiosk-retropie/retropie/states`)
-- Optional backup to NFS is implemented as a periodic rsync job and is disabled by default.
+- Saves and savestates are always local under:
+  - `/var/lib/kiosk-retropie/retropie/saves`
+  - `/var/lib/kiosk-retropie/retropie/states`
+- Optional backup to NFS is implemented as a periodic rsync job and is enabled by default.
 - Backup explicitly skips while `retro-mode.service` is active.
 
 ## LED behavior and MQTT bridge
@@ -255,7 +225,7 @@ It also periodically polls sysfs so the client reflects brightness changes made 
 - Most issues can be diagnosed with:
 
 ```bash
-systemctl status kiosk.service retro-mode.service kiosk-retropie-install.service
+systemctl status kiosk.service retro-mode.service
 journalctl -u kiosk.service -b --no-pager
 ```
 

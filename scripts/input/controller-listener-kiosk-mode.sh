@@ -60,11 +60,24 @@ def devices() -> list[str]:
 
 def main() -> int:
 	# Configurable controller codes.
-	enter_code = int(os.environ.get("RETROPIE_ENTER_TRIGGER_CODE") or os.environ.get("KIOSK_RETROPIE_RETRO_ENTER_TRIGGER_CODE") or "315")
-	debounce_sec = float(os.environ.get("RETROPIE_START_DEBOUNCE_SEC") or os.environ.get("KIOSK_RETROPIE_START_DEBOUNCE_SEC") or "1.0")
+	enter_trigger_code = int(os.environ.get("RETROPIE_ENTER_TRIGGER_CODE") or os.environ.get("KIOSK_RETROPIE_RETRO_ENTER_TRIGGER_CODE") or "315")
+	enter_sequence_raw = (
+		os.environ.get("RETROPIE_ENTER_SEQUENCE_CODES")
+		or os.environ.get("KIOSK_RETROPIE_RETRO_ENTER_SEQUENCE_CODES")
+		or ""
+	).strip()
+	if enter_sequence_raw:
+		enter_sequence_codes = [int(tok.strip()) for tok in enter_sequence_raw.split(",") if tok.strip()]
+	else:
+		enter_sequence_codes = [enter_trigger_code]
+	combo_window_sec = float(os.environ.get("RETROPIE_COMBO_WINDOW_SEC") or os.environ.get("KIOSK_RETROPIE_COMBO_WINDOW_SEC") or "0.75")
+	debounce_sec = float(os.environ.get("RETROPIE_ACTION_DEBOUNCE_SEC") or "1.0")
 	max_triggers = int(os.environ.get("RETROPIE_MAX_TRIGGERS") or os.environ.get("KIOSK_RETROPIE_MAX_TRIGGERS") or "0")
 	max_loops = int(os.environ.get("RETROPIE_MAX_LOOPS") or os.environ.get("KIOSK_RETROPIE_MAX_LOOPS") or "0")
 	last_fire = 0.0
+	pressed: set[int] = set()
+	press_times: dict[int, float] = {}
+	enter_combo_armed = True
 	triggers = 0
 	loops = 0
 
@@ -113,23 +126,56 @@ def main() -> int:
 			except OSError:
 				continue
 
+			# EOF (e.g. FIFO writer closed): avoid a tight loop where the fd stays readable.
+			if not data:
+				time.sleep(0.05)
+				continue
+
 			for off in range(0, len(data) - (len(data) % size), size):
 				_sec, _usec, etype, code, value = struct.unpack_from(fmt, data, off)
-				if etype == 1 and code == enter_code and value == 1:
-					now = time.time()
-					if now - last_fire < debounce_sec:
-						continue
-					last_fire = now
+				if etype != 1:
+					continue
 
-					if is_active("retro-mode.service"):
-						continue
+				# Only track press/release; ignore auto-repeat.
+				if value not in (0, 1):
+					continue
 
-					log("Start pressed -> switching to RetroPie mode")
-					cover_path("controller-kiosk:trigger-start-retro")
-					systemctl("start", "retro-mode.service")
-					triggers += 1
-					if max_triggers and triggers >= max_triggers:
-						return 0
+				now = time.time()
+				if value == 1:
+					pressed.add(code)
+					press_times.setdefault(code, now)
+				else:
+					pressed.discard(code)
+					press_times.pop(code, None)
+					if enter_sequence_codes and not all(c in pressed for c in enter_sequence_codes):
+						enter_combo_armed = True
+					continue
+
+				if not enter_sequence_codes:
+					continue
+
+				if not all(c in pressed for c in enter_sequence_codes):
+					continue
+
+				times = [press_times.get(c, now) for c in enter_sequence_codes]
+				if (max(times) - min(times)) > combo_window_sec:
+					continue
+
+				# Debounce actions.
+				if not enter_combo_armed or (now - last_fire) < debounce_sec:
+					continue
+				enter_combo_armed = False
+				last_fire = now
+
+				if is_active("retro-mode.service"):
+					continue
+
+				log("Enter combo matched -> switching to RetroPie mode")
+				cover_path("controller-kiosk:trigger-start-retro")
+				systemctl("start", "retro-mode.service")
+				triggers += 1
+				if max_triggers and triggers >= max_triggers:
+					return 0
 
 
 if __name__ == "__main__":

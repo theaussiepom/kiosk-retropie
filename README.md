@@ -8,15 +8,12 @@ The website simply gives way to retro games.
 
 ## Quick start (deploy to a Pi)
 
-Use one of these two paths:
-
-- Pi Imager + cloud-init: easiest/most repeatable.
-- Manual install over SSH: fine if you don’t want cloud-init.
+Follow the [Installation](#installation) steps below.
 
 Services are managed by `systemd` and run as a dedicated user (`retropi`) so Xorg/Chromium and input devices
 work cleanly without running the main kiosk loop as root.
 
-## How it works (plain English)
+## How it works
 
 Think of this as a “single-screen appliance” that can only show one thing at a time.
 
@@ -31,40 +28,30 @@ good at doing exactly that reliably.
 
 ```mermaid
 flowchart TD
-  KIOSK["kiosk.service<br/>Chromium kiosk"] -->|Start button| RETRO["retro-mode.service<br/>RetroPie"]
-  RETRO -->|manual start| KIOSK
+  LISTEN_KIOSK[kiosk-mode-controller-listener.service]
+  LISTEN_TTY[emergency-retro-launch.service]
+  FAIL[kiosk-retropie-failover.service]
 
-  KIOSK -. crashes .-> FAIL[kiosk-retropie-failover.service]
+  KIOSK["kiosk.service<br/>Chromium kiosk"]
+  RETRO["retro-mode.service<br/>RetroPie"]
+
+  LISTEN_KIOSK -->|Start button| RETRO
+  LISTEN_TTY -->|Start button (TTY)| RETRO
+
+  KIOSK -. OnFailure .-> FAIL
   FAIL --> RETRO
+
+  RETRO -->|exit combo| KIOSK
 ```
 
 ### Glossary
 
 See [docs/glossary.md](docs/glossary.md) for terms used throughout the docs.
 
-## Why we don’t use Docker on the Pi
-
-This project runs directly on Raspberry Pi OS with systemd rather than running the appliance services in Docker
-containers.
-
-Reasons:
-
-- The appliance is tightly integrated with host resources (Xorg/VTs, logind, evdev input devices, sysfs
-  LEDs/backlight, systemd ordering).
-- We want simple, deterministic boot behavior with systemd as the single orchestrator.
-- Keeping runtime dependencies minimal reduces moving parts on a constrained device.
-
-In practice, this makes failures easier to reason about: you can diagnose almost everything with `systemctl` and
-`journalctl`, and the device still behaves sensibly if networking (or MQTT) is down.
-
-Docker is still used for development parity via the devcontainer (toolchain + CI reproducibility), not for the
-production appliance runtime.
-
 ## Documentation
 
 - [Architecture](docs/architecture.md)
 - [Glossary](docs/glossary.md)
-- [Config examples](docs/config-examples.md)
 
 ## Architecture at a glance
 
@@ -90,31 +77,7 @@ flowchart TD
 
 ## Installation
 
-### Pi Imager + cloud-init (recommended)
-
-1. Use Raspberry Pi Imager to flash Raspberry Pi OS.
-1. Provide cloud-init user-data (first-boot provisioning) based on
-  [examples/user.data.yml](examples/user.data.yml).
-1. Fill in at least:
-
-```bash
-KIOSK_RETROPIE_REPO_URL=...
-KIOSK_RETROPIE_REPO_REF=<tag-or-commit>
-KIOSK_URL=<your-home-assistant-dashboard-url>
-```
-
-1. Boot the Pi.
-
-Verify installation:
-
-```bash
-systemctl status kiosk-retropie-install.service --no-pager
-ls -l /var/lib/kiosk-retropie/installed || true
-```
-
-### Manual install (no cloud-init)
-
-If you cannot use cloud-init, you can install by SSH.
+Install over SSH.
 
 1. Install prerequisites:
 
@@ -148,9 +111,7 @@ Runtime configuration lives in `/etc/kiosk-retropie/config.env`.
 
 Start with [examples/config.env](examples/config.env).
 
-Some variables are “obvious plumbing” (e.g. `NFS_SERVER`), while others are application-specific and assume a bit
-of knowledge about what the appliance is doing (e.g. `KIOSK_CHROMIUM_PROFILE_DIR`). The application-specific
-variables below include short explanations and ways to discover sensible values.
+Variables below include short explanations and ways to discover sensible values.
 
 ### Controller button codes (entry/exit)
 
@@ -168,10 +129,10 @@ Press the buttons you want to use and note the `code=` values.
 Then set these in `/etc/kiosk-retropie/config.env`:
 
 - `RETROPIE_ENTER_TRIGGER_CODE` (optional, default `315`): button code that enters Retro (kiosk -> Retro)
-- `RETROPIE_EXIT_TRIGGER_CODE` (optional, default `315`): button code that triggers the exit combo
-- `RETROPIE_EXIT_SECOND_CODE` (optional, default `304`): second button for exit combo (press this, then trigger)
-- `RETROPIE_COMBO_WINDOW_SEC` (optional, default `0.75`): max seconds between the second button and trigger
-- `RETROPIE_START_DEBOUNCE_SEC` (optional, default `1.0`): debounce for trigger presses
+- `RETROPIE_EXIT_SEQUENCE_CODES` (optional, default `315,304`): comma-delimited exit combo codes (Retro -> kiosk)
+  Buttons must be pressed/held together; order doesn't matter.
+- `RETROPIE_COMBO_WINDOW_SEC` (optional, default `0.75`): max seconds between first and last button press in the exit combo
+- `RETROPIE_ACTION_DEBOUNCE_SEC` (optional, default `1.0`): minimum seconds between actions (prevents double-triggers)
 
 #### On-device calibration checklist
 
@@ -187,8 +148,7 @@ Then set these in `/etc/kiosk-retropie/config.env`:
 1. Update `/etc/kiosk-retropie/config.env` with the codes you chose:
 
     - Set `RETROPIE_ENTER_TRIGGER_CODE` for kiosk -> Retro.
-    - For Retro -> kiosk, set `RETROPIE_EXIT_SECOND_CODE` and `RETROPIE_EXIT_TRIGGER_CODE`
-      (second button first, then trigger).
+    - For Retro -> kiosk, set `RETROPIE_EXIT_SEQUENCE_CODES` (for example `315,304`).
 
 1. Restart the listeners so they pick up the new config:
 
@@ -199,16 +159,7 @@ Then set these in `/etc/kiosk-retropie/config.env`:
 1. Verify behavior:
 
     - From kiosk: press your enter trigger and confirm Retro starts.
-    - From Retro: press your exit combo (second button, then trigger within
-      `RETROPIE_COMBO_WINDOW_SEC`) and confirm kiosk returns.
-
-### Repo pinning (first boot installer)
-
-The first-boot bootstrap and installer fetch this repo using:
-
-- `KIOSK_RETROPIE_REPO_URL` (required)
-- `KIOSK_RETROPIE_REPO_REF` (required): branch/tag/commit (pinning to a tag/commit is recommended)
-- `KIOSK_RETROPIE_CHECKOUT_DIR` (optional, default: `/opt/kiosk-retropie`)
+    - From Retro: press and hold your exit combo within `RETROPIE_COMBO_WINDOW_SEC` and confirm kiosk returns.
 
 ### Display
 
@@ -217,8 +168,8 @@ The first-boot bootstrap and installer fetch this repo using:
 
 Xorg VTs (virtual terminals):
 
-- `KIOSK_X_VT` (optional, default: `7`): VT used by kiosk
-- `RETROPIE_X_VT` (optional, default: `8`): VT used by Retro mode
+- `X_VT_KIOSK` (optional, default: `7`): VT used by kiosk
+- `X_VT_RETROPIE` (optional, default: `8`): VT used by Retro mode
 
 Linux exposes multiple text/graphics “virtual terminals” (numbered sessions). This project uses separate VTs so
 kiosk and Retro can cleanly take ownership of the display.
@@ -239,49 +190,46 @@ you run `./scripts/install.sh`, the installer will create the directory and `cho
 
 ROMs are stored locally and can be synced from NFS on boot.
 
-Required to enable NFS sync:
+To enable NFS sync, set:
 
-- `NFS_SERVER` (e.g. `192.168.1.20`)
-- `NFS_ROMS_PATH` (e.g. `/export/retropie`)
+- `NFS_SERVER` (e.g. `nas` or `nas:/export/kiosk-retropie`)
 
-Optional variables:
+If `NFS_SERVER` is a bare host (e.g. `nas`), the default export path is `/export/kiosk-retropie`.
 
-- `RETROPIE_NFS_MOUNT_POINT` (default: `/mnt/kiosk-retropie-roms`)
-- `RETROPIE_NFS_MOUNT_OPTIONS` (default: `ro`)
+The NFS share root is expected to contain `roms/` (for ROM sync) and `backups/` (for backups).
 
-`NFS_ROMS_PATH` should point at the ROM root (no extra subdir setting).
+If you are not using NFS sync, you can copy ROMs onto the Pi directly.
+ROMs live at `/var/lib/kiosk-retropie/retropie/roms` (and RetroPie sees them via `/home/retropi/RetroPie/roms`).
+Place files under the usual RetroPie structure, for example:
 
-- `RETROPIE_ROMS_DIR` (default: `/var/lib/kiosk-retropie/retropie/roms`)
-- `RETROPIE_ROMS_SYNC_DELETE` (default: `0`; set to `1` to mirror deletions from NFS)
-- `RETROPIE_ROMS_OWNER` (default: `retropi:retropi`)
+- `/var/lib/kiosk-retropie/retropie/roms/nes/`
+- `/var/lib/kiosk-retropie/retropie/roms/snes/`
+
+- `NFS_ROMS_SYNC_DELETE` (default: `1`; set to `0` to disable mirroring deletions from NFS)
+- `NFS_ROMS_UID` (default: `1000`)
+- `NFS_ROMS_GID` (default: `1000`)
 
 Optional system filtering:
 
-- `RETROPIE_ROMS_SYSTEMS` (default: empty; if set, only these systems are synced)
-- `RETROPIE_ROMS_EXCLUDE_SYSTEMS` (default: empty; systems to skip)
+- `NFS_ROMS_SYSTEMS` (default: empty; if set, only these systems are synced)
 
 ### Save data policy
 
-Save files and save states are always local:
+Save files and save states are always local under:
 
-- `RETROPIE_SAVES_DIR` (default: `/var/lib/kiosk-retropie/retropie/saves`)
-- `RETROPIE_STATES_DIR` (default: `/var/lib/kiosk-retropie/retropie/states`)
+- `/var/lib/kiosk-retropie/retropie/saves`
+- `/var/lib/kiosk-retropie/retropie/states`
 
 ### Optional save backup to NFS
 
 An optional periodic backup copies local saves/states to NFS.
 It never runs during gameplay (it skips while `retro-mode.service` is active).
 
-- `RETROPIE_SAVE_BACKUP_ENABLED` (default: `0`; set to `1` to enable)
-- `RETROPIE_SAVE_BACKUP_DIR` (default: `/mnt/kiosk-retropie-backup`)
-- `RETROPIE_SAVE_BACKUP_SUBDIR` (default: `kiosk-retropie-saves`)
-- `RETROPIE_SAVE_BACKUP_DELETE` (default: `0`)
+- `NFS_SAVE_BACKUP_ENABLED` (default: `1`; set to `0` to disable)
+- `NFS_SAVE_BACKUP_SUBDIR` (default: `<hostname>`)
+- `NFS_SAVE_BACKUP_DELETE` (default: `1`)
 
-Backup NFS settings:
-
-- `NFS_SERVER`
-- `NFS_SAVE_BACKUP_PATH`
-- `RETROPIE_SAVE_BACKUP_NFS_MOUNT_OPTIONS` (default: `rw`)
+Backup destination defaults to: `/mnt/kiosk-retropie-nfs/backups/<hostname>/`.
 
 ### Controller listeners (advanced)
 
@@ -289,7 +237,7 @@ Controller listeners prefer evdev devices under `/dev/input/by-id`.
 
 - `RETROPIE_INPUT_BY_ID_DIR` (optional, default: `/dev/input/by-id`)
 - `RETROPIE_INPUT_DEVICES` (optional; explicit colon/comma/space-separated device paths for testing)
-- `RETROPIE_START_DEBOUNCE_SEC` (optional, default: `1.0`)
+- `RETROPIE_ACTION_DEBOUNCE_SEC` (optional, default: `1.0`)
 
 Safety / loop limits:
 
@@ -325,8 +273,6 @@ Controls the display backlight brightness via sysfs (`/sys/class/backlight`).
 
 - `KIOSK_SCREEN_BRIGHTNESS_MQTT_ENABLED` (default: `0`; set to `1` to enable)
 - `KIOSK_MQTT_TOPIC_PREFIX` (default: `kiosk-retropie`)
-- `KIOSK_BACKLIGHT_NAME` (optional)
-  Which backlight device under `/sys/class/backlight` to control; defaults to the first one found.
 - `KIOSK_SCREEN_BRIGHTNESS_MQTT_POLL_SEC` (optional, default: `2`)
   Poll sysfs and publish state changes made outside MQTT.
 - `KIOSK_SCREEN_BRIGHTNESS_MQTT_MAX_LOOPS` (optional, default: `0`)
@@ -340,11 +286,7 @@ Broker settings (same as LED MQTT bridge):
 - `MQTT_PASSWORD` (optional)
 - `MQTT_TLS` (default: `0`; set to `1` to enable TLS)
 
-To discover valid `KIOSK_BACKLIGHT_NAME` values on the Pi:
-
-```bash
-ls -1 /sys/class/backlight
-```
+Backlight selection is handled by the application.
 
 ## MQTT LED control (optional)
 
@@ -352,36 +294,7 @@ ls -1 /sys/class/backlight
 
 If your dashboard/controller is running on a different host than the kiosk Pi, MQTT is the bridge.
 
-This diagram shows the message flow (commands go one way, state comes back as retained messages so the client can
-show the current value immediately):
-
-```mermaid
-flowchart LR
-  subgraph CLIENT_BOX[MQTT client]
-    CLIENT["Dashboard/controller<br/>(MQTT)"]
-  end
-  BROKER[MQTT broker]
-
-  LEDSVC[kiosk-retropie-led-mqtt.service]
-  BRISVC[kiosk-retropie-screen-brightness-mqtt.service]
-
-  SYSLED["/sysfs LEDs<br/>/sys/class/leds/.../"]
-  SYSBL["/sysfs backlight<br/>/sys/class/backlight/.../"]
-
-  CLIENT -->|"publish<br/>.../set"| BROKER
-  BROKER -->|"deliver<br/>.../set"| LEDSVC
-  BROKER -->|"deliver<br/>.../set"| BRISVC
-
-  LEDSVC -->|write| SYSLED
-  BRISVC -->|write| SYSBL
-
-  LEDSVC -->|"publish retained<br/>.../state"| BROKER
-  BRISVC -->|"publish retained<br/>.../state"| BROKER
-  BROKER -->|"subscribe<br/>.../state"| CLIENT
-
-  SYSLED -. external change .-> LEDSVC
-  SYSBL -. external change .-> BRISVC
-```
+MQTT provides a simple bridge if your dashboard/controller runs on a different host than the kiosk Pi.
 
 By default the Raspberry Pi board LEDs are kept **on** as a simple “it’s alive” signal. An MQTT client can
 turn them **off** (night mode) by driving sysfs on the appliance.
@@ -518,7 +431,7 @@ sudo systemctl restart kiosk-retropie-led-mqtt.service
 
 The installer is guarded by a marker file.
 
-1. Update your pinned ref in `/etc/kiosk-retropie/config.env`.
+1. Update the repo checkout under `/opt/kiosk-retropie` (or wherever you cloned it).
 1. Stop running services (avoid fighting for X):
 
 ```bash
@@ -530,18 +443,31 @@ sudo systemctl stop \
   || true
 ```
 
-1. Remove the marker and restart the installer:
+1. Remove the marker and re-run the installer:
 
 ```bash
 sudo rm -f /var/lib/kiosk-retropie/installed /var/lock/kiosk-retropie-install.lock
-sudo systemctl start kiosk-retropie-install.service
+cd /opt/kiosk-retropie
+sudo ./scripts/install.sh
 ```
 
-Debug installer logs:
+## Why we don’t use Docker on the Pi
 
-```bash
-journalctl -u kiosk-retropie-install.service -b --no-pager
-```
+This project runs directly on Raspberry Pi OS with systemd rather than running the appliance services in Docker
+containers.
+
+Reasons:
+
+- The appliance is tightly integrated with host resources (Xorg/VTs, logind, evdev input devices, sysfs
+  LEDs/backlight, systemd ordering).
+- We want simple, deterministic boot behavior with systemd as the single orchestrator.
+- Keeping runtime dependencies minimal reduces moving parts on a constrained device.
+
+In practice, you can diagnose most issues with `systemctl` and `journalctl`, and the device still behaves
+sensibly if networking (or MQTT) is down.
+
+Docker is still used for development parity via the devcontainer (toolchain + CI reproducibility), not for the
+production appliance runtime.
 
 ## Troubleshooting
 
@@ -556,7 +482,6 @@ state, and validating `/etc/kiosk-retropie/config.env`.
 
 ```bash
 systemctl status \
-  kiosk-retropie-install.service \
   kiosk.service \
   retro-mode.service \
   kiosk-mode-controller-listener.service \
@@ -568,7 +493,6 @@ systemctl status \
 1. Check recent logs for the unit that is failing:
 
 ```bash
-journalctl -u kiosk-retropie-install.service -b --no-pager
 journalctl -u kiosk.service -b --no-pager
 journalctl -u retro-mode.service -b --no-pager
 ```
@@ -585,39 +509,16 @@ sudo test -f /etc/kiosk-retropie/config.env && sudo sed -n '1,200p' /etc/kiosk-r
 ls -l /var/lib/kiosk-retropie/installed || true
 ```
 
-### Installer problems (first boot)
+### Re-running the installer
 
-#### Symptom: `kiosk-retropie-install.service` keeps retrying
-
-Likely causes:
-
-- No network connectivity yet.
-- `KIOSK_RETROPIE_REPO_URL` or `KIOSK_RETROPIE_REPO_REF` missing/incorrect.
-- GitHub not reachable from your network.
-
-What to do:
-
-```bash
-journalctl -u kiosk-retropie-install.service -b --no-pager
-journalctl -u kiosk-retropie-install.service -b -n 200 --no-pager
-```
-
-Confirm DNS and HTTPS reachability:
-
-```bash
-getent hosts github.com
-curl -fsS https://github.com >/dev/null && echo OK
-```
-
-#### Symptom: installer ran once and will not re-run
-
-This is expected: the installer is guarded by a marker file.
+The installer is guarded by a marker file.
 
 To force a re-run:
 
 ```bash
 sudo rm -f /var/lib/kiosk-retropie/installed /var/lock/kiosk-retropie-install.lock
-sudo systemctl start kiosk-retropie-install.service
+cd /opt/kiosk-retropie
+sudo ./scripts/install.sh
 ```
 
 ### Kiosk problems
@@ -750,14 +651,14 @@ journalctl -u boot-sync.service -b --no-pager
 1. Validate config:
 
 ```bash
-grep -n '^NFS_SERVER=\|^NFS_ROMS_PATH=' /etc/kiosk-retropie/config.env || true
+grep -n '^NFS_SERVER=' /etc/kiosk-retropie/config.env || true
 ```
 
 1. Confirm mount status:
 
 ```bash
-mountpoint -q /mnt/kiosk-retropie-roms && echo "mounted" || echo "not mounted"
-mount | grep kiosk-retropie-roms || true
+mountpoint -q /mnt/kiosk-retropie-nfs && echo "mounted" || echo "not mounted"
+mount | grep kiosk-retropie-nfs || true
 ```
 
 ### Save/state backup problems (optional)
@@ -767,7 +668,7 @@ mount | grep kiosk-retropie-roms || true
 1. Ensure it is enabled:
 
 ```bash
-grep -n '^RETROPIE_SAVE_BACKUP_ENABLED=' /etc/kiosk-retropie/config.env || true
+grep -n '^NFS_SAVE_BACKUP_ENABLED=' /etc/kiosk-retropie/config.env || true
 ```
 
 1. Inspect the timer and last run:

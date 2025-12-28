@@ -46,7 +46,7 @@ main() {
   fi
 
   local x_display=":0"
-  local vt="${KIOSK_X_VT:-${KIOSK_RETROPIE_X_VT:-7}}"
+  local vt="${X_VT_KIOSK:-${KIOSK_X_VT:-${KIOSK_RETROPIE_X_VT:-7}}}"
 
   local runtime_dir
   runtime_dir="$(kiosk_retropie_runtime_dir "$(id -u)")"

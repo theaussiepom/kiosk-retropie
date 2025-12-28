@@ -12,7 +12,7 @@ setup() {
 	setup_test_root
 
 	# Deterministic behavior: no debounce and exit after first trigger.
-	export RETROPIE_START_DEBOUNCE_SEC=0
+	export RETROPIE_ACTION_DEBOUNCE_SEC=0
 	export RETROPIE_MAX_TRIGGERS=1
 	# Safety: avoid infinite loops if something goes wrong.
 	export RETROPIE_MAX_LOOPS=200
@@ -92,6 +92,56 @@ try:
     os.write(fd, payload)
 finally:
     os.close(fd)
+PY
+}
+
+emit_two_presses() {
+	local fifo_path="$1"
+	local code1="$2"
+	local code2="$3"
+
+	python3 - "$fifo_path" "$code1" "$code2" <<'PY'
+import errno
+import os
+import struct
+import sys
+import time
+
+fifo_path = sys.argv[1]
+code1 = int(sys.argv[2])
+code2 = int(sys.argv[3])
+
+fmt = "llHHi"  # must match listener scripts
+
+def payload(code: int) -> bytes:
+	sec = int(time.time())
+	usec = 0
+	etype = 1
+	value = 1
+	return struct.pack(fmt, sec, usec, etype, code, value)
+
+end = time.time() + 5.0
+fd = None
+while time.time() < end:
+	try:
+		fd = os.open(fifo_path, os.O_WRONLY | os.O_NONBLOCK)
+		break
+	except OSError as e:
+		if e.errno in (errno.ENXIO, errno.ENOENT):
+			time.sleep(0.05)
+			continue
+		raise
+
+if fd is None:
+	raise SystemExit(f"timeout opening fifo for write: {fifo_path}")
+
+try:
+	os.write(fd, payload(code1))
+	# Keep writer open so the reader doesn't see EOF between events.
+	time.sleep(0.05)
+	os.write(fd, payload(code2))
+finally:
+	os.close(fd)
 PY
 }
 
@@ -193,6 +243,43 @@ assert_calls_contains() {
 	fi
 }
 
+@test "Kiosk mode listener: Enter multi-button combo starts retro-mode when kiosk active" {
+	make_fake_controller_fifo
+	local fifo="$FAKE_CONTROLLER_FIFO"
+
+	# Preconditions:
+	# - kiosk is active (exit 0)
+	# - Retro is inactive (non-zero)
+	export SYSTEMCTL_ACTIVE_KIOSK=0
+	export SYSTEMCTL_ACTIVE_RETRO=1
+
+	# Configure an explicit enter combo.
+	export RETROPIE_ENTER_SEQUENCE_CODES=315,304
+	# Make combo window deterministic.
+	export RETROPIE_COMBO_WINDOW_SEC=2
+
+	LISTENER_LOG="$TEST_ROOT/controller-listener-kiosk.log"
+	export LISTENER_LOG
+
+	bash "$KIOSK_RETROPIE_REPO_ROOT/scripts/input/controller-listener-kiosk-mode.sh" >"$LISTENER_LOG" 2>&1 &
+	LISTENER_PID=$!
+	export LISTENER_PID
+
+	wait_for_log_pattern "$LISTENER_LOG" "Listening on" 3 || true
+
+	emit_two_presses "$fifo" 315 304
+	wait_for_exit "$LISTENER_PID" 5 "$LISTENER_LOG"
+
+	assert_calls_contains "systemctl is-active --quiet kiosk.service"
+	assert_calls_contains "systemctl start retro-mode.service"
+
+	# Sanity: should not stop kiosk in this mode.
+	if assert_file_contains "$TEST_ROOT/calls.log" "systemctl $(printf '%q' 'stop kiosk.service')"; then
+		echo "unexpected stop kiosk.service" >&2
+		return 1
+	fi
+}
+
 @test "Kiosk mode listener: exits 0 when kiosk is not active" {
 	# kiosk inactive => early exit 0
 	export SYSTEMCTL_ACTIVE_KIOSK=1
@@ -235,6 +322,90 @@ assert_calls_contains() {
 
 	assert_calls_contains "systemctl stop kiosk.service"
 	assert_calls_contains "systemctl start retro-mode.service"
+}
+
+@test "TTY listener: Enter multi-button combo stops kiosk then starts retro-mode" {
+	make_fake_controller_fifo
+	local fifo="$FAKE_CONTROLLER_FIFO"
+
+	# Preconditions: Retro is inactive so it doesn't early-return.
+	export SYSTEMCTL_ACTIVE_RETRO=1
+
+	# Configure an explicit enter combo.
+	export RETROPIE_ENTER_SEQUENCE_CODES=315,304
+	# Make combo window deterministic.
+	export RETROPIE_COMBO_WINDOW_SEC=2
+
+	LISTENER_LOG="$TEST_ROOT/controller-listener-tty.log"
+	export LISTENER_LOG
+
+	bash "$KIOSK_RETROPIE_REPO_ROOT/scripts/input/controller-listener-tty.sh" >"$LISTENER_LOG" 2>&1 &
+	LISTENER_PID=$!
+	export LISTENER_PID
+
+	wait_for_log_pattern "$LISTENER_LOG" "Listening on" 3 || true
+
+	emit_two_presses "$fifo" 315 304
+	wait_for_exit "$LISTENER_PID" 5 "$LISTENER_LOG"
+
+	assert_calls_contains "systemctl stop kiosk.service"
+	assert_calls_contains "systemctl start retro-mode.service"
+}
+
+@test "TTY listener: Exit single-button while Retro active stops Retro then starts kiosk" {
+	make_fake_controller_fifo
+	local fifo="$FAKE_CONTROLLER_FIFO"
+
+	# Preconditions: Retro is active so we take the exit branch.
+	export SYSTEMCTL_ACTIVE_RETRO=0
+
+	# Explicitly set a single-button exit-sequence.
+	export RETROPIE_EXIT_SEQUENCE_CODES=315
+	# Make combo window deterministic.
+	export RETROPIE_COMBO_WINDOW_SEC=2
+
+	LISTENER_LOG="$TEST_ROOT/controller-listener-tty.log"
+	export LISTENER_LOG
+
+	bash "$KIOSK_RETROPIE_REPO_ROOT/scripts/input/controller-listener-tty.sh" >"$LISTENER_LOG" 2>&1 &
+	LISTENER_PID=$!
+	export LISTENER_PID
+
+	wait_for_log_pattern "$LISTENER_LOG" "Listening on" 3 || true
+
+	emit_start_press "$fifo" 315
+	wait_for_exit "$LISTENER_PID" 5 "$LISTENER_LOG"
+
+	assert_calls_contains "systemctl stop retro-mode.service"
+	assert_calls_contains "systemctl start kiosk.service"
+}
+
+@test "TTY listener: Exit multi-button combo while Retro active stops Retro then starts kiosk" {
+	make_fake_controller_fifo
+	local fifo="$FAKE_CONTROLLER_FIFO"
+
+	# Preconditions: Retro is active so we take the exit branch.
+	export SYSTEMCTL_ACTIVE_RETRO=0
+
+	# Explicitly set the exit-sequence config (default is Start then A).
+	export RETROPIE_EXIT_SEQUENCE_CODES=315,304
+	# Make combo window deterministic.
+	export RETROPIE_COMBO_WINDOW_SEC=2
+
+	LISTENER_LOG="$TEST_ROOT/controller-listener-tty.log"
+	export LISTENER_LOG
+
+	bash "$KIOSK_RETROPIE_REPO_ROOT/scripts/input/controller-listener-tty.sh" >"$LISTENER_LOG" 2>&1 &
+	LISTENER_PID=$!
+	export LISTENER_PID
+
+	wait_for_log_pattern "$LISTENER_LOG" "Listening on" 3 || true
+
+	emit_two_presses "$fifo" 315 304
+	wait_for_exit "$LISTENER_PID" 5 "$LISTENER_LOG"
+
+	assert_calls_contains "systemctl stop retro-mode.service"
+	assert_calls_contains "systemctl start kiosk.service"
 }
 
 @test "TTY listener: exits 1 when no devices found" {

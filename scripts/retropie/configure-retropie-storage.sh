@@ -17,8 +17,6 @@ fi
 source "$LIB_DIR/logging.sh"
 # shellcheck source=scripts/lib/common.sh
 source "$LIB_DIR/common.sh"
-# shellcheck source=scripts/lib/path.sh
-source "$LIB_DIR/path.sh"
 
 require_root() {
   if [[ "${KIOSK_RETROPIE_ALLOW_NON_ROOT:-0}" == "1" ]]; then
@@ -66,21 +64,12 @@ main() {
   home_dir="$(getent passwd "$user" | cut -d: -f6 || true)"
   [[ -n "$home_dir" ]] || die "Unable to resolve home directory for $user"
 
-  local roms_dir="${RETROPIE_ROMS_DIR:-${KIOSK_RETROPIE_ROMS_DIR:-$(kiosk_retropie_path /var/lib/kiosk-retropie/retropie/roms)}}"
-  local saves_dir="${RETROPIE_SAVES_DIR:-${KIOSK_RETROPIE_SAVES_DIR:-$(kiosk_retropie_path /var/lib/kiosk-retropie/retropie/saves)}}"
-  local states_dir="${RETROPIE_STATES_DIR:-${KIOSK_RETROPIE_STATES_DIR:-$(kiosk_retropie_path /var/lib/kiosk-retropie/retropie/states)}}"
-  local nfs_mount_point="${RETROPIE_NFS_MOUNT_POINT:-${KIOSK_RETROPIE_NFS_MOUNT_POINT:-$(kiosk_retropie_path /mnt/kiosk-retropie-roms)}}"
-
-  # Guardrail: never allow ROMs or saves to live under the NFS mount.
-  if kiosk_retropie_path_is_under "$nfs_mount_point" "$roms_dir"; then
-    die "RETROPIE_ROMS_DIR must be local (not under $nfs_mount_point): $roms_dir"
-  fi
-  if kiosk_retropie_path_is_under "$nfs_mount_point" "$saves_dir"; then
-    die "RETROPIE_SAVES_DIR must be local (not under $nfs_mount_point): $saves_dir"
-  fi
-  if kiosk_retropie_path_is_under "$nfs_mount_point" "$states_dir"; then
-    die "RETROPIE_STATES_DIR must be local (not under $nfs_mount_point): $states_dir"
-  fi
+  local roms_dir
+  roms_dir="$(kiosk_retropie_path /var/lib/kiosk-retropie/retropie/roms)"
+  local saves_dir
+  saves_dir="$(kiosk_retropie_path /var/lib/kiosk-retropie/retropie/saves)"
+  local states_dir
+  states_dir="$(kiosk_retropie_path /var/lib/kiosk-retropie/retropie/states)"
 
   run_cmd mkdir -p "$roms_dir" "$saves_dir" "$states_dir"
   run_cmd chown -R "$user:$user" "$(kiosk_retropie_path /var/lib/kiosk-retropie/retropie)" || true

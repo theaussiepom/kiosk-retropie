@@ -21,19 +21,65 @@ source "$LIB_DIR/common.sh"
 main() {
   export KIOSK_RETROPIE_LOG_PREFIX="mount-nfs"
 
-  local server="${NFS_SERVER:-}"
-  local export_path="${NFS_ROMS_PATH:-${NFS_PATH:-}}"
-  local mount_point="${RETROPIE_NFS_MOUNT_POINT:-${KIOSK_RETROPIE_NFS_MOUNT_POINT:-$(kiosk_retropie_path /mnt/kiosk-retropie-roms)}}"
-  local mount_opts="${RETROPIE_NFS_MOUNT_OPTIONS:-${KIOSK_RETROPIE_NFS_MOUNT_OPTIONS:-ro}}"
+  local server_spec="${NFS_SERVER:-}"
+  local server=""
+  local export_path=""
+  local mount_point
+  mount_point="$(kiosk_retropie_path /mnt/kiosk-retropie-nfs)"
+  local mount_opts="rw"
 
-  if [[ -n "${NFS_PATH:-}" && -z "${NFS_ROMS_PATH:-}" ]]; then
-    cover_path "mount-nfs:legacy-nfs-path"
-    log "Using legacy NFS_PATH; prefer NFS_ROMS_PATH"
+  # Default export path when NFS_SERVER is a bare host.
+  local default_export_path="/export/kiosk-retropie"
+
+  if [[ -n "$server_spec" && "$server_spec" == \[*\]:* ]]; then
+    # Bracketed IPv6 host syntax: [fe80::1]:/export/path
+    server="${server_spec%%\]*}"
+    server="${server#[}"
+    local export_part
+    export_part="${server_spec#*]:}"
+    if [[ -z "$server" || -z "$export_part" ]]; then
+      cover_path "mount-nfs:invalid-server-spec"
+      log "Invalid NFS_SERVER (expected [ipv6]:/export/path): $server_spec"
+      exit 0
+    fi
+    if [[ "$export_part" == /* ]]; then
+      export_path="$export_part"
+    else
+      export_path="/$export_part"
+    fi
+  elif [[ -n "$server_spec" && "$server_spec" == *":"* ]]; then
+    # Unbracketed values containing multiple colons are ambiguous (likely IPv6 or a typo).
+    # Require bracketed IPv6 syntax instead of silently falling back.
+    if [[ "$server_spec" == *":"*":"* ]]; then
+      cover_path "mount-nfs:invalid-server-spec"
+      log "Invalid NFS_SERVER (ambiguous host:export; use [ipv6]:/export/path for IPv6): $server_spec"
+      exit 0
+    fi
+
+    # Accept host:path forms without a leading slash (e.g. host:export/path).
+    printf -v server '%s' "${server_spec%%:*}"
+    local export_part
+    printf -v export_part '%s' "${server_spec#*:}"
+
+    if [[ -z "$server" || -z "$export_part" ]]; then
+      cover_path "mount-nfs:invalid-server-spec"
+      log "Invalid NFS_SERVER (expected host:/export/path): $server_spec"
+      exit 0
+    fi
+
+    if [[ "$export_part" == /* ]]; then
+      export_path="$export_part"
+    else
+      export_path="/$export_part"
+    fi
+  else
+    server="$server_spec"
+    export_path="$default_export_path"
   fi
 
-  if [[ -z "$server" || -z "$export_path" ]]; then
-    cover_path "mount-nfs:not-configured"
-    log "NFS not configured (set NFS_SERVER and NFS_ROMS_PATH); skipping"
+  if [[ -z "$server" ]]; then
+    cover_path "mount-nfs:disabled"
+    log "NFS disabled (NFS_SERVER not set); skipping mount"
     exit 0
   fi
 
@@ -60,6 +106,18 @@ main() {
 
   cover_path "mount-nfs:mount-success"
 
+  # Create required subfolders inside the share.
+  # Backups are expected to be writable; ROMs may or may not exist.
+  if ! run_cmd mkdir -p "$mount_point/backups"; then
+    cover_path "mount-nfs:mkdir-failed"
+    log "Mounted but unable to create required dirs (need rw share): $mount_point/backups"
+    exit 0
+  fi
+
+  # Best-effort: do not fail if we cannot create roms/.
+  run_cmd mkdir -p "$mount_point/roms" || true
+
+  cover_path "mount-nfs:dirs-ready"
   log "Mounted successfully"
 }
 

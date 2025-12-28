@@ -39,7 +39,7 @@ main() {
   fi
 
   local x_display=":0"
-  local vt="${RETROPIE_X_VT:-${KIOSK_RETROPIE_RETRO_X_VT:-8}}"
+  local vt="${X_VT_RETROPIE:-${RETROPIE_X_VT:-${KIOSK_RETROPIE_RETRO_X_VT:-8}}}"
 
   log "Starting RetroPie (EmulationStation) on vt${vt}, display ${x_display}"
 

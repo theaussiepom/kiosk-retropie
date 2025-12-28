@@ -24,20 +24,17 @@ source "$LIB_DIR/list.sh"
 main() {
   export KIOSK_RETROPIE_LOG_PREFIX="sync-roms"
 
-  local mount_point="${RETROPIE_NFS_MOUNT_POINT:-${KIOSK_RETROPIE_NFS_MOUNT_POINT:-$(kiosk_retropie_path /mnt/kiosk-retropie-roms)}}"
-  local dest_dir="${RETROPIE_ROMS_DIR:-${KIOSK_RETROPIE_ROMS_DIR:-$(kiosk_retropie_path /var/lib/kiosk-retropie/retropie/roms)}}"
-  local rsync_delete="${RETROPIE_ROMS_SYNC_DELETE:-${KIOSK_RETROPIE_ROMS_SYNC_DELETE:-0}}"
-  local dest_owner="${RETROPIE_ROMS_OWNER:-${KIOSK_RETROPIE_ROMS_OWNER:-retropi:retropi}}"
-  local systems_allow="${RETROPIE_ROMS_SYSTEMS:-${KIOSK_RETROPIE_ROMS_SYSTEMS:-}}"
-  local systems_exclude="${RETROPIE_ROMS_EXCLUDE_SYSTEMS:-${KIOSK_RETROPIE_ROMS_EXCLUDE_SYSTEMS:-}}"
+  local mount_point
+  mount_point="$(kiosk_retropie_path /mnt/kiosk-retropie-nfs)"
+  local dest_dir
+  dest_dir="$(kiosk_retropie_path /var/lib/kiosk-retropie/retropie/roms)"
+  local rsync_delete="${NFS_ROMS_SYNC_DELETE:-1}"
+  local dest_uid="${NFS_ROMS_UID:-1000}"
+  local dest_gid="${NFS_ROMS_GID:-1000}"
+  local systems_allow="${NFS_ROMS_SYSTEMS:-}"
 
-  if [[ -n "${RETROPIE_NFS_ROMS_SUBDIR:-${KIOSK_RETROPIE_NFS_ROMS_SUBDIR:-}}" ]]; then
-    cover_path "sync-roms:legacy-subdir-ignored"
-    log "KIOSK_RETROPIE_NFS_ROMS_SUBDIR is deprecated and ignored; set NFS_ROMS_PATH to the ROM root instead"
-  fi
-
-  # Ensure NFS is mounted (no-op if not configured / unavailable)
-  run_cmd "$SCRIPT_DIR/mount-nfs.sh" || true
+  # Ensure NFS is mounted (fails closed on missing config; fail-open if mount fails).
+  run_cmd "$SCRIPT_DIR/mount-nfs.sh"
 
   if ! command -v rsync > /dev/null 2>&1; then
     cover_path "sync-roms:rsync-missing"
@@ -51,7 +48,7 @@ main() {
     exit 0
   fi
 
-  local src="$mount_point"
+  local src="$mount_point/roms"
 
   if [[ ! -d "$src" ]]; then
     cover_path "sync-roms:src-missing"
@@ -71,18 +68,13 @@ main() {
   log "Syncing ROMs: $src/ -> $dest_dir/ (delete=$rsync_delete)"
 
   # Prefer RetroPie layout: roms/<system>/...
-  # If RETROPIE_ROMS_SYSTEMS (or legacy KIOSK_RETROPIE_ROMS_SYSTEMS) is set, only those system directories are synced.
+  # If NFS_ROMS_SYSTEMS is set, only those system directories are synced.
   # Otherwise, all top-level directories under the source are synced.
   local -a allowlist=()
-  local -a excludelist=()
   while IFS= read -r item; do
     [[ -n "$item" ]] || continue
     allowlist+=("$item")
   done <<< "$(split_list "$systems_allow")"
-  while IFS= read -r item; do
-    [[ -n "$item" ]] || continue
-    excludelist+=("$item")
-  done <<< "$(split_list "$systems_exclude")"
 
   local -a systems=()
   if [[ ${#allowlist[@]} -gt 0 ]]; then
@@ -103,10 +95,6 @@ main() {
   local system
   for system in "${systems[@]}"; do
     [[ -n "$system" ]] || continue
-    if [[ ${#excludelist[@]} -gt 0 ]] && in_list "$system" "${excludelist[@]}"; then
-      cover_path "sync-roms:excluded"
-      continue
-    fi
     if [[ ! -d "$src/$system" ]]; then
       cover_path "sync-roms:missing-system"
       log "Skipping missing system dir on NFS: $src/$system"
@@ -119,7 +107,7 @@ main() {
   # Ensure the retropi user can read ROMs in Retro mode.
   if command -v chown > /dev/null 2>&1; then
     cover_path "sync-roms:chown"
-    run_cmd chown -R "$dest_owner" "$dest_dir" || true
+    run_cmd chown -R "${dest_uid}:${dest_gid}" "$dest_dir" || true
   fi
 }
 

@@ -37,7 +37,7 @@ The pipeline is split into stages so you can run the part you’re working on wi
 
 - `lint-sh`: sanity checks for shell scripts (syntax, shellcheck, formatting).
   This catches common Bash footguns before you even boot a Pi.
-- `lint-yaml`: lints YAML files (cloud-init examples and GitHub workflow config).
+- `lint-yaml`: lints YAML files (examples and GitHub workflow config).
 - `lint-systemd`: verifies `systemd` unit files.
   This doesn’t start services; it checks the unit files are valid and consistent.
 - `lint-markdown`: lints Markdown formatting so docs stay readable.

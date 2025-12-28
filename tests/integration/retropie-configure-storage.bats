@@ -82,48 +82,6 @@ teardown() {
 	assert_output --partial "Unable to resolve home directory"
 }
 
-@test "configure-retropie-storage guardrail rejects ROMs under NFS mount" {
-	export KIOSK_RETROPIE_ALLOW_NON_ROOT=1
-	export KIOSK_RETROPIE_DRY_RUN=1
-
-	local mp="$TEST_ROOT/mnt/kiosk-retropie-roms"
-	mkdir -p "$mp"
-	export RETROPIE_NFS_MOUNT_POINT="$mp"
-	export RETROPIE_ROMS_DIR="$mp/roms"
-
-	run bash "$KIOSK_RETROPIE_REPO_ROOT/scripts/retropie/configure-retropie-storage.sh"
-	assert_failure
-	assert_output --partial "RETROPIE_ROMS_DIR must be local"
-}
-
-@test "configure-retropie-storage guardrail rejects SAVES under NFS mount" {
-	export KIOSK_RETROPIE_ALLOW_NON_ROOT=1
-	export KIOSK_RETROPIE_DRY_RUN=1
-
-	local mp="$TEST_ROOT/mnt/kiosk-retropie-roms"
-	mkdir -p "$mp"
-	export RETROPIE_NFS_MOUNT_POINT="$mp"
-	export RETROPIE_SAVES_DIR="$mp/saves"
-
-	run bash "$KIOSK_RETROPIE_REPO_ROOT/scripts/retropie/configure-retropie-storage.sh"
-	assert_failure
-	assert_output --partial "RETROPIE_SAVES_DIR must be local"
-}
-
-@test "configure-retropie-storage guardrail rejects STATES under NFS mount" {
-	export KIOSK_RETROPIE_ALLOW_NON_ROOT=1
-	export KIOSK_RETROPIE_DRY_RUN=1
-
-	local mp="$TEST_ROOT/mnt/kiosk-retropie-roms"
-	mkdir -p "$mp"
-	export RETROPIE_NFS_MOUNT_POINT="$mp"
-	export RETROPIE_STATES_DIR="$mp/states"
-
-	run bash "$KIOSK_RETROPIE_REPO_ROOT/scripts/retropie/configure-retropie-storage.sh"
-	assert_failure
-	assert_output --partial "RETROPIE_STATES_DIR must be local"
-}
-
 @test "configure-retropie-storage covers target existing + symlink branches" {
 	export KIOSK_RETROPIE_ALLOW_NON_ROOT=1
 	export KIOSK_RETROPIE_DRY_RUN=1

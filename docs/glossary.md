@@ -5,8 +5,14 @@ Short definitions for terms used across the docs.
 ## Appliance concepts
 
 - **Mode**: One of the mutually-exclusive runtime states on the Pi: kiosk mode or Retro mode.
-- **Fail-open**: If kiosk mode is unhealthy/unavailable, the system should still make Retro mode reachable.
-- **Repo pinning**: Installing from a specific branch/tag/commit via `KIOSK_RETROPIE_REPO_URL` + `KIOSK_RETROPIE_REPO_REF`.
+- **Fail-open**: A non-fatal failure mode: if something external is unavailable (for example NFS or kiosk mode),
+  the appliance continues operating using local data where possible.
+
+## Storage + NFS
+
+- **NFS**: Network File System; used here for optional ROM sync (NFS -> local) and optional save backups (local -> NFS).
+- **Share layout**: The expected directories at the NFS export root: `roms/` and `backups/`.
+- **Hostname component**: The per-device directory under `backups/<hostname>/` used to keep multiple kiosks separated.
 
 ## Linux + systemd
 
@@ -30,6 +36,7 @@ Short definitions for terms used across the docs.
 
 - **evdev**: Linux’s standard input event interface. Controllers appear as `/dev/input/event*` devices.
 - **sysfs**: Kernel-exposed files under `/sys/` used to control hardware (LED triggers, backlight brightness, etc).
+- **Backlight**: The sysfs interface under `/sys/class/backlight/<name>/` used to read/write screen brightness.
 
 ## MQTT
 
