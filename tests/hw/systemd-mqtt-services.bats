@@ -161,6 +161,9 @@ EOF
   sudo -n systemctl daemon-reload
   sudo -n systemctl restart kiosk-retropie-home-assistant-mqtt.service
 
+  # Give the service time to publish discovery and start its MQTT subscription loop.
+  sleep 1
+
   # Verify a discovery config message is published.
   run mosquitto_sub -h "$MQTT_HOST" -p "$MQTT_PORT" -C 1 -t "homeassistant/switch/${MQTT_TOPIC_PREFIX}/mode/config"
   assert_success
@@ -168,12 +171,14 @@ EOF
 
   # Verify mode command produces a mode state update.
   mosquitto_pub -h "$MQTT_HOST" -p "$MQTT_PORT" -t "$MQTT_TOPIC_PREFIX/mode/set" -m "ON" >/dev/null
+  sleep 1
   run mosquitto_sub -h "$MQTT_HOST" -p "$MQTT_PORT" -C 1 -t "$MQTT_TOPIC_PREFIX/mode/state"
   assert_success
   assert_equal "$output" "ON"
 
   # Verify rotation command produces a rotation state update.
   mosquitto_pub -h "$MQTT_HOST" -p "$MQTT_PORT" -t "$MQTT_TOPIC_PREFIX/screen/rotation/set" -m "left" >/dev/null
+  sleep 1
   run mosquitto_sub -h "$MQTT_HOST" -p "$MQTT_PORT" -C 1 -t "$MQTT_TOPIC_PREFIX/screen/rotation/state"
   assert_success
   assert_equal "$output" "left"
