@@ -168,8 +168,8 @@ Then set these in `/etc/kiosk-retropie/config.env`:
 
 Xorg VTs (virtual terminals):
 
-- `KIOSK_X_VT` (optional, default: `7`): VT used by kiosk
-- `RETROPIE_X_VT` (optional, default: `8`): VT used by Retro mode
+- `X_VT_KIOSK` (optional, default: `7`): VT used by kiosk
+- `X_VT_RETROPIE` (optional, default: `8`): VT used by Retro mode
 
 Linux exposes multiple text/graphics “virtual terminals” (numbered sessions). This project uses separate VTs so
 kiosk and Retro can cleanly take ownership of the display.
@@ -205,29 +205,29 @@ Place files under the usual RetroPie structure, for example:
 - `/var/lib/kiosk-retropie/retropie/roms/nes/`
 - `/var/lib/kiosk-retropie/retropie/roms/snes/`
 
-- `RETROPIE_ROMS_DIR` (default: `/var/lib/kiosk-retropie/retropie/roms`)
-- `RETROPIE_ROMS_SYNC_DELETE` (default: `1`; set to `0` to disable mirroring deletions from NFS)
-- `RETROPIE_ROMS_OWNER` (default: `retropi:retropi`)
+- `NFS_ROMS_SYNC_DELETE` (default: `1`; set to `0` to disable mirroring deletions from NFS)
+- `NFS_ROMS_UID` (default: `1000`)
+- `NFS_ROMS_GID` (default: `1000`)
 
 Optional system filtering:
 
-- `RETROPIE_ROMS_SYSTEMS` (default: empty; if set, only these systems are synced)
+- `NFS_ROMS_SYSTEMS` (default: empty; if set, only these systems are synced)
 
 ### Save data policy
 
-Save files and save states are always local:
+Save files and save states are always local under:
 
-- `RETROPIE_SAVES_DIR` (default: `/var/lib/kiosk-retropie/retropie/saves`)
-- `RETROPIE_STATES_DIR` (default: `/var/lib/kiosk-retropie/retropie/states`)
+- `/var/lib/kiosk-retropie/retropie/saves`
+- `/var/lib/kiosk-retropie/retropie/states`
 
 ### Optional save backup to NFS
 
 An optional periodic backup copies local saves/states to NFS.
 It never runs during gameplay (it skips while `retro-mode.service` is active).
 
-- `RETROPIE_SAVE_BACKUP_ENABLED` (default: `1`; set to `0` to disable)
-- `RETROPIE_SAVE_BACKUP_SUBDIR` (default: `<hostname>`)
-- `RETROPIE_SAVE_BACKUP_DELETE` (default: `1`)
+- `NFS_SAVE_BACKUP_ENABLED` (default: `1`; set to `0` to disable)
+- `NFS_SAVE_BACKUP_SUBDIR` (default: `<hostname>`)
+- `NFS_SAVE_BACKUP_DELETE` (default: `1`)
 
 Backup destination defaults to: `/mnt/kiosk-retropie-nfs/backups/<hostname>/`.
 
@@ -650,7 +650,7 @@ mount | grep kiosk-retropie-nfs || true
 1. Ensure it is enabled:
 
 ```bash
-grep -n '^RETROPIE_SAVE_BACKUP_ENABLED=' /etc/kiosk-retropie/config.env || true
+grep -n '^NFS_SAVE_BACKUP_ENABLED=' /etc/kiosk-retropie/config.env || true
 ```
 
 1. Inspect the timer and last run:
@@ -683,6 +683,8 @@ journalctl -u kiosk-retropie-led-mqtt.service -b --no-pager
 
 ```bash
 command -v mosquitto_sub || true
+command -v mosquitto_pub || true
+```
 
 ## Why we don’t use Docker on the Pi
 
@@ -701,8 +703,6 @@ sensibly if networking (or MQTT) is down.
 
 Docker is still used for development parity via the devcontainer (toolchain + CI reproducibility), not for the
 production appliance runtime.
-command -v mosquitto_pub || true
-```
 
 ## Development
 

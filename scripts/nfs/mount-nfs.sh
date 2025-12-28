@@ -31,17 +31,40 @@ main() {
   # Default export path when NFS_SERVER is a bare host.
   local default_export_path="/export/kiosk-retropie"
 
-  if [[ -n "$server_spec" && "$server_spec" == *":"* && "$server_spec" != *":"*":"* ]]; then
+  if [[ -n "$server_spec" && "$server_spec" == \[*\]:* ]]; then
+    # Bracketed IPv6 host syntax: [fe80::1]:/export/path
+    server="${server_spec%%\]*}"
+    server="${server#[}"
+    local export_part
+    export_part="${server_spec#*]:}"
+    if [[ -z "$server" || -z "$export_part" ]]; then
+      cover_path "mount-nfs:invalid-server-spec"
+      log "Invalid NFS_SERVER (expected [ipv6]:/export/path): $server_spec"
+      exit 0
+    fi
+    if [[ "$export_part" == /* ]]; then
+      export_path="$export_part"
+    else
+      export_path="/$export_part"
+    fi
+  elif [[ -n "$server_spec" && "$server_spec" == *":"* ]]; then
+    # Unbracketed values containing multiple colons are ambiguous (likely IPv6 or a typo).
+    # Require bracketed IPv6 syntax instead of silently falling back.
+    if [[ "$server_spec" == *":"*":"* ]]; then
+      cover_path "mount-nfs:invalid-server-spec"
+      log "Invalid NFS_SERVER (ambiguous host:export; use [ipv6]:/export/path for IPv6): $server_spec"
+      exit 0
+    fi
+
     # Accept host:path forms without a leading slash (e.g. host:export/path).
-    # Avoid mis-parsing IPv6-style values that contain multiple colons.
     printf -v server '%s' "${server_spec%%:*}"
     local export_part
     printf -v export_part '%s' "${server_spec#*:}"
 
-    if [[ -z "$export_part" ]]; then
+    if [[ -z "$server" || -z "$export_part" ]]; then
       cover_path "mount-nfs:invalid-server-spec"
-      log "Invalid NFS_SERVER (missing export path after colon): $server_spec"
-      exit 2
+      log "Invalid NFS_SERVER (expected host:/export/path): $server_spec"
+      exit 0
     fi
 
     if [[ "$export_part" == /* ]]; then

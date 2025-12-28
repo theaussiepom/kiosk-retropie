@@ -21,7 +21,7 @@ source "$LIB_DIR/common.sh"
 main() {
   export KIOSK_RETROPIE_LOG_PREFIX="mount-nfs-backup"
 
-  local enabled="${RETROPIE_SAVE_BACKUP_ENABLED:-1}"
+  local enabled="${NFS_SAVE_BACKUP_ENABLED:-1}"
   if [[ "$enabled" != "1" ]]; then
     cover_path "mount-nfs-backup:disabled"
     exit 0

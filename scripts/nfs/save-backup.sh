@@ -23,7 +23,7 @@ source "$LIB_DIR/backup.sh"
 main() {
   export KIOSK_RETROPIE_LOG_PREFIX="save-backup"
 
-  local enabled="${RETROPIE_SAVE_BACKUP_ENABLED:-1}"
+  local enabled="${NFS_SAVE_BACKUP_ENABLED:-1}"
   if [[ "$enabled" != "1" ]]; then
     cover_path "save-backup:disabled"
     exit 0
@@ -55,8 +55,8 @@ main() {
   fi
 
   local backup_root="$mount_point/backups"
-  local backup_subdir="${RETROPIE_SAVE_BACKUP_SUBDIR:-$hostname_default}"
-  local delete="${RETROPIE_SAVE_BACKUP_DELETE:-1}"
+  local backup_subdir="${NFS_SAVE_BACKUP_SUBDIR:-$hostname_default}"
+  local delete="${NFS_SAVE_BACKUP_DELETE:-1}"
 
   # Ensure NFS is mounted (fails closed on missing config; fail-open if mount fails).
   run_cmd "$SCRIPT_DIR/mount-nfs.sh"

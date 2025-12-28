@@ -104,8 +104,8 @@ If you want to re-run install without reflashing, delete the marker file and re-
 
 Both modes start the X server (Xorg) explicitly via `xinit` and run on fixed VTs (virtual terminals):
 
-- Kiosk: VT7 (`KIOSK_X_VT`, default `7`)
-- Retro mode: VT8 (`RETROPIE_X_VT`, default `8`)
+- Kiosk: VT7 (`X_VT_KIOSK`, default `7`)
+- Retro mode: VT8 (`X_VT_RETROPIE`, default `8`)
 
 systemd enforces exclusivity:
 
@@ -194,9 +194,9 @@ The storage design separates gameplay data from network availability.
 
 ### Saves and states
 
-- Saves and savestates are always local:
-  - `RETROPIE_SAVES_DIR` (default: `/var/lib/kiosk-retropie/retropie/saves`)
-  - `RETROPIE_STATES_DIR` (default: `/var/lib/kiosk-retropie/retropie/states`)
+- Saves and savestates are always local under:
+  - `/var/lib/kiosk-retropie/retropie/saves`
+  - `/var/lib/kiosk-retropie/retropie/states`
 - Optional backup to NFS is implemented as a periodic rsync job and is enabled by default.
 - Backup explicitly skips while `retro-mode.service` is active.
 

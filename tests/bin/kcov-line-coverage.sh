@@ -650,11 +650,11 @@ export KIOSK_RETROPIE_ROOT="$work_dir/root"
 mkdir -p "$KIOSK_RETROPIE_ROOT"
 
 # Fake LED sysfs so ledctl can fully exercise success paths.
-mkdir -p "$KIOSK_RETROPIE_ROOT/sys/class/leds/ledact" "$KIOSK_RETROPIE_ROOT/sys/class/leds/ledpwr"
-echo 'none [mmc0] timer heartbeat' >"$KIOSK_RETROPIE_ROOT/sys/class/leds/ledact/trigger"
-echo 0 >"$KIOSK_RETROPIE_ROOT/sys/class/leds/ledact/brightness"
-echo 'none [default-on] timer heartbeat' >"$KIOSK_RETROPIE_ROOT/sys/class/leds/ledpwr/trigger"
-echo 0 >"$KIOSK_RETROPIE_ROOT/sys/class/leds/ledpwr/brightness"
+mkdir -p "$KIOSK_RETROPIE_ROOT/sys/class/leds/led-act" "$KIOSK_RETROPIE_ROOT/sys/class/leds/led-pwr"
+echo 'none [mmc0] timer heartbeat' >"$KIOSK_RETROPIE_ROOT/sys/class/leds/led-act/trigger"
+echo 0 >"$KIOSK_RETROPIE_ROOT/sys/class/leds/led-act/brightness"
+echo 'none [default-on] timer heartbeat' >"$KIOSK_RETROPIE_ROOT/sys/class/leds/led-pwr/trigger"
+echo 0 >"$KIOSK_RETROPIE_ROOT/sys/class/leds/led-pwr/brightness"
 
 # ledctl.sh: usage + invalid inputs + missing sysfs + supported/unsupported triggers.
 run_allow_fail "$ROOT_DIR/scripts/leds/ledctl.sh"
@@ -662,16 +662,23 @@ run_allow_fail "$ROOT_DIR/scripts/leds/ledctl.sh" bad on
 run_allow_fail "$ROOT_DIR/scripts/leds/ledctl.sh" act bad
 
 # Supported trigger branches (ensure trigger files still advertise support).
-echo 'none [mmc0] timer heartbeat' >"$KIOSK_RETROPIE_ROOT/sys/class/leds/ledact/trigger"
-echo 'none [default-on] timer heartbeat' >"$KIOSK_RETROPIE_ROOT/sys/class/leds/ledpwr/trigger"
+echo 'none [mmc0] timer heartbeat' >"$KIOSK_RETROPIE_ROOT/sys/class/leds/led-act/trigger"
+echo 'none [default-on] timer heartbeat' >"$KIOSK_RETROPIE_ROOT/sys/class/leds/led-pwr/trigger"
 run_allow_fail "$ROOT_DIR/scripts/leds/ledctl.sh" act on
 run_allow_fail "$ROOT_DIR/scripts/leds/ledctl.sh" pwr on
 
 run_allow_fail "$ROOT_DIR/scripts/leds/ledctl.sh" act off
 run_allow_fail "$ROOT_DIR/scripts/leds/ledctl.sh" act on
 run_allow_fail env KIOSK_RETROPIE_ACT_LED_TRIGGER_ON=nonesuch "$ROOT_DIR/scripts/leds/ledctl.sh" act on
-run_allow_fail env KIOSK_RETROPIE_ACT_LED=missing-led "$ROOT_DIR/scripts/leds/ledctl.sh" act off
-run_allow_fail env KIOSK_RETROPIE_ACT_LED=missing-led "$ROOT_DIR/scripts/leds/ledctl.sh" act on
+
+# Missing sysfs branches: remove the dirs and run once.
+rm -rf "$KIOSK_RETROPIE_ROOT/sys/class/leds/led-act" 2>/dev/null || true
+run_allow_fail "$ROOT_DIR/scripts/leds/ledctl.sh" act off
+run_allow_fail "$ROOT_DIR/scripts/leds/ledctl.sh" act on
+mkdir -p "$KIOSK_RETROPIE_ROOT/sys/class/leds/led-act"
+echo 'none [mmc0] timer heartbeat' >"$KIOSK_RETROPIE_ROOT/sys/class/leds/led-act/trigger"
+echo 0 >"$KIOSK_RETROPIE_ROOT/sys/class/leds/led-act/brightness"
+
 run_allow_fail "$ROOT_DIR/scripts/leds/ledctl.sh" pwr off
 run_allow_fail "$ROOT_DIR/scripts/leds/ledctl.sh" pwr on
 run_allow_fail env KIOSK_RETROPIE_PWR_LED_TRIGGER_ON=nonesuch "$ROOT_DIR/scripts/leds/ledctl.sh" pwr on
@@ -718,6 +725,16 @@ run_allow_fail env NFS_SERVER=server:export/kiosk-retropie KCOV_MOUNTPOINTS_MOUN
 # mount-nfs.sh: invalid host: (missing export path).
 run_allow_fail env NFS_SERVER=server: "$ROOT_DIR/scripts/nfs/mount-nfs.sh"
 
+# mount-nfs.sh: invalid unbracketed multi-colon (IPv6-like) should be rejected.
+run_allow_fail env NFS_SERVER=fe80::1:/export/kiosk-retropie "$ROOT_DIR/scripts/nfs/mount-nfs.sh"
+
+# mount-nfs.sh: bracketed IPv6 syntax is accepted.
+run_allow_fail env NFS_SERVER='[fe80::1]:/export/kiosk-retropie' KCOV_MOUNTPOINTS_MOUNTED="" KCOV_MOUNT_FAIL=1 "$ROOT_DIR/scripts/nfs/mount-nfs.sh"
+run_allow_fail env NFS_SERVER='[fe80::1]:export/kiosk-retropie' KCOV_MOUNTPOINTS_MOUNTED="" KCOV_MOUNT_FAIL=1 "$ROOT_DIR/scripts/nfs/mount-nfs.sh"
+
+# mount-nfs.sh: invalid bracketed IPv6 (missing export path).
+run_allow_fail env NFS_SERVER='[fe80::1]:' "$ROOT_DIR/scripts/nfs/mount-nfs.sh"
+
 # mount-nfs.sh: mkdir-failed branch (mounted, but unable to create roms/backups).
 mkdir_fail_bin="$work_dir/bin-mkdir-fail"
 mkdir -p "$mkdir_fail_bin"
@@ -745,27 +762,27 @@ chmod +x "$mkdir_fail_bin/mkdir"
 run_allow_fail env NFS_SERVER=server:/export/kiosk-retropie KCOV_MOUNTPOINTS_MOUNTED="" KCOV_MOUNT_FAIL=0 PATH="$mkdir_fail_bin:$stub_bin:/usr/bin:/bin" "$ROOT_DIR/scripts/nfs/mount-nfs.sh"
 
 # mount-nfs-backup.sh: disabled / missing config / delegates.
-run_allow_fail env RETROPIE_SAVE_BACKUP_ENABLED=0 "$ROOT_DIR/scripts/nfs/mount-nfs-backup.sh"
-run_allow_fail env RETROPIE_SAVE_BACKUP_ENABLED=1 NFS_SERVER= "$ROOT_DIR/scripts/nfs/mount-nfs-backup.sh"
-run_allow_fail env RETROPIE_SAVE_BACKUP_ENABLED=1 NFS_SERVER=server:/export/kiosk-retropie KCOV_MOUNT_FAIL=0 "$ROOT_DIR/scripts/nfs/mount-nfs-backup.sh"
+run_allow_fail env NFS_SAVE_BACKUP_ENABLED=0 "$ROOT_DIR/scripts/nfs/mount-nfs-backup.sh"
+run_allow_fail env NFS_SAVE_BACKUP_ENABLED=1 NFS_SERVER= "$ROOT_DIR/scripts/nfs/mount-nfs-backup.sh"
+run_allow_fail env NFS_SAVE_BACKUP_ENABLED=1 NFS_SERVER=server:/export/kiosk-retropie KCOV_MOUNT_FAIL=0 "$ROOT_DIR/scripts/nfs/mount-nfs-backup.sh"
 rm -f "$nfs_lib_link" 2>/dev/null || true
 
 # save-backup.sh: disabled / retro active / not mounted / rsync missing / backup saves+states (delete on).
-run_allow_fail env RETROPIE_SAVE_BACKUP_ENABLED=0 "$ROOT_DIR/scripts/nfs/save-backup.sh"
-run_allow_fail env RETROPIE_SAVE_BACKUP_ENABLED=1 NFS_SERVER=server:/export/kiosk-retropie KCOV_SYSTEMCTL_ACTIVE_UNITS=":retro-mode.service:" "$ROOT_DIR/scripts/nfs/save-backup.sh"
-run_allow_fail env RETROPIE_SAVE_BACKUP_ENABLED=1 NFS_SERVER=server:/export/kiosk-retropie KCOV_SYSTEMCTL_ACTIVE_UNITS="" KCOV_MOUNTPOINTS_MOUNTED="" "$ROOT_DIR/scripts/nfs/save-backup.sh"
+run_allow_fail env NFS_SAVE_BACKUP_ENABLED=0 "$ROOT_DIR/scripts/nfs/save-backup.sh"
+run_allow_fail env NFS_SAVE_BACKUP_ENABLED=1 NFS_SERVER=server:/export/kiosk-retropie KCOV_SYSTEMCTL_ACTIVE_UNITS=":retro-mode.service:" "$ROOT_DIR/scripts/nfs/save-backup.sh"
+run_allow_fail env NFS_SAVE_BACKUP_ENABLED=1 NFS_SERVER=server:/export/kiosk-retropie KCOV_SYSTEMCTL_ACTIVE_UNITS="" KCOV_MOUNTPOINTS_MOUNTED="" "$ROOT_DIR/scripts/nfs/save-backup.sh"
 
 # rsync missing branch: hide rsync in both stub dirs for this one run.
 if [[ -f "$stub_bin/rsync" && -f "$ROOT_DIR/tests/stubs/rsync" ]]; then
   mv "$stub_bin/rsync" "$stub_bin/rsync.__kcov_hidden" 2>/dev/null || true
   mv "$ROOT_DIR/tests/stubs/rsync" "$ROOT_DIR/tests/stubs/rsync.__kcov_hidden" 2>/dev/null || true
-  run_allow_fail env RETROPIE_SAVE_BACKUP_ENABLED=1 NFS_SERVER=server:/export/kiosk-retropie KCOV_SYSTEMCTL_ACTIVE_UNITS="" KCOV_MOUNTPOINTS_MOUNTED=":${mp_roms}:" "$ROOT_DIR/scripts/nfs/save-backup.sh"
+  run_allow_fail env NFS_SAVE_BACKUP_ENABLED=1 NFS_SERVER=server:/export/kiosk-retropie KCOV_SYSTEMCTL_ACTIVE_UNITS="" KCOV_MOUNTPOINTS_MOUNTED=":${mp_roms}:" "$ROOT_DIR/scripts/nfs/save-backup.sh"
   mv "$stub_bin/rsync.__kcov_hidden" "$stub_bin/rsync" 2>/dev/null || true
   mv "$ROOT_DIR/tests/stubs/rsync.__kcov_hidden" "$ROOT_DIR/tests/stubs/rsync" 2>/dev/null || true
 fi
 
 mkdir -p "$KIOSK_RETROPIE_ROOT/var/lib/kiosk-retropie/retropie/saves" "$KIOSK_RETROPIE_ROOT/var/lib/kiosk-retropie/retropie/states"
-run_allow_fail env RETROPIE_SAVE_BACKUP_ENABLED=1 NFS_SERVER=server:/export/kiosk-retropie RETROPIE_SAVE_BACKUP_DELETE=1 KCOV_SYSTEMCTL_ACTIVE_UNITS="" KCOV_MOUNTPOINTS_MOUNTED=":${mp_roms}:" "$ROOT_DIR/scripts/nfs/save-backup.sh"
+run_allow_fail env NFS_SAVE_BACKUP_ENABLED=1 NFS_SERVER=server:/export/kiosk-retropie NFS_SAVE_BACKUP_DELETE=1 KCOV_SYSTEMCTL_ACTIVE_UNITS="" KCOV_MOUNTPOINTS_MOUNTED=":${mp_roms}:" "$ROOT_DIR/scripts/nfs/save-backup.sh"
 
 # save-backup.sh: cover hostname fallback branch (hostname -s and hostname fail).
 hostname_fail_bin="$work_dir/bin-hostname-fail"
@@ -779,7 +796,7 @@ chmod +x "$hostname_fail_bin/hostname"
 run_allow_fail env \
   PATH="$hostname_fail_bin:$stub_bin:/usr/bin:/bin" \
   HOSTNAME= \
-  RETROPIE_SAVE_BACKUP_ENABLED=1 \
+  NFS_SAVE_BACKUP_ENABLED=1 \
   NFS_SERVER=server:/export/kiosk-retropie \
   KCOV_SYSTEMCTL_ACTIVE_UNITS="" \
   KCOV_MOUNTPOINTS_MOUNTED=":${mp_roms}:" \
@@ -788,7 +805,7 @@ run_allow_fail env \
 # save-backup.sh: cover defensive unknown-label branch (case *) which continues.
 (
   set -euo pipefail
-  export RETROPIE_SAVE_BACKUP_ENABLED=1
+  export NFS_SAVE_BACKUP_ENABLED=1
   export NFS_SERVER=server:/export/kiosk-retropie
   export KCOV_SYSTEMCTL_ACTIVE_UNITS=""
   export KCOV_MOUNTPOINTS_MOUNTED=":${mp_roms}:"
@@ -802,17 +819,6 @@ run_allow_fail env \
 
   main
 ) || true
-
-# configure-retropie-storage.sh: cover guards that reject placing local dirs under NFS.
-run_allow_fail env \
-  RETROPIE_ROMS_DIR="$KIOSK_RETROPIE_ROOT/mnt/kiosk-retropie-nfs/roms" \
-  "$ROOT_DIR/scripts/retropie/configure-retropie-storage.sh"
-run_allow_fail env \
-  RETROPIE_SAVES_DIR="$KIOSK_RETROPIE_ROOT/mnt/kiosk-retropie-nfs/saves" \
-  "$ROOT_DIR/scripts/retropie/configure-retropie-storage.sh"
-run_allow_fail env \
-  RETROPIE_STATES_DIR="$KIOSK_RETROPIE_ROOT/mnt/kiosk-retropie-nfs/states" \
-  "$ROOT_DIR/scripts/retropie/configure-retropie-storage.sh"
 
 # sync-roms.sh: rsync missing / not mounted / src missing / allowlist+missing system / excluded / discover + delete.
 mp_src="$mp_roms"
@@ -841,8 +847,8 @@ mp_src_missing="$root_missing_src/mnt/kiosk-retropie-nfs"
 mkdir -p "$mp_src_missing"
 run_allow_fail env KIOSK_RETROPIE_ROOT="$root_missing_src" NFS_SERVER=server:/export/kiosk-retropie KCOV_MOUNTPOINTS_MOUNTED=":${mp_src_missing}:" "$ROOT_DIR/scripts/nfs/sync-roms.sh"
 
-run_allow_fail env NFS_SERVER=server:/export/kiosk-retropie RETROPIE_ROMS_SYSTEMS="missing" KCOV_MOUNTPOINTS_MOUNTED=":${mp_src}:" "$ROOT_DIR/scripts/nfs/sync-roms.sh"
-run_allow_fail env NFS_SERVER=server:/export/kiosk-retropie RETROPIE_ROMS_SYNC_DELETE=1 KCOV_MOUNTPOINTS_MOUNTED=":${mp_src}:" "$ROOT_DIR/scripts/nfs/sync-roms.sh"
+run_allow_fail env NFS_SERVER=server:/export/kiosk-retropie NFS_ROMS_SYSTEMS="missing" KCOV_MOUNTPOINTS_MOUNTED=":${mp_src}:" "$ROOT_DIR/scripts/nfs/sync-roms.sh"
+run_allow_fail env NFS_SERVER=server:/export/kiosk-retropie NFS_ROMS_SYNC_DELETE=1 KCOV_MOUNTPOINTS_MOUNTED=":${mp_src}:" "$ROOT_DIR/scripts/nfs/sync-roms.sh"
 
 # chown missing + delete disabled branch.
 no_chown="$work_dir/bin-no-chown"
@@ -893,10 +899,10 @@ run_allow_fail env KIOSK_RETROPIE_LED_MQTT_ENABLED=1 MQTT_HOST=localhost KIOSK_R
   # invalid target branch
   led_state_payload bad >/dev/null 2>&1 || true
 
-  act_dir="$(kiosk_retropie_path /sys/class/leds/ledact)"
+  act_dir="$(kiosk_retropie_path /sys/class/leds/led-act)"
   act_brightness="$act_dir/brightness"
 
-  pwr_dir="$(kiosk_retropie_path /sys/class/leds/ledpwr)"
+  pwr_dir="$(kiosk_retropie_path /sys/class/leds/led-pwr)"
   pwr_brightness="$pwr_dir/brightness"
 
   # missing brightness file

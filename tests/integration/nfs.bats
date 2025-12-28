@@ -55,7 +55,7 @@ refute_file_contains() {
 	export MOUNTPOINT_PATHS="$mp\n"
 
 	# Allowlist only nes.
-	export RETROPIE_ROMS_SYSTEMS="nes"
+	export NFS_ROMS_SYSTEMS="nes"
 
 	run bash "$KIOSK_RETROPIE_REPO_ROOT/scripts/nfs/sync-roms.sh"
 	assert_success

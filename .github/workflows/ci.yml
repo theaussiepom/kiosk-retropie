@@ -348,8 +348,48 @@ jobs:
           bash --version | head -n 1
           systemctl --version | head -n 1 || true
 
+      - name: Ensure passwordless sudo (required for sysfs hardware tests)
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v sudo >/dev/null 2>&1; then
+            echo "sudo is required on the self-hosted runner for hardware tests" >&2
+            exit 1
+          fi
+          if ! sudo -n true >/dev/null 2>&1; then
+            echo "Hardware tests need passwordless sudo to write /sys (LEDs/backlight)." >&2
+            echo "Configure the runner user with NOPASSWD for sudo, then re-run." >&2
+            exit 1
+          fi
+
+      - name: Ensure MQTT tooling (required for MQTT bridge hardware tests)
+        shell: bash
+        run: |
+          set -euo pipefail
+          for cmd in mosquitto mosquitto_pub mosquitto_sub; do
+            if ! command -v "$cmd" >/dev/null 2>&1; then
+              echo "Missing required command for hardware tests: $cmd" >&2
+              echo "Install packages (example on Debian/Raspberry Pi OS):" >&2
+              echo "  sudo apt-get install -y mosquitto mosquitto-clients" >&2
+              exit 1
+            fi
+          done
+
+      - name: Ensure uinput device (required for controller hardware tests)
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! -e /dev/uinput ]]; then
+            echo "Missing /dev/uinput on runner." >&2
+            echo "Load it with: sudo modprobe uinput" >&2
+            echo "To persist: ensure uinput module loads at boot." >&2
+            exit 1
+          fi
+
       - name: Run HW integration tests
         shell: bash
         run: |
           set -euo pipefail
-          bash ./tests/bin/run-bats-hw.sh
+          export KIOSK_RETROPIE_HW_REQUIRE_UNITS=1
+          export KIOSK_RETROPIE_HW_REQUIRE_UINPUT=1
+          sudo -E bash ./tests/bin/run-bats-hw.sh

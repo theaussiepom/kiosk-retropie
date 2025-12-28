@@ -17,13 +17,13 @@ teardown() {
 }
 
 @test "save-backup no-ops when disabled" {
-	export RETROPIE_SAVE_BACKUP_ENABLED=0
+	export NFS_SAVE_BACKUP_ENABLED=0
 	run bash "$KIOSK_RETROPIE_REPO_ROOT/scripts/nfs/save-backup.sh"
 	assert_success
 }
 
 @test "save-backup skips during retro mode" {
-	export RETROPIE_SAVE_BACKUP_ENABLED=1
+	export NFS_SAVE_BACKUP_ENABLED=1
 	export SYSTEMCTL_ACTIVE_RETRO=0
 	run bash "$KIOSK_RETROPIE_REPO_ROOT/scripts/nfs/save-backup.sh"
 	assert_success

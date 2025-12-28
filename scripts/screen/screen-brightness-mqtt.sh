@@ -178,8 +178,8 @@ publish_brightness_state_once() {
 brightness_state_poller() {
   local prefix="$1"
 
-  local poll_sec="${KIOSK_SCREEN_BRIGHTNESS_MQTT_POLL_SEC:-${KIOSK_RETROPIE_SCREEN_BRIGHTNESS_MQTT_POLL_SEC:-2}}"
-  local max_loops="${KIOSK_SCREEN_BRIGHTNESS_MQTT_MAX_LOOPS:-${KIOSK_RETROPIE_SCREEN_BRIGHTNESS_MQTT_MAX_LOOPS:-0}}"
+  local poll_sec="${MQTT_SCREEN_BRIGHTNESS_POLL_SEC:-${KIOSK_SCREEN_BRIGHTNESS_MQTT_POLL_SEC:-${KIOSK_RETROPIE_SCREEN_BRIGHTNESS_MQTT_POLL_SEC:-2}}}"
+  local max_loops="${MQTT_SCREEN_BRIGHTNESS_MAX_LOOPS:-${KIOSK_SCREEN_BRIGHTNESS_MQTT_MAX_LOOPS:-${KIOSK_RETROPIE_SCREEN_BRIGHTNESS_MQTT_MAX_LOOPS:-0}}}"
   local loops=0
 
   local last=""
@@ -278,9 +278,9 @@ handle_set() {
 main() {
   export KIOSK_RETROPIE_LOG_PREFIX="kiosk-retropie-screen-brightness-mqtt"
 
-  if [[ "${KIOSK_SCREEN_BRIGHTNESS_MQTT_ENABLED:-${KIOSK_RETROPIE_SCREEN_BRIGHTNESS_MQTT_ENABLED:-0}}" != "1" ]]; then
+  if [[ "${MQTT_SCREEN_BRIGHTNESS_ENABLED:-${KIOSK_SCREEN_BRIGHTNESS_MQTT_ENABLED:-${KIOSK_RETROPIE_SCREEN_BRIGHTNESS_MQTT_ENABLED:-0}}}" != "1" ]]; then
     cover_path "screen-brightness-mqtt:disabled"
-    log "KIOSK_SCREEN_BRIGHTNESS_MQTT_ENABLED!=1; exiting (disabled)."
+    log "MQTT_SCREEN_BRIGHTNESS_ENABLED!=1; exiting (disabled)."
     exit 0
   fi
 
@@ -289,7 +289,7 @@ main() {
     die "MQTT_HOST is required"
   fi
 
-  local prefix="${KIOSK_MQTT_TOPIC_PREFIX:-${KIOSK_RETROPIE_MQTT_TOPIC_PREFIX:-kiosk-retropie}}"
+  local prefix="${MQTT_TOPIC_PREFIX:-${KIOSK_MQTT_TOPIC_PREFIX:-${KIOSK_RETROPIE_MQTT_TOPIC_PREFIX:-kiosk-retropie}}}"
   local topic_filter="${prefix}/screen/brightness/set"
 
   local args=()

@@ -28,9 +28,10 @@ main() {
   mount_point="$(kiosk_retropie_path /mnt/kiosk-retropie-nfs)"
   local dest_dir
   dest_dir="$(kiosk_retropie_path /var/lib/kiosk-retropie/retropie/roms)"
-  local rsync_delete="${RETROPIE_ROMS_SYNC_DELETE:-1}"
-  local dest_owner="${RETROPIE_ROMS_OWNER:-retropi:retropi}"
-  local systems_allow="${RETROPIE_ROMS_SYSTEMS:-}"
+  local rsync_delete="${NFS_ROMS_SYNC_DELETE:-1}"
+  local dest_uid="${NFS_ROMS_UID:-1000}"
+  local dest_gid="${NFS_ROMS_GID:-1000}"
+  local systems_allow="${NFS_ROMS_SYSTEMS:-}"
 
   # Ensure NFS is mounted (fails closed on missing config; fail-open if mount fails).
   run_cmd "$SCRIPT_DIR/mount-nfs.sh"
@@ -67,7 +68,7 @@ main() {
   log "Syncing ROMs: $src/ -> $dest_dir/ (delete=$rsync_delete)"
 
   # Prefer RetroPie layout: roms/<system>/...
-  # If RETROPIE_ROMS_SYSTEMS is set, only those system directories are synced.
+  # If NFS_ROMS_SYSTEMS is set, only those system directories are synced.
   # Otherwise, all top-level directories under the source are synced.
   local -a allowlist=()
   while IFS= read -r item; do
@@ -106,7 +107,7 @@ main() {
   # Ensure the retropi user can read ROMs in Retro mode.
   if command -v chown > /dev/null 2>&1; then
     cover_path "sync-roms:chown"
-    run_cmd chown -R "$dest_owner" "$dest_dir" || true
+    run_cmd chown -R "${dest_uid}:${dest_gid}" "$dest_dir" || true
   fi
 }
 
