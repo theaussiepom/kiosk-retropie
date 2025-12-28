@@ -84,7 +84,7 @@ install_packages() {
     local pkg="$1"
     local candidate
 
-    candidate="$(apt-cache policy "$pkg" 2>/dev/null | awk '/^\s*Candidate:/{print $2}' || true)"
+    candidate="$(apt-cache policy "$pkg" 2> /dev/null | awk '/^\s*Candidate:/{print $2}' || true)"
     [[ -n "$candidate" && "$candidate" != "(none)" ]]
   }
 
