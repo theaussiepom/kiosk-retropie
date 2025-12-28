@@ -60,7 +60,9 @@ find_event_for_name() {
       # Some kernels/drivers include extra suffix/prefix in the device name.
       if [[ "$n" == *"$desired"* ]]; then
         local event_dir
-        event_dir="$(basename "$(dirname "$name_file")")"
+        # name_file: /sys/class/input/eventX/device/name
+        # dirname(dirname(name_file)) => /sys/class/input/eventX
+        event_dir="$(basename "$(dirname "$(dirname "$name_file")")")"
         echo "/dev/input/${event_dir}"
         return 0
       fi
