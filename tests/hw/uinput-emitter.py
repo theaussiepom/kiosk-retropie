@@ -81,5 +81,7 @@ finally:
         try:
             fcntl.ioctl(u, UI_DEV_DESTROY)
         except OSError:
+            # Best-effort cleanup: the kernel may already have removed the
+            # device (or it may have been destroyed by a previous failure).
             pass
     u.close()
