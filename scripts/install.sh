@@ -80,6 +80,14 @@ validate_required_config() {
 install_packages() {
   export DEBIAN_FRONTEND=noninteractive
 
+  apt_has_install_candidate() {
+    local pkg="$1"
+    local candidate
+
+    candidate="$(apt-cache policy "$pkg" 2> /dev/null | awk '/^\s*Candidate:/{print $2}' || true)"
+    [[ -n "$candidate" && "$candidate" != "(none)" ]]
+  }
+
   # NOTE: Keep the base set minimal; we can extend as services are implemented.
   run_cmd apt-get update
   run_cmd apt-get install -y --no-install-recommends \
@@ -93,13 +101,15 @@ install_packages() {
     xserver-xorg \
     xinit
 
-  # Chromium package name varies by release.
-  if apt-cache show chromium-browser > /dev/null 2>&1; then
-    cover_path "install:chromium-browser-pkg"
-    run_cmd apt-get install -y --no-install-recommends chromium-browser
-  elif apt-cache show chromium > /dev/null 2>&1; then
+  # Chromium package name varies by distro/release.
+  # Debian/Raspberry Pi OS (newer) typically ships `chromium`, while older
+  # Raspberry Pi OS releases used `chromium-browser`.
+  if apt_has_install_candidate chromium; then
     cover_path "install:chromium-pkg"
     run_cmd apt-get install -y --no-install-recommends chromium
+  elif apt_has_install_candidate chromium-browser; then
+    cover_path "install:chromium-browser-pkg"
+    run_cmd apt-get install -y --no-install-recommends chromium-browser
   else
     cover_path "install:chromium-none"
     log "Chromium package not found via apt-cache (skipping for now)"

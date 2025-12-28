@@ -4,28 +4,38 @@ set -euo pipefail
 calls_file="${KIOSK_RETROPIE_CALLS_FILE:-/dev/null}"
 printf 'apt-cache %q\n' "$*" >>"$calls_file" || true
 
-# Minimal stub for: apt-cache show <pkg>
-if [[ "${1:-}" != "show" ]]; then
+cmd="${1:-}"
+
+# Minimal stub for:
+# - apt-cache show <pkg>
+# - apt-cache policy <pkg>
+#
+# install.sh uses `apt-cache policy` and parses the `Candidate:` line.
+pkg="${2:-}"
+
+has_candidate() {
+  case "$pkg" in
+    chromium-browser) [[ "${APT_CACHE_HAS_CHROMIUM_BROWSER:-0}" == "1" ]] ;;
+    chromium) [[ "${APT_CACHE_HAS_CHROMIUM:-0}" == "1" ]] ;;
+    *) return 1 ;;
+  esac
+}
+
+if [[ "$cmd" == "policy" ]]; then
+  if has_candidate; then
+    printf '%s\n' "Candidate: 1"
+  else
+    printf '%s\n' "Candidate: (none)"
+  fi
+  exit 0
+fi
+
+if [[ "$cmd" == "show" ]]; then
+  if has_candidate; then
+    printf '%s\n' "Package: $pkg"
+    exit 0
+  fi
   exit 1
 fi
 
-pkg="${2:-}"
-case "$pkg" in
-  chromium-browser)
-    if [[ "${APT_CACHE_HAS_CHROMIUM_BROWSER:-0}" == "1" ]]; then
-      echo "Package: chromium-browser"
-      exit 0
-    fi
-    exit 1
-    ;;
-  chromium)
-    if [[ "${APT_CACHE_HAS_CHROMIUM:-0}" == "1" ]]; then
-      echo "Package: chromium"
-      exit 0
-    fi
-    exit 1
-    ;;
-  *)
-    exit 1
-    ;;
-esac
+exit 1
