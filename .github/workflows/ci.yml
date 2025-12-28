@@ -362,6 +362,20 @@ jobs:
             exit 1
           fi
 
+      - name: Install required systemd units (for HW tests)
+        shell: bash
+        run: |
+          set -euo pipefail
+          systemd_dir=/etc/systemd/system
+          sudo -n install -d "$systemd_dir"
+          sudo -n install -m 0644 \
+            systemd/kiosk-retropie-led-mqtt.service \
+            "$systemd_dir/kiosk-retropie-led-mqtt.service"
+          sudo -n install -m 0644 \
+            systemd/kiosk-retropie-screen-brightness-mqtt.service \
+            "$systemd_dir/kiosk-retropie-screen-brightness-mqtt.service"
+          sudo -n systemctl daemon-reload
+
       - name: Ensure MQTT tooling (required for MQTT bridge hardware tests)
         shell: bash
         run: |
@@ -398,6 +412,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          if command -v modprobe >/dev/null 2>&1; then
+            # Ensure input modules are loaded so uinput devices appear under /dev/input/event*.
+            sudo -n modprobe uinput 2>/dev/null || true
+            sudo -n modprobe evdev 2>/dev/null || true
+          fi
           if [[ ! -e /dev/uinput ]]; then
             echo "Missing /dev/uinput on runner." >&2
             echo "Load it with: sudo modprobe uinput" >&2

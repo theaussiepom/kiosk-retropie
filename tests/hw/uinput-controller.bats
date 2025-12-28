@@ -57,7 +57,8 @@ find_event_for_name() {
       [[ -f "$name_file" ]] || continue
       local n
       n="$(tr -d '\0' <"$name_file" 2>/dev/null || true)"
-      if [[ "$n" == "$desired" ]]; then
+      # Some kernels/drivers include extra suffix/prefix in the device name.
+      if [[ "$n" == *"$desired"* ]]; then
         local event_dir
         event_dir="$(basename "$(dirname "$name_file")")"
         echo "/dev/input/${event_dir}"
@@ -208,9 +209,15 @@ SH
   wait_for_file "$READY_FILE" 8
 
   # Find the corresponding /dev/input/eventX path.
-  EVENT_DEV="$(find_event_for_name "kiosk-retropie-uinput" 8 || true)"
+  EVENT_DEV="$(find_event_for_name "kiosk-retropie-uinput" 20 || true)"
   if [[ -z "$EVENT_DEV" || ! -e "$EVENT_DEV" ]]; then
     if [[ "${KIOSK_RETROPIE_HW_REQUIRE_UINPUT:-0}" == "1" ]]; then
+      echo "uinput debug: emitter log" >&2
+      sed -n '1,200p' "$TEST_DIR/uinput.log" >&2 || true
+      echo "uinput debug: matching sysfs names" >&2
+      (ls -1 /sys/class/input/event*/device/name 2>/dev/null | head -n 20 | xargs -I{} sh -c 'printf "%s: %s\n" "{}" "$(tr -d "\\0" <"{}" 2>/dev/null || true)"' | sed -n '1,200p') >&2 || true
+      echo "uinput debug: /dev/input snapshot" >&2
+      (ls -l /dev/input 2>/dev/null || true) >&2
       fail "Unable to locate /dev/input/event* for uinput device"
     fi
     skip "Unable to locate event device for uinput"
