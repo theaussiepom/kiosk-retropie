@@ -18,8 +18,8 @@ teardown() {
 	teardown_test_root
 }
 
-@test "led-mqtt exits 0 when disabled" {
-	export MQTT_LED_ENABLED=0
+@test "led-mqtt exits 0 when MQTT_HOST unset" {
+	unset MQTT_HOST
 	run bash "$KIOSK_RETROPIE_REPO_ROOT/scripts/leds/led-mqtt.sh"
 	assert_success
 	# Calls may exist due to path coverage markers; ensure we did not subscribe.
@@ -28,16 +28,7 @@ teardown() {
 	fi
 }
 
-@test "led-mqtt fails if enabled but MQTT_HOST missing" {
-	export MQTT_LED_ENABLED=1
-	unset MQTT_HOST
-	run bash "$KIOSK_RETROPIE_REPO_ROOT/scripts/leds/led-mqtt.sh"
-	assert_failure
-	assert_output --partial "MQTT_HOST is required"
-}
-
 @test "led-mqtt records subscribe loop under dry-run" {
-	export MQTT_LED_ENABLED=1
 	export MQTT_HOST="mqtt.local"
 
 	make_isolated_path_with_stubs dirname mosquitto_sub mosquitto_pub
@@ -48,7 +39,6 @@ teardown() {
 }
 
 @test "led-mqtt publishes state via mosquitto_pub under dry-run" {
-	export MQTT_LED_ENABLED=1
 	export MQTT_HOST="mqtt.local"
 
 	# Force the script to call publish_state path by invoking internal function
@@ -62,7 +52,6 @@ teardown() {
 }
 
 @test "led-mqtt mosq_args includes auth + tls options" {
-	export MQTT_LED_ENABLED=1
 	export MQTT_HOST="mqtt.local"
 	export MQTT_PORT=1884
 	export MQTT_USERNAME="u"
@@ -88,7 +77,6 @@ teardown() {
 }
 
 @test "led-mqtt handle_set ignores unknown payload" {
-	export MQTT_LED_ENABLED=1
 	export MQTT_HOST="mqtt.local"
 
 	# Provide a fake, executable ledctl.
@@ -118,7 +106,6 @@ teardown() {
 }
 
 @test "led-mqtt processes a single set message and publishes state (including unknown target)" {
-	export MQTT_LED_ENABLED=1
 	export MQTT_HOST="mqtt.local"
 	export KIOSK_RETROPIE_DRY_RUN=1
 

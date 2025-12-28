@@ -151,8 +151,6 @@ Environment=MQTT_HOME_ASSISTANT_ENABLED=1
 Environment=MQTT_HOST=${MQTT_HOST}
 Environment=MQTT_PORT=${MQTT_PORT}
 Environment=MQTT_TOPIC_PREFIX=${MQTT_TOPIC_PREFIX}
-Environment=MQTT_LED_ENABLED=0
-Environment=MQTT_SCREEN_BRIGHTNESS_ENABLED=0
 Environment=KIOSK_ENTER_RETRO_PATH=/bin/true
 Environment=KIOSK_ENTER_KIOSK_PATH=/bin/true
 Environment=KIOSK_SYNC_ROMS_PATH=/bin/true
@@ -194,7 +192,6 @@ EOF
   # Apply drop-in with test broker.
   cat <<EOF | write_dropin kiosk-retropie-led-mqtt.service ci-test.conf
 [Service]
-Environment=MQTT_LED_ENABLED=1
 Environment=MQTT_HOST=${MQTT_HOST}
 Environment=MQTT_PORT=${MQTT_PORT}
 Environment=MQTT_TOPIC_PREFIX=${MQTT_TOPIC_PREFIX}
@@ -239,7 +236,6 @@ EOF
   # Apply drop-in with test broker.
   cat <<EOF | write_dropin kiosk-retropie-screen-brightness-mqtt.service ci-test.conf
 [Service]
-Environment=MQTT_SCREEN_BRIGHTNESS_ENABLED=1
 Environment=MQTT_HOST=${MQTT_HOST}
 Environment=MQTT_PORT=${MQTT_PORT}
 Environment=MQTT_TOPIC_PREFIX=${MQTT_TOPIC_PREFIX}

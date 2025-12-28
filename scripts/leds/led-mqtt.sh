@@ -51,7 +51,7 @@ led_mqtt_cleanup() {
 mosq_args() {
   local args=()
 
-  args+=("-h" "${MQTT_HOST}")
+  args+=("-h" "${MQTT_HOST:-}")
   if [[ -n "${MQTT_PORT:-}" ]]; then
     cover_path "led-mqtt:mosq-port-explicit"
   else
@@ -253,15 +253,11 @@ handle_set() {
 main() {
   export KIOSK_RETROPIE_LOG_PREFIX="kiosk-retropie-led-mqtt"
 
-  if [[ "${MQTT_LED_ENABLED:-${KIOSK_LED_MQTT_ENABLED:-${KIOSK_RETROPIE_LED_MQTT_ENABLED:-0}}}" != "1" ]]; then
-    cover_path "led-mqtt:disabled"
-    log "MQTT_LED_ENABLED!=1; exiting (disabled)."
-    exit 0
-  fi
-
   if [[ -z "${MQTT_HOST:-}" ]]; then
+    cover_path "led-mqtt:disabled"
     cover_path "led-mqtt:missing-mqtt-host"
-    die "MQTT_HOST is required"
+    log "MQTT_HOST not set; exiting (disabled)."
+    exit 0
   fi
 
   local prefix="${MQTT_TOPIC_PREFIX:-${KIOSK_MQTT_TOPIC_PREFIX:-${KIOSK_RETROPIE_MQTT_TOPIC_PREFIX:-$(default_topic_prefix)}}}"

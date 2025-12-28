@@ -17,7 +17,7 @@ set -euo pipefail
 #   <prefix>/screen/rotation/state payload: normal|left|right|inverted (retained)
 #   <prefix>/status                payload: online|offline (retained)
 #
-# Home Assistant discovery topics (default prefix: homeassistant):
+# Home Assistant discovery topics (prefix: homeassistant):
 #   homeassistant/<component>/<node_id>/<object_id>/config
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
@@ -137,18 +137,13 @@ mqtt_publish() {
 }
 
 ha_discovery_prefix() {
-  printf '%s\n' "${MQTT_HOME_ASSISTANT_DISCOVERY_PREFIX:-homeassistant}"
+  # Hardcoded to match Home Assistant's MQTT Discovery convention.
+  printf '%s\n' "homeassistant"
 }
 
 ha_node_id() {
-  local configured="${MQTT_HOME_ASSISTANT_NODE_ID:-${MQTT_HOME_ASSISTANT_DEVICE_ID:-}}"
-  local base
-  if [[ -n "$configured" ]]; then
-    base="$configured"
-  else
-    base="$(mqtt_topic_prefix)"
-  fi
-  sanitize_id "$base"
+  # Node ID is derived from the device topic prefix.
+  sanitize_id "$(mqtt_topic_prefix)"
 }
 
 ha_device_json() {
@@ -289,7 +284,7 @@ publish_config_sensors() {
   dev="$(ha_device_json "$node_id")"
 
   # Curated non-sensitive config values.
-  local vars=("KIOSK_URL" "NFS_SERVER" "NFS_SAVE_BACKUP_ENABLED" "MQTT_HOST" "MQTT_PORT" "MQTT_TLS" "MQTT_TOPIC_PREFIX" "MQTT_LED_ENABLED" "MQTT_SCREEN_BRIGHTNESS_ENABLED" "KIOSK_SCREEN_ROTATION")
+  local vars=("KIOSK_URL" "NFS_SERVER" "NFS_SAVE_BACKUP_ENABLED" "MQTT_HOST" "MQTT_PORT" "MQTT_TLS" "MQTT_TOPIC_PREFIX" "KIOSK_SCREEN_ROTATION")
 
   local v
   for v in "${vars[@]}"; do
@@ -342,34 +337,30 @@ publish_ha_discovery() {
     "$(json_escape "$availability")" \
     "$dev")"
 
-  # Optional existing bridges: publish discovery configs that map to the existing topics.
-  if [[ "${MQTT_LED_ENABLED:-0}" == "1" ]]; then
-    local act_state="${prefix}/led/act/state"
-    local act_cmd="${prefix}/led/act/set"
-    ha_publish_config "switch" "led_act" "$(printf '{"name":"LED ACT","state_topic":"%s","command_topic":"%s","payload_on":"ON","payload_off":"OFF","availability_topic":"%s","payload_available":"online","payload_not_available":"offline","device":%s}' \
-      "$(json_escape "$act_state")" \
-      "$(json_escape "$act_cmd")" \
-      "$(json_escape "$availability")" \
-      "$dev")"
+  # Existing bridges: publish discovery configs that map to the existing topics.
+  local act_state="${prefix}/led/act/state"
+  local act_cmd="${prefix}/led/act/set"
+  ha_publish_config "switch" "led_act" "$(printf '{"name":"LED ACT","state_topic":"%s","command_topic":"%s","payload_on":"ON","payload_off":"OFF","availability_topic":"%s","payload_available":"online","payload_not_available":"offline","device":%s}' \
+    "$(json_escape "$act_state")" \
+    "$(json_escape "$act_cmd")" \
+    "$(json_escape "$availability")" \
+    "$dev")"
 
-    local pwr_state="${prefix}/led/pwr/state"
-    local pwr_cmd="${prefix}/led/pwr/set"
-    ha_publish_config "switch" "led_pwr" "$(printf '{"name":"LED PWR","state_topic":"%s","command_topic":"%s","payload_on":"ON","payload_off":"OFF","availability_topic":"%s","payload_available":"online","payload_not_available":"offline","device":%s}' \
-      "$(json_escape "$pwr_state")" \
-      "$(json_escape "$pwr_cmd")" \
-      "$(json_escape "$availability")" \
-      "$dev")"
-  fi
+  local pwr_state="${prefix}/led/pwr/state"
+  local pwr_cmd="${prefix}/led/pwr/set"
+  ha_publish_config "switch" "led_pwr" "$(printf '{"name":"LED PWR","state_topic":"%s","command_topic":"%s","payload_on":"ON","payload_off":"OFF","availability_topic":"%s","payload_available":"online","payload_not_available":"offline","device":%s}' \
+    "$(json_escape "$pwr_state")" \
+    "$(json_escape "$pwr_cmd")" \
+    "$(json_escape "$availability")" \
+    "$dev")"
 
-  if [[ "${MQTT_SCREEN_BRIGHTNESS_ENABLED:-0}" == "1" ]]; then
-    local b_state="${prefix}/screen/brightness/state"
-    local b_cmd="${prefix}/screen/brightness/set"
-    ha_publish_config "number" "screen_brightness" "$(printf '{"name":"Screen brightness","state_topic":"%s","command_topic":"%s","min":0,"max":100,"mode":"slider","availability_topic":"%s","payload_available":"online","payload_not_available":"offline","device":%s}' \
-      "$(json_escape "$b_state")" \
-      "$(json_escape "$b_cmd")" \
-      "$(json_escape "$availability")" \
-      "$dev")"
-  fi
+  local b_state="${prefix}/screen/brightness/state"
+  local b_cmd="${prefix}/screen/brightness/set"
+  ha_publish_config "number" "screen_brightness" "$(printf '{"name":"Screen brightness","state_topic":"%s","command_topic":"%s","min":0,"max":100,"mode":"slider","availability_topic":"%s","payload_available":"online","payload_not_available":"offline","device":%s}' \
+    "$(json_escape "$b_state")" \
+    "$(json_escape "$b_cmd")" \
+    "$(json_escape "$availability")" \
+    "$dev")"
 }
 
 handle_mode_set() {

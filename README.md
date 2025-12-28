@@ -205,7 +205,6 @@ Place files under the usual RetroPie structure, for example:
 - `/var/lib/kiosk-retropie/retropie/roms/nes/`
 - `/var/lib/kiosk-retropie/retropie/roms/snes/`
 
-- `NFS_ROMS_SYNC_DELETE` (default: `1`; set to `0` to disable mirroring deletions from NFS)
 - `NFS_ROMS_UID` (default: `1000`)
 - `NFS_ROMS_GID` (default: `1000`)
 
@@ -249,7 +248,6 @@ number of iterations/events instead of running forever. Leave them unset (or `0`
 
 ### LED MQTT bridge (optional)
 
-- `MQTT_LED_ENABLED` (default: `0`; set to `1` to enable)
 - `MQTT_TOPIC_PREFIX` (default: `<hostname>`)
 - `KIOSK_LED_MQTT_POLL_SEC` (optional, default: `2`)
   Poll sysfs and publish state changes made outside MQTT.
@@ -271,7 +269,6 @@ Broker settings:
 
 Controls the display backlight brightness via sysfs (`/sys/class/backlight`).
 
-- `MQTT_SCREEN_BRIGHTNESS_ENABLED` (default: `0`; set to `1` to enable)
 - `MQTT_TOPIC_PREFIX` (default: `<hostname>`)
 - `KIOSK_SCREEN_BRIGHTNESS_MQTT_POLL_SEC` (optional, default: `2`)
   Poll sysfs and publish state changes made outside MQTT.
@@ -294,8 +291,9 @@ When enabled, the appliance publishes Home Assistant MQTT Discovery config (reta
 auto-create entities (similar to Zigbee2MQTT).
 
 - `MQTT_HOME_ASSISTANT_ENABLED` (default: `0`; set to `1` to enable)
-- `MQTT_HOME_ASSISTANT_DISCOVERY_PREFIX` (default: `homeassistant`)
-- `MQTT_HOME_ASSISTANT_NODE_ID` (optional; defaults to a sanitized `MQTT_TOPIC_PREFIX`)
+
+Home Assistant discovery uses the standard discovery prefix (`homeassistant`). The MQTT discovery `node_id` is
+derived from `MQTT_TOPIC_PREFIX`.
 
 Entities published include:
 
