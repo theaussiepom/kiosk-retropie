@@ -121,7 +121,6 @@ test_teardown() {
 
   make_isolated_path_with_stubs dirname mosquitto_sub mosquitto_pub
 
-  export KIOSK_RETROPIE_LED_MQTT_ENABLED=1
   export MQTT_HOST="mqtt.local"
   unset MQTT_PORT || true
   unset MQTT_USERNAME || true

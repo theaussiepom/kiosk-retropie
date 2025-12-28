@@ -848,7 +848,7 @@ mkdir -p "$mp_src_missing"
 run_allow_fail env KIOSK_RETROPIE_ROOT="$root_missing_src" NFS_SERVER=server:/export/kiosk-retropie KCOV_MOUNTPOINTS_MOUNTED=":${mp_src_missing}:" "$ROOT_DIR/scripts/nfs/sync-roms.sh"
 
 run_allow_fail env NFS_SERVER=server:/export/kiosk-retropie NFS_ROMS_SYSTEMS="missing" KCOV_MOUNTPOINTS_MOUNTED=":${mp_src}:" "$ROOT_DIR/scripts/nfs/sync-roms.sh"
-run_allow_fail env NFS_SERVER=server:/export/kiosk-retropie NFS_ROMS_SYNC_DELETE=1 KCOV_MOUNTPOINTS_MOUNTED=":${mp_src}:" "$ROOT_DIR/scripts/nfs/sync-roms.sh"
+run_allow_fail env NFS_SERVER=server:/export/kiosk-retropie KCOV_MOUNTPOINTS_MOUNTED=":${mp_src}:" "$ROOT_DIR/scripts/nfs/sync-roms.sh"
 
 # chown missing + delete disabled branch.
 no_chown="$work_dir/bin-no-chown"
@@ -863,18 +863,18 @@ ln -sf "$stub_bin/rsync" "$no_chown/rsync"
 PATH="$no_chown" run_allow_fail env NFS_SERVER=server:/export/kiosk-retropie KCOV_MOUNTPOINTS_MOUNTED=":${mp_src}:" "$ROOT_DIR/scripts/nfs/sync-roms.sh"
 
 # led-mqtt.sh: disabled / missing host / missing ledctl / payload handling + state publish + tls/user/pass.
-run_allow_fail env KIOSK_RETROPIE_LED_MQTT_ENABLED=0 "$ROOT_DIR/scripts/leds/led-mqtt.sh"
-run_allow_fail env KIOSK_RETROPIE_LED_MQTT_ENABLED=1 MQTT_HOST= "$ROOT_DIR/scripts/leds/led-mqtt.sh"
-run_allow_fail env KIOSK_RETROPIE_LED_MQTT_ENABLED=1 MQTT_HOST=localhost KIOSK_RETROPIE_LEDCTL_PATH="$work_dir/missing-ledctl" KCOV_MOSQUITTO_SUB_OUTPUT=$'kiosk-retropie/led/act/set ON\n' "$ROOT_DIR/scripts/leds/led-mqtt.sh"
-run_allow_fail env KIOSK_RETROPIE_LED_MQTT_ENABLED=1 MQTT_HOST=localhost MQTT_USERNAME=u MQTT_PASSWORD=p MQTT_TLS=1 KIOSK_RETROPIE_LEDCTL_PATH="$ROOT_DIR/scripts/leds/ledctl.sh" KCOV_MOSQUITTO_SUB_OUTPUT=$'kiosk-retropie/led/act/set ON\nkiosk-retropie/led/pwr/set off\nkiosk-retropie/led/all/set INVALID\nkiosk-retropie/led/all/set OFF\nkiosk-retropie/led/bad/set ON\n' "$ROOT_DIR/scripts/leds/led-mqtt.sh"
-run_allow_fail env KIOSK_RETROPIE_LED_MQTT_ENABLED=1 MQTT_HOST=localhost MQTT_TLS=0 KIOSK_RETROPIE_LEDCTL_PATH="$ROOT_DIR/scripts/leds/ledctl.sh" KCOV_MOSQUITTO_SUB_OUTPUT='' "$ROOT_DIR/scripts/leds/led-mqtt.sh"
+run_allow_fail env MQTT_HOST= "$ROOT_DIR/scripts/leds/led-mqtt.sh"
+run_allow_fail env MQTT_HOST=localhost MQTT_TOPIC_PREFIX=kiosk-retropie KIOSK_RETROPIE_LEDCTL_PATH="$work_dir/missing-ledctl" KCOV_MOSQUITTO_SUB_OUTPUT=$'kiosk-retropie/led/act/set ON\n' "$ROOT_DIR/scripts/leds/led-mqtt.sh"
+run_allow_fail env MQTT_HOST=localhost MQTT_TOPIC_PREFIX=kiosk-retropie MQTT_USERNAME=u MQTT_PASSWORD=p MQTT_TLS=1 KIOSK_RETROPIE_LEDCTL_PATH="$ROOT_DIR/scripts/leds/ledctl.sh" KCOV_MOSQUITTO_SUB_OUTPUT=$'kiosk-retropie/led/act/set ON\nkiosk-retropie/led/pwr/set off\nkiosk-retropie/led/all/set INVALID\nkiosk-retropie/led/all/set OFF\nkiosk-retropie/led/bad/set ON\n' "$ROOT_DIR/scripts/leds/led-mqtt.sh"
+run_allow_fail env MQTT_HOST=localhost MQTT_TOPIC_PREFIX=kiosk-retropie MQTT_TLS=0 KIOSK_RETROPIE_LEDCTL_PATH="$ROOT_DIR/scripts/leds/ledctl.sh" KCOV_MOSQUITTO_SUB_OUTPUT='' "$ROOT_DIR/scripts/leds/led-mqtt.sh"
 
 # Cover scripts/leds/lib branch selection in led-mqtt.
 leds_lib_link="$ROOT_DIR/scripts/leds/lib"
 if [[ ! -e "$leds_lib_link" ]]; then
   ln -s ../lib "$leds_lib_link" 2>/dev/null || true
 fi
-run_allow_fail env KIOSK_RETROPIE_LED_MQTT_ENABLED=1 MQTT_HOST=localhost KIOSK_RETROPIE_LEDCTL_PATH="$ROOT_DIR/scripts/leds/ledctl.sh" KCOV_MOSQUITTO_SUB_OUTPUT=$'kiosk-retropie/led/act/set OFF\n' "$ROOT_DIR/scripts/leds/led-mqtt.sh"
+run_allow_fail env MQTT_HOST=localhost MQTT_TOPIC_PREFIX=kiosk-retropie KIOSK_RETROPIE_LEDCTL_PATH="$ROOT_DIR/scripts/leds/ledctl.sh" KCOV_MOSQUITTO_SUB_OUTPUT=$'kiosk-retropie/led/act/set OFF\n' "$ROOT_DIR/scripts/leds/led-mqtt.sh"
+
 
 # led-mqtt.sh: missing scripts/lib branch (hide both scripts/leds/lib and scripts/lib).
 (
@@ -891,6 +891,15 @@ run_allow_fail env KIOSK_RETROPIE_LED_MQTT_ENABLED=1 MQTT_HOST=localhost KIOSK_R
   set +e
   # shellcheck source=scripts/leds/led-mqtt.sh
   source "$ROOT_DIR/scripts/leds/led-mqtt.sh"
+
+  # default_topic_prefix: cover hostname-present line.
+  default_topic_prefix >/dev/null 2>&1 || true
+
+  # default_topic_prefix: cover hostname-missing fallback.
+  (
+    PATH="/nonexistent"
+    default_topic_prefix >/dev/null 2>&1 || true
+  )
 
   export MQTT_HOST=localhost
   export MQTT_PORT=1884
@@ -928,23 +937,20 @@ run_allow_fail env KIOSK_RETROPIE_LED_MQTT_ENABLED=1 MQTT_HOST=localhost KIOSK_R
   led_state_poller kiosk-retropie >/dev/null 2>&1 || true
 ) || true
 
-# screen-brightness-mqtt.sh: cover disabled + missing MQTT host + basic set.
+# screen-brightness-mqtt.sh: cover disabled + basic set.
 bl_root="$KIOSK_RETROPIE_ROOT/sys/class/backlight"
 bl0="$bl_root/bl0"
 
 # Disabled branch.
-run_allow_fail env KIOSK_RETROPIE_SCREEN_BRIGHTNESS_MQTT_ENABLED=0 "$ROOT_DIR/scripts/screen/screen-brightness-mqtt.sh"
-
-# Enabled but missing MQTT_HOST.
-run_allow_fail env KIOSK_RETROPIE_SCREEN_BRIGHTNESS_MQTT_ENABLED=1 MQTT_HOST= "$ROOT_DIR/scripts/screen/screen-brightness-mqtt.sh"
+run_allow_fail env MQTT_HOST= "$ROOT_DIR/scripts/screen/screen-brightness-mqtt.sh"
 
 # Basic successful run with a fake backlight and a small, finite loop.
 mkdir -p "$bl0"
 echo 100 >"$bl0/max_brightness"
 echo 50 >"$bl0/brightness"
 run_allow_fail env \
-  KIOSK_RETROPIE_SCREEN_BRIGHTNESS_MQTT_ENABLED=1 \
   MQTT_HOST=localhost \
+  MQTT_TOPIC_PREFIX=kiosk-retropie \
   MQTT_PORT=1884 \
   MQTT_USERNAME=u \
   MQTT_PASSWORD=p \
@@ -956,7 +962,6 @@ run_allow_fail env \
 
 # Poller state-same branch requires at least 2 loops with unchanged brightness.
 run_allow_fail env \
-  KIOSK_RETROPIE_SCREEN_BRIGHTNESS_MQTT_ENABLED=1 \
   MQTT_HOST=localhost \
   KIOSK_RETROPIE_SCREEN_BRIGHTNESS_MQTT_POLL_SEC=0 \
   KIOSK_RETROPIE_SCREEN_BRIGHTNESS_MQTT_MAX_LOOPS=2 \
@@ -968,7 +973,6 @@ rm -rf "$bl0"
 mkdir -p "$bl0"
 echo 50 >"$bl0/brightness"
 run_allow_fail env \
-  KIOSK_RETROPIE_SCREEN_BRIGHTNESS_MQTT_ENABLED=1 \
   MQTT_HOST=localhost \
   KIOSK_RETROPIE_SCREEN_BRIGHTNESS_MQTT_POLL_SEC=0 \
   KIOSK_RETROPIE_SCREEN_BRIGHTNESS_MQTT_MAX_LOOPS=1 \
@@ -981,7 +985,6 @@ mkdir -p "$bl0"
 echo 0 >"$bl0/max_brightness"
 echo 10 >"$bl0/brightness"
 run_allow_fail env \
-  KIOSK_RETROPIE_SCREEN_BRIGHTNESS_MQTT_ENABLED=1 \
   MQTT_HOST=localhost \
   KIOSK_RETROPIE_SCREEN_BRIGHTNESS_MQTT_POLL_SEC=0 \
   KIOSK_RETROPIE_SCREEN_BRIGHTNESS_MQTT_MAX_LOOPS=1 \
@@ -994,7 +997,6 @@ mkdir -p "$bl0"
 echo 100 >"$bl0/max_brightness"
 rm -f "$bl0/brightness"
 run_allow_fail env \
-  KIOSK_RETROPIE_SCREEN_BRIGHTNESS_MQTT_ENABLED=1 \
   MQTT_HOST=localhost \
   KIOSK_RETROPIE_SCREEN_BRIGHTNESS_MQTT_POLL_SEC=0 \
   KIOSK_RETROPIE_SCREEN_BRIGHTNESS_MQTT_MAX_LOOPS=1 \
@@ -1007,7 +1009,6 @@ mkdir -p "$bl0"
 echo 100 >"$bl0/max_brightness"
 echo abc >"$bl0/brightness"
 run_allow_fail env \
-  KIOSK_RETROPIE_SCREEN_BRIGHTNESS_MQTT_ENABLED=1 \
   MQTT_HOST=localhost \
   KIOSK_RETROPIE_SCREEN_BRIGHTNESS_MQTT_POLL_SEC=0 \
   KIOSK_RETROPIE_SCREEN_BRIGHTNESS_MQTT_MAX_LOOPS=1 \
@@ -1021,8 +1022,8 @@ echo 100 >"$bl0/max_brightness"
 echo 0 >"$bl0/brightness"
 run_allow_fail env \
   KIOSK_RETROPIE_DRY_RUN=1 \
-  KIOSK_RETROPIE_SCREEN_BRIGHTNESS_MQTT_ENABLED=1 \
   MQTT_HOST=localhost \
+  MQTT_TOPIC_PREFIX=kiosk-retropie \
   KIOSK_RETROPIE_SCREEN_BRIGHTNESS_MQTT_POLL_SEC=0 \
   KIOSK_RETROPIE_SCREEN_BRIGHTNESS_MQTT_MAX_LOOPS=1 \
   KCOV_MOSQUITTO_SUB_OUTPUT=$'kiosk-retropie/screen/brightness/set 10\n' \
@@ -1034,7 +1035,6 @@ if [[ ! -e "$screen_lib_link" ]]; then
   ln -s ../lib "$screen_lib_link" 2>/dev/null || true
 fi
 run_allow_fail env \
-  KIOSK_RETROPIE_SCREEN_BRIGHTNESS_MQTT_ENABLED=1 \
   MQTT_HOST=localhost \
   MQTT_PORT= \
   MQTT_USERNAME= \
@@ -1050,7 +1050,6 @@ rm -f "$screen_lib_link" 2>/dev/null || true
 rm -rf "$bl_root"
 mkdir -p "$bl_root"
 run_allow_fail env \
-  KIOSK_RETROPIE_SCREEN_BRIGHTNESS_MQTT_ENABLED=1 \
   MQTT_HOST=localhost \
   KIOSK_RETROPIE_SCREEN_BRIGHTNESS_MQTT_POLL_SEC=0 \
   KIOSK_RETROPIE_SCREEN_BRIGHTNESS_MQTT_MAX_LOOPS=1 \
@@ -1061,7 +1060,7 @@ run_allow_fail env \
 rm -f "$ROOT_DIR/scripts/screen/lib" 2>/dev/null || true
 hidden_screen_lib="$ROOT_DIR/scripts/lib.__kcov_hidden_for_screen_brightness"
 mv "$ROOT_DIR/scripts/lib" "$hidden_screen_lib" 2>/dev/null || true
-run_allow_fail env KIOSK_RETROPIE_SCREEN_BRIGHTNESS_MQTT_ENABLED=1 MQTT_HOST=localhost "$ROOT_DIR/scripts/screen/screen-brightness-mqtt.sh"
+run_allow_fail env MQTT_HOST=localhost "$ROOT_DIR/scripts/screen/screen-brightness-mqtt.sh"
 mv "$hidden_screen_lib" "$ROOT_DIR/scripts/lib" 2>/dev/null || true
 rm -f "$leds_lib_link" 2>/dev/null || true
 
@@ -1517,7 +1516,6 @@ mkdir -p "$bl_root/blc"
 printf '%s\n' '10' >"$bl_root/blc/max_brightness"
 printf '%s\n' '20' >"$bl_root/blc/brightness"
 run_allow_fail env \
-  KIOSK_RETROPIE_SCREEN_BRIGHTNESS_MQTT_ENABLED=1 \
   MQTT_HOST=localhost \
   KIOSK_RETROPIE_SCREEN_BRIGHTNESS_MQTT_POLL_SEC=0 \
   KIOSK_RETROPIE_SCREEN_BRIGHTNESS_MQTT_MAX_LOOPS=2 \
@@ -1527,8 +1525,8 @@ run_allow_fail env \
 # No backlight device (auto-detect empty) -> die.
 rm -rf "$bl_root" && mkdir -p "$bl_root"
 run_allow_fail env \
-  KIOSK_RETROPIE_SCREEN_BRIGHTNESS_MQTT_ENABLED=1 \
   MQTT_HOST=localhost \
+  MQTT_TOPIC_PREFIX=kiosk-retropie \
   KIOSK_RETROPIE_SCREEN_BRIGHTNESS_MQTT_POLL_SEC=0 \
   KIOSK_RETROPIE_SCREEN_BRIGHTNESS_MQTT_MAX_LOOPS=1 \
   KCOV_MOSQUITTO_SUB_OUTPUT='kiosk-retropie/screen/brightness/set 10\n' \
@@ -1539,8 +1537,8 @@ rm -rf "$bl_root" 2>/dev/null || true
 mkdir -p "$bl_root/blm"
 printf '%s\n' '1' >"$bl_root/blm/brightness"
 run_allow_fail env \
-  KIOSK_RETROPIE_SCREEN_BRIGHTNESS_MQTT_ENABLED=1 \
   MQTT_HOST=localhost \
+  MQTT_TOPIC_PREFIX=kiosk-retropie \
   KIOSK_RETROPIE_SCREEN_BRIGHTNESS_MQTT_POLL_SEC=0 \
   KIOSK_RETROPIE_SCREEN_BRIGHTNESS_MQTT_MAX_LOOPS=1 \
   KCOV_MOSQUITTO_SUB_OUTPUT='kiosk-retropie/screen/brightness/set 10\n' \
@@ -1552,12 +1550,191 @@ mkdir -p "$bl_root/bli"
 printf '%s\n' '0' >"$bl_root/bli/max_brightness"
 printf '%s\n' '1' >"$bl_root/bli/brightness"
 run_allow_fail env \
-  KIOSK_RETROPIE_SCREEN_BRIGHTNESS_MQTT_ENABLED=1 \
   MQTT_HOST=localhost \
+  MQTT_TOPIC_PREFIX=kiosk-retropie \
   KIOSK_RETROPIE_SCREEN_BRIGHTNESS_MQTT_POLL_SEC=0 \
   KIOSK_RETROPIE_SCREEN_BRIGHTNESS_MQTT_MAX_LOOPS=1 \
   KCOV_MOSQUITTO_SUB_OUTPUT='kiosk-retropie/screen/brightness/set 10\n' \
   "$ROOT_DIR/scripts/screen/screen-brightness-mqtt.sh"
+
+# screen-brightness-mqtt.sh: default_topic_prefix hostname-missing fallback.
+(
+  set +e
+  # shellcheck source=scripts/screen/screen-brightness-mqtt.sh
+  source "$ROOT_DIR/scripts/screen/screen-brightness-mqtt.sh"
+  PATH="/nonexistent" default_topic_prefix >/dev/null 2>&1 || true
+) || true
+
+# home-assistant-mqtt.sh: disabled / missing host / main loop with commands.
+run_allow_fail env MQTT_HOME_ASSISTANT_ENABLED=0 "$ROOT_DIR/scripts/mqtt/home-assistant-mqtt.sh"
+run_allow_fail env MQTT_HOME_ASSISTANT_ENABLED=1 MQTT_HOST= "$ROOT_DIR/scripts/mqtt/home-assistant-mqtt.sh"
+
+# Cover SCRIPT_DIR/lib selection for home-assistant-mqtt.sh.
+ha_mqtt_lib_link="$ROOT_DIR/scripts/mqtt/lib"
+if [[ ! -e "$ha_mqtt_lib_link" ]]; then
+  ln -s ../lib "$ha_mqtt_lib_link" 2>/dev/null || true
+fi
+run_allow_fail env MQTT_HOME_ASSISTANT_ENABLED=0 "$ROOT_DIR/scripts/mqtt/home-assistant-mqtt.sh"
+rm -f "$ha_mqtt_lib_link" 2>/dev/null || true
+
+# Cover SCRIPT_DIR/../../lib selection for home-assistant-mqtt.sh (root "lib"), by hiding scripts/lib.
+(
+  set +e
+  rm -f "$ROOT_DIR/scripts/mqtt/lib" 2>/dev/null || true
+  rm -rf "${ROOT_DIR:?}/lib" 2>/dev/null || true
+
+  hidden_ha_scripts_lib="$ROOT_DIR/scripts/lib.__kcov_hidden_for_home_assistant_2"
+  mv "$ROOT_DIR/scripts/lib" "$hidden_ha_scripts_lib" 2>/dev/null || exit 0
+  ln -s "$hidden_ha_scripts_lib" "$ROOT_DIR/lib" 2>/dev/null || true
+
+  run_allow_fail env MQTT_HOME_ASSISTANT_ENABLED=0 "$ROOT_DIR/scripts/mqtt/home-assistant-mqtt.sh"
+
+  rm -rf "${ROOT_DIR:?}/lib" 2>/dev/null || true
+  mv "$hidden_ha_scripts_lib" "$ROOT_DIR/scripts/lib" 2>/dev/null || true
+) || true
+
+ha_libdir="$work_dir/ha-libdir"
+mkdir -p "$ha_libdir"
+printf '%s\n' '#!/usr/bin/env bash' 'exit 0' >"$ha_libdir/enter-retro-mode.sh"
+printf '%s\n' '#!/usr/bin/env bash' 'exit 0' >"$ha_libdir/enter-kiosk-mode.sh"
+printf '%s\n' '#!/usr/bin/env bash' 'exit 0' >"$ha_libdir/sync-roms.sh"
+chmod +x "$ha_libdir/enter-retro-mode.sh" "$ha_libdir/enter-kiosk-mode.sh" "$ha_libdir/sync-roms.sh"
+
+run_allow_fail env \
+  MQTT_HOME_ASSISTANT_ENABLED=1 \
+  MQTT_HOST=localhost \
+  MQTT_PORT=1884 \
+  MQTT_USERNAME=u \
+  MQTT_PASSWORD=p \
+  MQTT_TLS=1 \
+  MQTT_TOPIC_PREFIX=kiosk-retropie \
+  MQTT_HOME_ASSISTANT_DEVICE_NAME='kiosk-retropie-test' \
+  KIOSK_RETROPIE_LIBDIR="$ha_libdir" \
+  KIOSK_RETROPIE_DRY_RUN=1 \
+  KCOV_SYSTEMCTL_ACTIVE_UNITS=':kiosk.service:' \
+  KCOV_MOSQUITTO_SUB_OUTPUT=$'kiosk-retropie/mode/set ON\nkiosk-retropie/mode/set OFF\nkiosk-retropie/mode/set bogus\nkiosk-retropie/roms/sync/press PRESS\nkiosk-retropie/roms/sync/press nope\nkiosk-retropie/screen/rotation/set left\nkiosk-retropie/screen/rotation/set invalid\nkiosk-retropie/unknown/topic hi\n' \
+  "$ROOT_DIR/scripts/mqtt/home-assistant-mqtt.sh"
+
+# home-assistant-mqtt.sh: cover enter-retro missing die path.
+ha_libdir_missing_retro="$work_dir/ha-libdir-missing-retro"
+mkdir -p "$ha_libdir_missing_retro"
+printf '%s\n' '#!/usr/bin/env bash' 'exit 0' >"$ha_libdir_missing_retro/enter-kiosk-mode.sh"
+chmod +x "$ha_libdir_missing_retro/enter-kiosk-mode.sh"
+run_allow_fail env \
+  MQTT_HOME_ASSISTANT_ENABLED=1 \
+  MQTT_HOST=localhost \
+  MQTT_TOPIC_PREFIX=kiosk-retropie \
+  KIOSK_RETROPIE_LIBDIR="$ha_libdir_missing_retro" \
+  KIOSK_RETROPIE_DRY_RUN=1 \
+  KCOV_MOSQUITTO_SUB_OUTPUT=$'kiosk-retropie/mode/set ON\n' \
+  "$ROOT_DIR/scripts/mqtt/home-assistant-mqtt.sh"
+
+# home-assistant-mqtt.sh: cover enter-kiosk missing die path.
+ha_libdir_missing_kiosk="$work_dir/ha-libdir-missing-kiosk"
+mkdir -p "$ha_libdir_missing_kiosk"
+printf '%s\n' '#!/usr/bin/env bash' 'exit 0' >"$ha_libdir_missing_kiosk/enter-retro-mode.sh"
+chmod +x "$ha_libdir_missing_kiosk/enter-retro-mode.sh"
+run_allow_fail env \
+  MQTT_HOME_ASSISTANT_ENABLED=1 \
+  MQTT_HOST=localhost \
+  MQTT_TOPIC_PREFIX=kiosk-retropie \
+  KIOSK_RETROPIE_LIBDIR="$ha_libdir_missing_kiosk" \
+  KIOSK_RETROPIE_DRY_RUN=1 \
+  KCOV_MOSQUITTO_SUB_OUTPUT=$'kiosk-retropie/mode/set OFF\n' \
+  "$ROOT_DIR/scripts/mqtt/home-assistant-mqtt.sh"
+
+# home-assistant-mqtt.sh: cover ROM sync systemctl fallback when sync-roms is missing.
+ha_libdir_no_sync="$work_dir/ha-libdir-no-sync"
+mkdir -p "$ha_libdir_no_sync"
+printf '%s\n' '#!/usr/bin/env bash' 'exit 0' >"$ha_libdir_no_sync/enter-retro-mode.sh"
+printf '%s\n' '#!/usr/bin/env bash' 'exit 0' >"$ha_libdir_no_sync/enter-kiosk-mode.sh"
+chmod +x "$ha_libdir_no_sync/enter-retro-mode.sh" "$ha_libdir_no_sync/enter-kiosk-mode.sh"
+run_allow_fail env \
+  MQTT_HOME_ASSISTANT_ENABLED=1 \
+  MQTT_HOST=localhost \
+  MQTT_TOPIC_PREFIX=kiosk-retropie \
+  KIOSK_RETROPIE_LIBDIR="$ha_libdir_no_sync" \
+  KIOSK_RETROPIE_DRY_RUN=1 \
+  KCOV_MOSQUITTO_SUB_OUTPUT=$'kiosk-retropie/roms/sync/press PRESS\n' \
+  "$ROOT_DIR/scripts/mqtt/home-assistant-mqtt.sh"
+
+# home-assistant-mqtt.sh: exercise helpers + hostname-missing branches.
+(
+  set +e
+  # shellcheck source=scripts/mqtt/home-assistant-mqtt.sh
+  source "$ROOT_DIR/scripts/mqtt/home-assistant-mqtt.sh"
+
+  export MQTT_HOST=localhost
+  export KCOV_SYSTEMCTL_ACTIVE_UNITS=':retro-mode.service:'
+  maybe_detect_mode_systemd >/dev/null 2>&1 || true
+
+  export KCOV_SYSTEMCTL_ACTIVE_UNITS=':kiosk.service:'
+  maybe_detect_mode_systemd >/dev/null 2>&1 || true
+
+  export KCOV_SYSTEMCTL_ACTIVE_UNITS=':'
+  maybe_detect_mode_systemd >/dev/null 2>&1 || true
+
+  # sanitize_id: exercise underscore-collapse loop.
+  sanitize_id 'a  b' >/dev/null 2>&1 || true
+
+  # mqtt_publish: cover non-retained publish branch.
+  export MQTT_HOST=localhost
+  mqtt_publish 'kiosk-retropie/test/nonretained' 'x' 0 >/dev/null 2>&1 || true
+
+  export MQTT_TOPIC_PREFIX=kiosk-retropie
+  ha_node_id >/dev/null 2>&1 || true
+
+  # publish_mode_state: cover default-case OFF mapping.
+  publish_mode_state kiosk-retropie bogus >/dev/null 2>&1 || true
+
+  # read_rotation: cover both file and env fallback branches.
+  f="$(rotation_state_file)"
+  run_cmd mkdir -p "$(kiosk_retropie_dirname "$f")" >/dev/null 2>&1 || true
+  rm -f "$f" 2>/dev/null || true
+  export KIOSK_SCREEN_ROTATION=right
+  read_rotation >/dev/null 2>&1 || true
+  unset KIOSK_SCREEN_ROTATION
+  printf '%s\n' left >"$f"
+  read_rotation >/dev/null 2>&1 || true
+
+  # write_rotation: cover non-dry-run write.
+  export KIOSK_RETROPIE_DRY_RUN=0
+  write_rotation inverted >/dev/null 2>&1 || true
+
+  # maybe_detect_mode_systemd: cover branch where systemctl is missing.
+  PATH="/nonexistent" maybe_detect_mode_systemd >/dev/null 2>&1 || true
+
+  # mode_state_poller: cover fallback to KIOSK_RETROPIE_MODE_STATE.
+  export KIOSK_RETROPIE_MODE_STATE=kiosk
+  export KCOV_SYSTEMCTL_ACTIVE_UNITS=':'
+  export MQTT_MODE_POLL_SEC=0
+  mode_state_poller kiosk-retropie &
+  pid=$!
+  sleep 0.01
+  kill "$pid" 2>/dev/null || true
+  wait "$pid" 2>/dev/null || true
+
+  # publish_config_sensors: ensure vars list lines are covered.
+  export MQTT_TOPIC_PREFIX=kiosk-retropie
+  publish_config_sensors kiosk-retropie >/dev/null 2>&1 || true
+
+  PATH="/nonexistent" default_topic_prefix >/dev/null 2>&1 || true
+) || true
+
+# home-assistant-mqtt.sh: missing scripts/lib branch (temporarily hide scripts/lib).
+(
+  set +e
+  rm -rf "${ROOT_DIR:?}/lib" 2>/dev/null || true
+  rm -f "$ROOT_DIR/scripts/mqtt/lib" 2>/dev/null || true
+  hidden_ha_lib="$work_dir/lib.__kcov_hidden_for_home_assistant"
+  if mv "$ROOT_DIR/scripts/lib" "$hidden_ha_lib" 2>/dev/null; then
+    trap 'mv "$hidden_ha_lib" "$ROOT_DIR/scripts/lib" 2>/dev/null || true' EXIT
+
+    # Source to ensure the top-level error path executes under kcov.
+    # shellcheck source=scripts/mqtt/home-assistant-mqtt.sh
+    source "$ROOT_DIR/scripts/mqtt/home-assistant-mqtt.sh"
+  fi
+) || true
 
 setup_dir="$home/RetroPie-Setup"
 rm -rf "$setup_dir"

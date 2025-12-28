@@ -73,7 +73,16 @@ if command -v xset >/dev/null 2>&1; then
 fi
 
 # Optional rotation (xrandr names: normal,left,right,inverted).
-rotation="${KIOSK_SCREEN_ROTATION:-${KIOSK_RETROPIE_SCREEN_ROTATION:-}}"
+rotation_file="/run/kiosk-retropie/screen_rotation"
+if [[ -n "${KIOSK_RETROPIE_ROOT:-}" && "${KIOSK_RETROPIE_ROOT}" != "/" ]]; then
+  rotation_file="${KIOSK_RETROPIE_ROOT%/}${rotation_file}"
+fi
+
+if [[ -f "$rotation_file" ]]; then
+  rotation="$(tr -d '[:space:]' <"$rotation_file" 2>/dev/null || true)"
+else
+  rotation="${KIOSK_SCREEN_ROTATION:-${KIOSK_RETROPIE_SCREEN_ROTATION:-}}"
+fi
 if [[ -n "$rotation" ]] && command -v xrandr >/dev/null 2>&1; then
   xrandr -o "$rotation" || true
 fi

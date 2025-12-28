@@ -28,7 +28,6 @@ main() {
   mount_point="$(kiosk_retropie_path /mnt/kiosk-retropie-nfs)"
   local dest_dir
   dest_dir="$(kiosk_retropie_path /var/lib/kiosk-retropie/retropie/roms)"
-  local rsync_delete="${NFS_ROMS_SYNC_DELETE:-1}"
   local dest_uid="${NFS_ROMS_UID:-1000}"
   local dest_gid="${NFS_ROMS_GID:-1000}"
   local systems_allow="${NFS_ROMS_SYSTEMS:-}"
@@ -60,12 +59,10 @@ main() {
 
   local -a args
   args=(-a --info=stats2 --human-readable)
-  if [[ "$rsync_delete" == "1" ]]; then
-    cover_path "sync-roms:delete-enabled"
-    args+=(--delete)
-  fi
+  cover_path "sync-roms:delete-enabled"
+  args+=(--delete)
 
-  log "Syncing ROMs: $src/ -> $dest_dir/ (delete=$rsync_delete)"
+  log "Syncing ROMs: $src/ -> $dest_dir/ (delete=1)"
 
   # Prefer RetroPie layout: roms/<system>/...
   # If NFS_ROMS_SYSTEMS is set, only those system directories are synced.

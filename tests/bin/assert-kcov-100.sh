@@ -38,16 +38,23 @@ with open(coverage_path, "r", encoding="utf-8") as f:
 # kcov formats vary; try to find totals.
 covered = total = None
 
+
+def first_not_none(*vals):
+    for v in vals:
+        if v is not None:
+            return v
+    return None
+
 if isinstance(data, dict):
     totals = data.get("totals")
     if isinstance(totals, dict):
-        covered = totals.get("covered_lines") or totals.get("covered")
-        total = totals.get("lines") or totals.get("total_lines") or totals.get("total")
+        covered = first_not_none(totals.get("covered_lines"), totals.get("covered"))
+        total = first_not_none(totals.get("lines"), totals.get("total_lines"), totals.get("total"))
 
     if covered is None or total is None:
         # Some versions put totals at top-level.
-        covered = covered or data.get("covered_lines") or data.get("covered")
-        total = total or data.get("lines") or data.get("total_lines") or data.get("total")
+        covered = first_not_none(covered, data.get("covered_lines"), data.get("covered"))
+        total = first_not_none(total, data.get("lines"), data.get("total_lines"), data.get("total"))
 
 if covered is None or total is None:
     print(f"Unrecognized kcov JSON schema in {coverage_path}", file=sys.stderr)
@@ -73,8 +80,8 @@ if isinstance(files, list):
         if not path:
             continue
 
-        c = entry.get("covered_lines") or entry.get("covered")
-        t = entry.get("total_lines") or entry.get("lines") or entry.get("total")
+        c = first_not_none(entry.get("covered_lines"), entry.get("covered"))
+        t = first_not_none(entry.get("total_lines"), entry.get("lines"), entry.get("total"))
         p = entry.get("percent_covered") or entry.get("percent")
 
         try:

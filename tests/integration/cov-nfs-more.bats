@@ -139,7 +139,6 @@ teardown() {
   # Fake NFS tree under KIOSK_RETROPIE_ROOT.
   mkdir -p "$TEST_ROOT/mnt/kiosk-retropie-nfs/roms/nes" "$TEST_ROOT/mnt/kiosk-retropie-nfs/roms/snes"
   export NFS_ROMS_SYSTEMS="nes,snes"
-  export NFS_ROMS_SYNC_DELETE=1
 
   run bash "$KIOSK_RETROPIE_REPO_ROOT/scripts/nfs/sync-roms.sh"
   assert_success

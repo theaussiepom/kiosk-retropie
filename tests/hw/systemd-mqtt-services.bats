@@ -129,14 +129,57 @@ teardown() {
   # Best-effort stop services and remove drop-ins.
   sudo -n systemctl stop kiosk-retropie-led-mqtt.service >/dev/null 2>&1 || true
   sudo -n systemctl stop kiosk-retropie-screen-brightness-mqtt.service >/dev/null 2>&1 || true
+  sudo -n systemctl stop kiosk-retropie-home-assistant-mqtt.service >/dev/null 2>&1 || true
 
   rm_dropins kiosk-retropie-led-mqtt.service
   rm_dropins kiosk-retropie-screen-brightness-mqtt.service
+  rm_dropins kiosk-retropie-home-assistant-mqtt.service
 
   sudo -n systemctl daemon-reload >/dev/null 2>&1 || true
 
   stop_pid_file "$TEST_DIR/mosquitto.pid" || true
   rm -rf "$TEST_DIR" >/dev/null 2>&1 || true
+}
+
+@test "systemd: kiosk-retropie-home-assistant-mqtt.service publishes HA discovery and handles commands" {
+  require_unit_or_skip kiosk-retropie-home-assistant-mqtt.service
+
+  # Apply drop-in with test broker.
+  cat <<EOF | write_dropin kiosk-retropie-home-assistant-mqtt.service ci-test.conf
+[Service]
+Environment=MQTT_HOME_ASSISTANT_ENABLED=1
+Environment=MQTT_HOST=${MQTT_HOST}
+Environment=MQTT_PORT=${MQTT_PORT}
+Environment=MQTT_TOPIC_PREFIX=${MQTT_TOPIC_PREFIX}
+Environment=KIOSK_ENTER_RETRO_PATH=/bin/true
+Environment=KIOSK_ENTER_KIOSK_PATH=/bin/true
+Environment=KIOSK_SYNC_ROMS_PATH=/bin/true
+EOF
+
+  sudo -n systemctl daemon-reload
+  sudo -n systemctl restart kiosk-retropie-home-assistant-mqtt.service
+
+  # Give the service time to publish discovery and start its MQTT subscription loop.
+  sleep 1
+
+  # Verify a discovery config message is published.
+  run mosquitto_sub -h "$MQTT_HOST" -p "$MQTT_PORT" -C 1 -t "homeassistant/switch/${MQTT_TOPIC_PREFIX}/mode/config"
+  assert_success
+  assert_regex "$output" '"command_topic"'
+
+  # Verify mode command produces a mode state update.
+  mosquitto_pub -h "$MQTT_HOST" -p "$MQTT_PORT" -t "$MQTT_TOPIC_PREFIX/mode/set" -m "ON" >/dev/null
+  sleep 1
+  run mosquitto_sub -h "$MQTT_HOST" -p "$MQTT_PORT" -C 1 -t "$MQTT_TOPIC_PREFIX/mode/state"
+  assert_success
+  assert_equal "$output" "ON"
+
+  # Verify rotation command produces a rotation state update.
+  mosquitto_pub -h "$MQTT_HOST" -p "$MQTT_PORT" -t "$MQTT_TOPIC_PREFIX/screen/rotation/set" -m "left" >/dev/null
+  sleep 1
+  run mosquitto_sub -h "$MQTT_HOST" -p "$MQTT_PORT" -C 1 -t "$MQTT_TOPIC_PREFIX/screen/rotation/state"
+  assert_success
+  assert_equal "$output" "left"
 }
 
 @test "systemd: kiosk-retropie-led-mqtt.service starts and responds to MQTT" {
@@ -149,7 +192,6 @@ teardown() {
   # Apply drop-in with test broker.
   cat <<EOF | write_dropin kiosk-retropie-led-mqtt.service ci-test.conf
 [Service]
-Environment=MQTT_LED_ENABLED=1
 Environment=MQTT_HOST=${MQTT_HOST}
 Environment=MQTT_PORT=${MQTT_PORT}
 Environment=MQTT_TOPIC_PREFIX=${MQTT_TOPIC_PREFIX}
@@ -194,7 +236,6 @@ EOF
   # Apply drop-in with test broker.
   cat <<EOF | write_dropin kiosk-retropie-screen-brightness-mqtt.service ci-test.conf
 [Service]
-Environment=MQTT_SCREEN_BRIGHTNESS_ENABLED=1
 Environment=MQTT_HOST=${MQTT_HOST}
 Environment=MQTT_PORT=${MQTT_PORT}
 Environment=MQTT_TOPIC_PREFIX=${MQTT_TOPIC_PREFIX}

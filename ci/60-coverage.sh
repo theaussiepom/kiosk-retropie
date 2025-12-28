@@ -12,8 +12,13 @@ ci_require_cmd strace
 
 # Write kcov output to a temp folder by default.
 # This avoids deleting the committed ./coverage directory when running locally.
-export KCOV_OUT_DIR="${KCOV_OUT_DIR:-$repo_root/tests/.tmp/kcov}"
-mkdir -p "${KCOV_OUT_DIR%/*}" 2> /dev/null || true
+# Use a unique directory per run to avoid flakiness on network filesystems
+# (e.g., transient "Directory not empty" errors when deleting a previous run).
+if [[ -z "${KCOV_OUT_DIR:-}" ]]; then
+  mkdir -p "$repo_root/tests/.tmp" 2> /dev/null || true
+  KCOV_OUT_DIR="$(mktemp -d "$repo_root/tests/.tmp/kcov.XXXXXX")"
+fi
+export KCOV_OUT_DIR
 
 KCOV_ALLOW_NONZERO_WITH_REPORT=1 "$repo_root/tests/bin/run-bats-kcov.sh"
 "$repo_root/tests/bin/assert-kcov-100.sh"

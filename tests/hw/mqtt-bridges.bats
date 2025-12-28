@@ -222,7 +222,6 @@ teardown() {
 
   # Start bridge.
   (
-    export MQTT_LED_ENABLED=1
     export MQTT_PORT
     export MQTT_HOST
     export MQTT_TOPIC_PREFIX
@@ -271,7 +270,6 @@ teardown() {
 
   # Start bridge.
   (
-    export MQTT_SCREEN_BRIGHTNESS_ENABLED=1
     export MQTT_PORT
     export MQTT_HOST
     export MQTT_TOPIC_PREFIX
