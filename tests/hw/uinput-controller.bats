@@ -277,6 +277,12 @@ emit_combo() {
   printf '%s\n' "${codes[*]}" >"$FIFO"
 }
 
+wait_for_listener_listening() {
+  local log_file="$1"
+  local timeout_sec="${2:-5}"
+  wait_for_file_contains "$log_file" "Listening on" "$timeout_sec"
+}
+
 @test "TTY listener triggers enter combo via real uinput events" {
   local calls_file="$SYSTEMCTL_CALLS_FILE"
 
@@ -288,6 +294,12 @@ emit_combo() {
     RETROPIE_MAX_LOOPS=500 \
     bash "$KIOSK_RETROPIE_REPO_ROOT/scripts/input/controller-listener-tty.sh" >"$TEST_DIR/listener.log" 2>&1 &
   local pid=$!
+
+  if ! wait_for_listener_listening "$TEST_DIR/listener.log" 5; then
+    echo "DEBUG listener did not start listening" >&2
+    sed -n '1,200p' "$TEST_DIR/listener.log" >&2 || true
+    fail "Listener did not begin listening"
+  fi
 
   # Default enter is Start (315).
   emit_combo 315
@@ -327,6 +339,12 @@ emit_combo() {
     RETROPIE_COMBO_WINDOW_SEC=5 \
     bash "$KIOSK_RETROPIE_REPO_ROOT/scripts/input/controller-listener-tty.sh" >"$TEST_DIR/listener-exit.log" 2>&1 &
   local pid=$!
+
+  if ! wait_for_listener_listening "$TEST_DIR/listener-exit.log" 5; then
+    echo "DEBUG listener did not start listening" >&2
+    sed -n '1,200p' "$TEST_DIR/listener-exit.log" >&2 || true
+    fail "Listener did not begin listening"
+  fi
 
   emit_combo 315 304
 
@@ -369,6 +387,12 @@ emit_combo() {
     RETROPIE_MAX_LOOPS=500 \
     bash "$KIOSK_RETROPIE_REPO_ROOT/scripts/input/controller-listener-kiosk-mode.sh" >"$TEST_DIR/kiosk-listener.log" 2>&1 &
   local pid=$!
+
+  if ! wait_for_listener_listening "$TEST_DIR/kiosk-listener.log" 5; then
+    echo "DEBUG listener did not start listening" >&2
+    sed -n '1,200p' "$TEST_DIR/kiosk-listener.log" >&2 || true
+    fail "Listener did not begin listening"
+  fi
 
   emit_combo 315
 
