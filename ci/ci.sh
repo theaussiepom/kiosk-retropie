@@ -28,8 +28,6 @@ if [[ $# -gt 0 ]]; then
       lint-systemd) parts+=(40-lint-systemd.sh) ;;
       lint-markdown) parts+=(50-lint-markdown.sh) ;;
       tests) parts+=(20-tests.sh) ;;
-      tests-unit) parts+=(21-tests-unit.sh) ;;
-      tests-integration) parts+=(22-tests-integration.sh) ;;
       tests-path-coverage) parts+=(23-tests-path-coverage.sh) ;;
       coverage) parts+=(60-coverage.sh) ;;
       coverage-bats) parts+=(61-coverage-bats.sh) ;;
@@ -38,7 +36,7 @@ if [[ $# -gt 0 ]]; then
       lint-permissions) parts+=(05-lint-permissions.sh) ;;
       *)
         echo "Unknown CI part: $p" >&2
-        echo "Valid parts: lint-permissions lint-naming lint-sh lint-yaml lint-systemd lint-markdown tests tests-unit tests-integration tests-path-coverage coverage coverage-bats coverage-scripts coverage-merge" >&2
+        echo "Valid parts: lint-permissions lint-naming lint-sh lint-yaml lint-systemd lint-markdown tests tests-path-coverage coverage coverage-bats coverage-scripts coverage-merge" >&2
         exit 2
         ;;
     esac
