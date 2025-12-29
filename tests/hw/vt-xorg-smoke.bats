@@ -81,6 +81,13 @@ setup() {
     require_or_skip "Missing /usr/lib/xorg/Xorg"
   fi
 
+  # Ensure the VT devices we care about actually exist on this host.
+  for vt in 7 8; do
+    if [[ ! -c "/dev/tty${vt}" ]]; then
+      require_or_skip "Missing VT device: /dev/tty${vt}"
+    fi
+  done
+
   # Capture current VT if possible, so we can restore it.
   ORIGINAL_VT=""
   if command -v fgconsole >/dev/null 2>&1; then
@@ -106,7 +113,20 @@ run_xorg_on_vt_and_check_log() {
   local display_num="$2"
 
   local unit="kiosk-retropie-vt-xorg-${vt}.service"
-  local log_file="/home/retropi/.local/share/xorg/Xorg.${display_num}.log"
+
+  local retropi_uid
+  retropi_uid="$(id -u retropi 2>/dev/null || true)"
+  if [[ -z "$retropi_uid" ]]; then
+    require_or_skip "Could not resolve retropi uid"
+  fi
+
+  local retropi_home
+  retropi_home="$(getent passwd retropi 2>/dev/null | cut -d: -f6 || true)"
+  if [[ -z "$retropi_home" ]]; then
+    require_or_skip "Could not resolve retropi home directory"
+  fi
+
+  local log_file="${retropi_home}/.local/share/xorg/Xorg.${display_num}.log"
 
   # Clean old locks/logs so we read the right file.
   sudo -n rm -f "/tmp/.X${display_num}-lock" "/tmp/.X11-unix/X${display_num}" >/dev/null 2>&1 || true
@@ -122,6 +142,8 @@ Type=oneshot
 User=retropi
 Group=retropi
 
+Environment=XDG_RUNTIME_DIR=/run/user/${retropi_uid}
+
 # Create a logind session so rootless Xorg can acquire the seat.
 PAMName=login
 StandardInput=tty
@@ -133,13 +155,25 @@ TTYVTDisallocate=yes
 # Ensure the session is active so logind provides unpaused DRM fds.
 PermissionsStartOnly=true
 ExecStartPre=/usr/bin/env chvt ${vt}
+ExecStartPre=/usr/bin/env bash -lc 'install -d -m 0700 -o retropi -g retropi /run/user/${retropi_uid}'
 
 # Start Xorg briefly on this VT. Client exits after a moment.
 ExecStart=/usr/bin/env bash -lc 'xinit /bin/sleep 2 -- /usr/lib/xorg/Xorg :${display_num} vt${vt} -nolisten tcp -keeptty'
 EOF
 
   run start_unit_wait "$unit"
-  assert_success
+  if [[ "$status" -ne 0 ]]; then
+    echo "--- systemctl start output ---" >&2
+    echo "$output" >&2
+    echo "--- systemctl status ${unit} ---" >&2
+    sudo -n systemctl status --no-pager "$unit" >&2 || true
+    echo "--- journalctl -u ${unit} (last 200 lines) ---" >&2
+    sudo -n journalctl -u "$unit" --no-pager -n 200 >&2 || true
+    echo "--- host sanity ---" >&2
+    ls -la "/dev/tty${vt}" >&2 || true
+    ls -la /dev/dri >&2 || true
+    fail "VT/Xorg systemd unit failed to start on vt${vt}"
+  fi
 
   if [[ ! -f "$log_file" ]]; then
     require_or_skip "Expected Xorg log not found: $log_file"
