@@ -219,9 +219,10 @@ jobs:
             kiosk-retropie-devcontainer:ci \
             bash -lc './scripts/ci.sh tests-path-coverage'
 
-  test-coverage:
-    name: test-coverage
+  test-line-coverage:
+    name: test-line-coverage
     runs-on: ubuntu-latest
+    needs: [test-unit, test-integration]
     steps:
       - uses: actions/checkout@v4
 
@@ -386,12 +387,6 @@ jobs:
     runs-on: [self-hosted, Linux, ARM64]
     timeout-minutes: 30
     needs:
-      - lint-permissions
-      - lint-naming
-      - lint-sh
-      - lint-yaml
-      - lint-systemd
-      - lint-markdown
       - test-unit
       - test-integration
     # SECURITY: never run untrusted fork PR code on a self-hosted runner.
