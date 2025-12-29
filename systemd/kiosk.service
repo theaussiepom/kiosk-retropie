@@ -28,8 +28,7 @@ TTYVHangup=yes
 TTYVTDisallocate=yes
 
 # Ensure the session is active so logind provides unpaused DRM fds.
-PermissionsStartOnly=true
-ExecStartPre=/usr/bin/env chvt 7
+ExecStartPre=+/usr/bin/env chvt 7
 
 ExecStart=/usr/local/lib/kiosk-retropie/kiosk.sh
 Restart=on-failure

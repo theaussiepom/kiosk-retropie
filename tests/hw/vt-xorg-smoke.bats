@@ -120,12 +120,6 @@ run_xorg_on_vt_and_check_log() {
     require_or_skip "Could not resolve retropi uid"
   fi
 
-  local retropi_home
-  retropi_home="$(getent passwd retropi 2>/dev/null | cut -d: -f6 || true)"
-  if [[ -z "$retropi_home" ]]; then
-    require_or_skip "Could not resolve retropi home directory"
-  fi
-
   local xorg_log_file="/run/kiosk-retropie/Xorg.${display_num}.log"
   local unit_out_file="/run/kiosk-retropie/vt-xorg-${vt}.out"
   local xorg_conf_file="/run/kiosk-retropie/xorg.${display_num}.conf"
@@ -187,10 +181,9 @@ TTYVHangup=yes
 TTYVTDisallocate=yes
 
 # Ensure the session is active so logind provides unpaused DRM fds.
-PermissionsStartOnly=true
-ExecStartPre=/usr/bin/env chvt ${vt}
-ExecStartPre=/usr/bin/env bash -lc 'install -d -m 0700 -o retropi -g retropi /run/user/${retropi_uid}'
-ExecStartPre=/usr/bin/env bash -lc 'install -d -m 0755 -o retropi -g retropi /run/kiosk-retropie'
+ExecStartPre=+/usr/bin/env chvt ${vt}
+ExecStartPre=+/usr/bin/env bash -lc 'install -d -m 0700 -o retropi -g retropi /run/user/${retropi_uid}'
+ExecStartPre=+/usr/bin/env bash -lc 'install -d -m 0755 -o retropi -g retropi /run/kiosk-retropie'
 
 # Start Xorg briefly on this VT. Capture verbose output to /run for CI debugging.
 ExecStart=/usr/bin/env bash -lc 'set -euo pipefail; exec >"${unit_out_file}" 2>&1; set -x; id; command -v xinit; command -v xauth || true; ls -la "${xorg_conf_file}"; xinit /bin/sleep 2 -- /usr/lib/xorg/Xorg :${display_num} vt${vt} -nolisten tcp -keeptty -logfile "${xorg_log_file}" -config "${xorg_conf_file}"'
