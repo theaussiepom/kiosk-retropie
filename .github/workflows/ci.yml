@@ -17,7 +17,7 @@ permissions:
   packages: read
 
 env:
-  DEVCONTAINER_IMAGE: ghcr.io/${{ github.repository_owner }}/kr-devcontainer:ci-${{ hashFiles('.devcontainer/**') }}
+  DEVCONTAINER_IMAGE_BASE: ghcr.io/${{ github.repository_owner }}/kr-devcontainer
   DEVCONTAINER_LOCAL_TAG: kiosk-retropie-devcontainer:ci
 
 jobs:
@@ -31,6 +31,16 @@ jobs:
       packages: write
     steps:
       - uses: actions/checkout@v4
+
+      - name: Compute devcontainer image tag
+        id: devcontainer_meta
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Hash devcontainer inputs to get a stable, invalidation-friendly tag.
+          hash="$(find .devcontainer -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -c1-12)"
+          echo "hash=$hash" >> "$GITHUB_OUTPUT"
+          echo "image=${DEVCONTAINER_IMAGE_BASE}:ci-${hash}" >> "$GITHUB_OUTPUT"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -47,7 +57,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if docker manifest inspect "${DEVCONTAINER_IMAGE}" >/dev/null 2>&1; then
+          if docker manifest inspect "${{ steps.devcontainer_meta.outputs.image }}" >/dev/null 2>&1; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"
@@ -59,7 +69,7 @@ jobs:
         with:
           context: .
           file: .devcontainer/Dockerfile
-          tags: ${{ env.DEVCONTAINER_IMAGE }}
+          tags: ${{ steps.devcontainer_meta.outputs.image }}
           push: true
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -82,9 +92,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          hash="$(find .devcontainer -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -c1-12)"
+          image="${DEVCONTAINER_IMAGE_BASE}:ci-${hash}"
+          echo "image=$image" >> "$GITHUB_OUTPUT"
           pulled=false
           for i in {1..12}; do
-            if docker pull "${DEVCONTAINER_IMAGE}"; then
+            if docker pull "$image"; then
               pulled=true
               break
             fi
@@ -92,7 +105,7 @@ jobs:
           done
           echo "pulled=$pulled" >> "$GITHUB_OUTPUT"
           if [[ "$pulled" == "true" ]]; then
-            docker tag "${DEVCONTAINER_IMAGE}" "${DEVCONTAINER_LOCAL_TAG}"
+            docker tag "$image" "${DEVCONTAINER_LOCAL_TAG}"
           fi
 
       - name: Set up Docker Buildx
@@ -138,9 +151,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          hash="$(find .devcontainer -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -c1-12)"
+          image="${DEVCONTAINER_IMAGE_BASE}:ci-${hash}"
+          echo "image=$image" >> "$GITHUB_OUTPUT"
           pulled=false
           for i in {1..12}; do
-            if docker pull "${DEVCONTAINER_IMAGE}"; then
+            if docker pull "$image"; then
               pulled=true
               break
             fi
@@ -148,7 +164,7 @@ jobs:
           done
           echo "pulled=$pulled" >> "$GITHUB_OUTPUT"
           if [[ "$pulled" == "true" ]]; then
-            docker tag "${DEVCONTAINER_IMAGE}" "${DEVCONTAINER_LOCAL_TAG}"
+            docker tag "$image" "${DEVCONTAINER_LOCAL_TAG}"
           fi
 
       - name: Set up Docker Buildx
@@ -194,9 +210,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          hash="$(find .devcontainer -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -c1-12)"
+          image="${DEVCONTAINER_IMAGE_BASE}:ci-${hash}"
+          echo "image=$image" >> "$GITHUB_OUTPUT"
           pulled=false
           for i in {1..12}; do
-            if docker pull "${DEVCONTAINER_IMAGE}"; then
+            if docker pull "$image"; then
               pulled=true
               break
             fi
@@ -204,7 +223,7 @@ jobs:
           done
           echo "pulled=$pulled" >> "$GITHUB_OUTPUT"
           if [[ "$pulled" == "true" ]]; then
-            docker tag "${DEVCONTAINER_IMAGE}" "${DEVCONTAINER_LOCAL_TAG}"
+            docker tag "$image" "${DEVCONTAINER_LOCAL_TAG}"
           fi
 
       - name: Set up Docker Buildx
@@ -250,9 +269,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          hash="$(find .devcontainer -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -c1-12)"
+          image="${DEVCONTAINER_IMAGE_BASE}:ci-${hash}"
+          echo "image=$image" >> "$GITHUB_OUTPUT"
           pulled=false
           for i in {1..12}; do
-            if docker pull "${DEVCONTAINER_IMAGE}"; then
+            if docker pull "$image"; then
               pulled=true
               break
             fi
@@ -260,7 +282,7 @@ jobs:
           done
           echo "pulled=$pulled" >> "$GITHUB_OUTPUT"
           if [[ "$pulled" == "true" ]]; then
-            docker tag "${DEVCONTAINER_IMAGE}" "${DEVCONTAINER_LOCAL_TAG}"
+            docker tag "$image" "${DEVCONTAINER_LOCAL_TAG}"
           fi
 
       - name: Set up Docker Buildx
@@ -314,9 +336,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          hash="$(find .devcontainer -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -c1-12)"
+          image="${DEVCONTAINER_IMAGE_BASE}:ci-${hash}"
+          echo "image=$image" >> "$GITHUB_OUTPUT"
           pulled=false
           for i in {1..12}; do
-            if docker pull "${DEVCONTAINER_IMAGE}"; then
+            if docker pull "$image"; then
               pulled=true
               break
             fi
@@ -324,7 +349,7 @@ jobs:
           done
           echo "pulled=$pulled" >> "$GITHUB_OUTPUT"
           if [[ "$pulled" == "true" ]]; then
-            docker tag "${DEVCONTAINER_IMAGE}" "${DEVCONTAINER_LOCAL_TAG}"
+            docker tag "$image" "${DEVCONTAINER_LOCAL_TAG}"
           fi
 
       - name: Set up Docker Buildx
@@ -583,9 +608,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          hash="$(find .devcontainer -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -c1-12)"
+          image="${DEVCONTAINER_IMAGE_BASE}:ci-${hash}"
+          echo "image=$image" >> "$GITHUB_OUTPUT"
           pulled=false
           for i in {1..12}; do
-            if docker pull "${DEVCONTAINER_IMAGE}"; then
+            if docker pull "$image"; then
               pulled=true
               break
             fi
@@ -593,7 +621,7 @@ jobs:
           done
           echo "pulled=$pulled" >> "$GITHUB_OUTPUT"
           if [[ "$pulled" == "true" ]]; then
-            docker tag "${DEVCONTAINER_IMAGE}" "${DEVCONTAINER_LOCAL_TAG}"
+            docker tag "$image" "${DEVCONTAINER_LOCAL_TAG}"
           fi
 
       - name: Set up Docker Buildx
@@ -652,9 +680,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          hash="$(find .devcontainer -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -c1-12)"
+          image="${DEVCONTAINER_IMAGE_BASE}:ci-${hash}"
+          echo "image=$image" >> "$GITHUB_OUTPUT"
           pulled=false
           for i in {1..12}; do
-            if docker pull "${DEVCONTAINER_IMAGE}"; then
+            if docker pull "$image"; then
               pulled=true
               break
             fi
@@ -662,7 +693,7 @@ jobs:
           done
           echo "pulled=$pulled" >> "$GITHUB_OUTPUT"
           if [[ "$pulled" == "true" ]]; then
-            docker tag "${DEVCONTAINER_IMAGE}" "${DEVCONTAINER_LOCAL_TAG}"
+            docker tag "$image" "${DEVCONTAINER_LOCAL_TAG}"
           fi
 
       - name: Set up Docker Buildx
@@ -760,9 +791,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          hash="$(find .devcontainer -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -c1-12)"
+          image="${DEVCONTAINER_IMAGE_BASE}:ci-${hash}"
+          echo "image=$image" >> "$GITHUB_OUTPUT"
           pulled=false
           for i in {1..12}; do
-            if docker pull "${DEVCONTAINER_IMAGE}"; then
+            if docker pull "$image"; then
               pulled=true
               break
             fi
@@ -770,7 +804,7 @@ jobs:
           done
           echo "pulled=$pulled" >> "$GITHUB_OUTPUT"
           if [[ "$pulled" == "true" ]]; then
-            docker tag "${DEVCONTAINER_IMAGE}" "${DEVCONTAINER_LOCAL_TAG}"
+            docker tag "$image" "${DEVCONTAINER_LOCAL_TAG}"
           fi
 
       - name: Set up Docker Buildx
@@ -827,9 +861,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          hash="$(find .devcontainer -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -c1-12)"
+          image="${DEVCONTAINER_IMAGE_BASE}:ci-${hash}"
+          echo "image=$image" >> "$GITHUB_OUTPUT"
           pulled=false
           for i in {1..12}; do
-            if docker pull "${DEVCONTAINER_IMAGE}"; then
+            if docker pull "$image"; then
               pulled=true
               break
             fi
@@ -837,7 +874,7 @@ jobs:
           done
           echo "pulled=$pulled" >> "$GITHUB_OUTPUT"
           if [[ "$pulled" == "true" ]]; then
-            docker tag "${DEVCONTAINER_IMAGE}" "${DEVCONTAINER_LOCAL_TAG}"
+            docker tag "$image" "${DEVCONTAINER_LOCAL_TAG}"
           fi
 
       - name: Set up Docker Buildx
@@ -895,9 +932,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          hash="$(find .devcontainer -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -c1-12)"
+          image="${DEVCONTAINER_IMAGE_BASE}:ci-${hash}"
+          echo "image=$image" >> "$GITHUB_OUTPUT"
           pulled=false
           for i in {1..12}; do
-            if docker pull "${DEVCONTAINER_IMAGE}"; then
+            if docker pull "$image"; then
               pulled=true
               break
             fi
@@ -905,7 +945,7 @@ jobs:
           done
           echo "pulled=$pulled" >> "$GITHUB_OUTPUT"
           if [[ "$pulled" == "true" ]]; then
-            docker tag "${DEVCONTAINER_IMAGE}" "${DEVCONTAINER_LOCAL_TAG}"
+            docker tag "$image" "${DEVCONTAINER_LOCAL_TAG}"
           fi
 
       - name: Set up Docker Buildx
@@ -951,9 +991,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          hash="$(find .devcontainer -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -c1-12)"
+          image="${DEVCONTAINER_IMAGE_BASE}:ci-${hash}"
+          echo "image=$image" >> "$GITHUB_OUTPUT"
           pulled=false
           for i in {1..12}; do
-            if docker pull "${DEVCONTAINER_IMAGE}"; then
+            if docker pull "$image"; then
               pulled=true
               break
             fi
@@ -961,7 +1004,7 @@ jobs:
           done
           echo "pulled=$pulled" >> "$GITHUB_OUTPUT"
           if [[ "$pulled" == "true" ]]; then
-            docker tag "${DEVCONTAINER_IMAGE}" "${DEVCONTAINER_LOCAL_TAG}"
+            docker tag "$image" "${DEVCONTAINER_LOCAL_TAG}"
           fi
 
       - name: Set up Docker Buildx
@@ -1007,9 +1050,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          hash="$(find .devcontainer -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -c1-12)"
+          image="${DEVCONTAINER_IMAGE_BASE}:ci-${hash}"
+          echo "image=$image" >> "$GITHUB_OUTPUT"
           pulled=false
           for i in {1..12}; do
-            if docker pull "${DEVCONTAINER_IMAGE}"; then
+            if docker pull "$image"; then
               pulled=true
               break
             fi
@@ -1017,7 +1063,7 @@ jobs:
           done
           echo "pulled=$pulled" >> "$GITHUB_OUTPUT"
           if [[ "$pulled" == "true" ]]; then
-            docker tag "${DEVCONTAINER_IMAGE}" "${DEVCONTAINER_LOCAL_TAG}"
+            docker tag "$image" "${DEVCONTAINER_LOCAL_TAG}"
           fi
 
       - name: Set up Docker Buildx
