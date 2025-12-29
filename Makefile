@@ -12,9 +12,14 @@ DEVCONTAINER_IMAGE ?= kiosk-retropie-devcontainer:local
 DEVCONTAINER_DOCKERFILE ?= .devcontainer/Dockerfile
 DEVCONTAINER_CONTEXT ?= .
 DEVCONTAINER_WORKDIR ?= /work
+FORCE_CONTAINER_BUILD ?= 0
 
 container-build:
 	@if command -v "$(DOCKER)" >/dev/null 2>&1; then \
+		if [ "$(FORCE_CONTAINER_BUILD)" != "1" ] && $(DOCKER) image inspect "$(DEVCONTAINER_IMAGE)" >/dev/null 2>&1; then \
+			echo "devcontainer image $(DEVCONTAINER_IMAGE) already exists; skipping build (set FORCE_CONTAINER_BUILD=1 to rebuild)"; \
+			exit 0; \
+		fi; \
 		$(DOCKER) build -t "$(DEVCONTAINER_IMAGE)" -f "$(DEVCONTAINER_DOCKERFILE)" "$(DEVCONTAINER_CONTEXT)"; \
 	else \
 		echo "docker not found; skipping container build" >&2; \

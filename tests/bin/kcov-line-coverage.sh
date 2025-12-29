@@ -1929,12 +1929,12 @@ rm -f "$KIOSK_RETROPIE_RETROPIE_MARKER"
   unset KIOSK_RETROPIE_CONFIG_ENV
   kiosk_retropie_config_env_path >/dev/null
 ) || true
-run_allow_fail env KCOV_RETROPI_EXISTS=1 KCOV_APT_CACHE_MODE=none KCOV_FLOCK_MODE=ok \
+run_allow_fail env KCOV_RETROPI_EXISTS=1 KCOV_APT_CACHE_MODE=chromium KCOV_FLOCK_MODE=ok \
   RETROPIE_INSTALL=0 \
   PATH="$stub_bin:/usr/bin:/bin" "$ROOT_DIR/scripts/install.sh"
 
 # Configured Chromium profile dir (covers install:chromium-profile-configured).
-run_allow_fail env KCOV_RETROPI_EXISTS=1 KCOV_APT_CACHE_MODE=none KCOV_FLOCK_MODE=ok \
+run_allow_fail env KCOV_RETROPI_EXISTS=1 KCOV_APT_CACHE_MODE=chromium KCOV_FLOCK_MODE=ok \
   KIOSK_CHROMIUM_PROFILE_DIR="$KIOSK_RETROPIE_ROOT/var/lib/kiosk-retropie/chromium-profile" \
   PATH="$stub_bin:/usr/bin:/bin" "$ROOT_DIR/scripts/install.sh"
 
