@@ -17,30 +17,15 @@ RUN apt-get update \
 
 FROM base AS tests
 
-FROM tests AS tests-unit
-
-FROM tests AS tests-integration
-
-FROM base AS lint-sh
+FROM base AS lint
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
   shellcheck \
   shfmt \
-  && rm -rf /var/lib/apt/lists/*
-
-FROM base AS lint-yaml
-RUN apt-get update \
-  && apt-get install -y --no-install-recommends \
+  systemd \
   yamllint \
   && rm -rf /var/lib/apt/lists/*
 
-FROM base AS lint-systemd
-RUN apt-get update \
-  && apt-get install -y --no-install-recommends \
-  systemd \
-  && rm -rf /var/lib/apt/lists/*
-
-FROM base AS lint-markdown
 # markdownlint-cli requires a modern Node.
 RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
   && apt-get update \
@@ -58,12 +43,13 @@ RUN apt-get update \
   && rm -rf /var/lib/apt/lists/*
 
 # Full local devcontainer target: includes the superset of tools used across CI.
-# This replaces the old single Dockerfile while keeping CI able to build smaller flavors.
-FROM coverage AS dev
+FROM base AS dev
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
+  kcov \
   shellcheck \
   shfmt \
+  strace \
   systemd \
   yamllint \
   && rm -rf /var/lib/apt/lists/*
