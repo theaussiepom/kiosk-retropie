@@ -362,6 +362,55 @@ jobs:
             exit 1
           fi
 
+      - name: Ensure retropi user (required for VT/Xorg hardware tests)
+        shell: bash
+        run: |
+          set -euo pipefail
+          if id -u retropi >/dev/null 2>&1; then
+            exit 0
+          fi
+          echo "Creating user retropi for hardware tests" >&2
+          sudo -n useradd -m -s /bin/bash retropi
+
+      - name: Ensure VT/Xorg tooling (required for tty7/tty8 smoke tests)
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          missing=()
+          for cmd in chvt fgconsole xinit; do
+            if ! command -v "$cmd" >/dev/null 2>&1; then
+              missing+=("$cmd")
+            fi
+          done
+          if [[ ! -x /usr/lib/xorg/Xorg ]]; then
+            missing+=("/usr/lib/xorg/Xorg")
+          fi
+
+          if (( ${#missing[@]} > 0 )); then
+            echo "Missing VT/Xorg tooling: ${missing[*]}" >&2
+            if command -v apt-get >/dev/null 2>&1; then
+              sudo -n apt-get update
+              # chvt/fgconsole -> kbd
+              # xinit + Xorg -> xinit + xserver-xorg
+              sudo -n apt-get install -y kbd xinit xserver-xorg
+            else
+              echo "Cannot auto-install because apt-get is unavailable." >&2
+              exit 1
+            fi
+          fi
+
+          for cmd in chvt fgconsole xinit; do
+            command -v "$cmd" >/dev/null 2>&1 || {
+              echo "VT/Xorg tooling still missing after install: $cmd" >&2
+              exit 1
+            }
+          done
+          [[ -x /usr/lib/xorg/Xorg ]] || {
+            echo "VT/Xorg tooling still missing after install: /usr/lib/xorg/Xorg" >&2
+            exit 1
+          }
+
       - name: Install required systemd units (for HW tests)
         shell: bash
         run: |
@@ -441,4 +490,5 @@ jobs:
           set -euo pipefail
           export KIOSK_RETROPIE_HW_REQUIRE_UNITS=1
           export KIOSK_RETROPIE_HW_REQUIRE_UINPUT=1
+          export KIOSK_RETROPIE_HW_REQUIRE_VT_XORG=1
           sudo -E bash ./tests/bin/run-bats-hw.sh
