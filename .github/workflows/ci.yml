@@ -372,6 +372,28 @@ jobs:
           echo "Creating user retropi for hardware tests" >&2
           sudo -n useradd -m -s /bin/bash retropi
 
+      - name: Ensure retropi device groups (best-effort)
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Some distros gate access to /dev/dri and input devices via groups.
+          for grp in video render input; do
+            if getent group "$grp" >/dev/null 2>&1; then
+              sudo -n usermod -aG "$grp" retropi
+            fi
+          done
+
+      - name: Stop display manager (free VTs for tty7/tty8)
+        shell: bash
+        run: |
+          set -euo pipefail
+          if systemctl list-unit-files --type=service | awk '{print $1}' | grep -qx 'display-manager.service'; then
+            if systemctl is-active --quiet display-manager.service; then
+              echo "Stopping display-manager.service to free VT7/VT8" >&2
+              sudo -n systemctl stop display-manager.service
+            fi
+          fi
+
       - name: Ensure VT/Xorg tooling (required for tty7/tty8 smoke tests)
         shell: bash
         run: |
