@@ -17,6 +17,10 @@ RUN apt-get update \
 
 FROM base AS tests
 
+FROM tests AS tests-unit
+
+FROM tests AS tests-integration
+
 FROM base AS lint-sh
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \

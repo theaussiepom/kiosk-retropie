@@ -9,7 +9,7 @@ SHELL := /usr/bin/env bash
 
 DOCKER ?= docker
 DEVCONTAINER_IMAGE ?= kiosk-retropie-devcontainer:local
-DEVCONTAINER_DOCKERFILE ?= .devcontainer/Dockerfile.ci
+DEVCONTAINER_DOCKERFILE ?= .devcontainer/dockerfile.ci
 DEVCONTAINER_TARGET ?= dev
 DEVCONTAINER_CONTEXT ?= .
 DEVCONTAINER_WORKDIR ?= /work
