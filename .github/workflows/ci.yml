@@ -103,8 +103,8 @@ jobs:
             kiosk-retropie-devcontainer:ci \
             bash -lc './scripts/ci.sh lint-sh'
 
-  test-all:
-    name: test-all
+  test-unit:
+    name: test-unit
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -130,12 +130,99 @@ jobs:
             -v "$PWD:/work" \
             -w /work \
             kiosk-retropie-devcontainer:ci \
-            bash -lc './scripts/ci.sh tests'
+            bash -lc './scripts/ci.sh tests-unit'
+
+      - name: Upload unit paths log artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: paths-log-unit
+          path: tests/.tmp/kiosk-retropie-paths.unit.log
+          if-no-files-found: warn
+
+  test-integration:
+    name: test-integration
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build devcontainer image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: .devcontainer/Dockerfile
+          tags: kiosk-retropie-devcontainer:ci
+          load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Run stage in devcontainer
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -v "$PWD:/work" \
+            -w /work \
+            kiosk-retropie-devcontainer:ci \
+            bash -lc './scripts/ci.sh tests-integration'
+
+      - name: Upload integration paths log artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: paths-log-integration
+          path: tests/.tmp/kiosk-retropie-paths.log
+          if-no-files-found: warn
+
+  test-path-coverage:
+    name: test-path-coverage
+    runs-on: ubuntu-latest
+    needs: [test-unit, test-integration]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download unit paths log
+        uses: actions/download-artifact@v4
+        with:
+          name: paths-log-unit
+          path: tests/.tmp/
+
+      - name: Download integration paths log
+        uses: actions/download-artifact@v4
+        with:
+          name: paths-log-integration
+          path: tests/.tmp/
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build devcontainer image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: .devcontainer/Dockerfile
+          tags: kiosk-retropie-devcontainer:ci
+          load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Run stage in devcontainer
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -v "$PWD:/work" \
+            -w /work \
+            kiosk-retropie-devcontainer:ci \
+            bash -lc './scripts/ci.sh tests-path-coverage'
 
   test-coverage:
     name: test-coverage
     runs-on: ubuntu-latest
-    needs: [test-all]
+    needs: [test-path-coverage]
     steps:
       - uses: actions/checkout@v4
 
@@ -295,28 +382,6 @@ jobs:
             kiosk-retropie-devcontainer:ci \
             bash -lc './scripts/ci.sh lint-markdown'
 
-  runner-unit-tests:
-    name: runner-unit-tests (no container)
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    needs:
-      - lint-permissions
-      - lint-naming
-      - lint-sh
-      - lint-yaml
-      - lint-systemd
-      - lint-markdown
-      - test-all
-      - test-coverage
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Run unit tests on runner
-        shell: bash
-        run: |
-          set -euo pipefail
-          ./tests/bin/run-bats-unit.sh
-
   arm64-hw-integration:
     name: arm64-hw-integration (self-hosted Linux ARM64)
     runs-on: [self-hosted, Linux, ARM64]
@@ -328,7 +393,7 @@ jobs:
       - lint-yaml
       - lint-systemd
       - lint-markdown
-      - test-all
+      - test-path-coverage
     # SECURITY: never run untrusted fork PR code on a self-hosted runner.
     if: |
       (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) ||
@@ -424,7 +489,7 @@ jobs:
           fi
 
           for cmd in chvt fgconsole xinit; do
-            command -v "$cmd" >/dev/null 2>&1 || {
+               - test-path-coverage
               echo "VT/Xorg tooling still missing after install: $cmd" >&2
               exit 1
             }
