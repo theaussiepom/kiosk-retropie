@@ -489,7 +489,7 @@ jobs:
           fi
 
           for cmd in chvt fgconsole xinit; do
-               - test-path-coverage
+            command -v "$cmd" >/dev/null 2>&1 || {
               echo "VT/Xorg tooling still missing after install: $cmd" >&2
               exit 1
             }
