@@ -126,11 +126,12 @@ run_xorg_on_vt_and_check_log() {
     require_or_skip "Could not resolve retropi home directory"
   fi
 
-  local log_file="${retropi_home}/.local/share/xorg/Xorg.${display_num}.log"
+  local xorg_log_file="/run/kiosk-retropie/Xorg.${display_num}.log"
+  local unit_out_file="/run/kiosk-retropie/vt-xorg-${vt}.out"
 
   # Clean old locks/logs so we read the right file.
   sudo -n rm -f "/tmp/.X${display_num}-lock" "/tmp/.X11-unix/X${display_num}" >/dev/null 2>&1 || true
-  sudo -n rm -f "$log_file" "$log_file.old" >/dev/null 2>&1 || true
+  sudo -n rm -f "$xorg_log_file" "$unit_out_file" >/dev/null 2>&1 || true
 
   cat <<EOF | write_unit "$unit"
 [Unit]
@@ -156,9 +157,10 @@ TTYVTDisallocate=yes
 PermissionsStartOnly=true
 ExecStartPre=/usr/bin/env chvt ${vt}
 ExecStartPre=/usr/bin/env bash -lc 'install -d -m 0700 -o retropi -g retropi /run/user/${retropi_uid}'
+ExecStartPre=/usr/bin/env bash -lc 'install -d -m 0755 -o retropi -g retropi /run/kiosk-retropie'
 
-# Start Xorg briefly on this VT. Client exits after a moment.
-ExecStart=/usr/bin/env bash -lc 'xinit /bin/sleep 2 -- /usr/lib/xorg/Xorg :${display_num} vt${vt} -nolisten tcp -keeptty'
+# Start Xorg briefly on this VT. Capture verbose output to /run for CI debugging.
+ExecStart=/usr/bin/env bash -lc 'set -euo pipefail; exec >"${unit_out_file}" 2>&1; set -x; id; command -v xinit; command -v xauth || true; xinit /bin/sleep 2 -- /usr/lib/xorg/Xorg :${display_num} vt${vt} -nolisten tcp -keeptty -logfile "${xorg_log_file}"'
 EOF
 
   run start_unit_wait "$unit"
@@ -169,20 +171,32 @@ EOF
     sudo -n systemctl status --no-pager "$unit" >&2 || true
     echo "--- journalctl -u ${unit} (last 200 lines) ---" >&2
     sudo -n journalctl -u "$unit" --no-pager -n 200 >&2 || true
+    if [[ -f "$unit_out_file" ]]; then
+      echo "--- ${unit_out_file} ---" >&2
+      sudo -n tail -n 200 "$unit_out_file" >&2 || true
+    fi
+    if [[ -f "$xorg_log_file" ]]; then
+      echo "--- ${xorg_log_file} ---" >&2
+      sudo -n tail -n 200 "$xorg_log_file" >&2 || true
+    fi
     echo "--- host sanity ---" >&2
     ls -la "/dev/tty${vt}" >&2 || true
     ls -la /dev/dri >&2 || true
     fail "VT/Xorg systemd unit failed to start on vt${vt}"
   fi
 
-  if [[ ! -f "$log_file" ]]; then
-    require_or_skip "Expected Xorg log not found: $log_file"
+  if [[ ! -f "$xorg_log_file" ]]; then
+    if [[ -f "$unit_out_file" ]]; then
+      echo "--- ${unit_out_file} ---" >&2
+      sudo -n tail -n 200 "$unit_out_file" >&2 || true
+    fi
+    require_or_skip "Expected Xorg log not found: $xorg_log_file"
   fi
 
-  run sudo -n grep -nE "Error systemd-logind returned paused fd for drm node|Fatal server error|Caught signal" "$log_file"
+  run sudo -n grep -nE "Error systemd-logind returned paused fd for drm node|Fatal server error|Caught signal" "$xorg_log_file"
   # grep exits 1 when no matches; that's success for us.
   if [[ "$status" -eq 0 ]]; then
-    echo "--- $log_file matches ---" >&2
+    echo "--- $xorg_log_file matches ---" >&2
     echo "$output" >&2
     fail "Xorg reported logind/VT/abort errors on vt${vt}"
   fi
