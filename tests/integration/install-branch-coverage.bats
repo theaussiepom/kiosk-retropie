@@ -52,7 +52,8 @@ test_teardown() {
   unset KIOSK_RETROPIE_STUB_FLOCK_EXIT_CODE || true
 
   run bash "$KIOSK_RETROPIE_REPO_ROOT/scripts/install.sh"
-  assert_success
+  assert_failure
+  assert_output --partial "Chromium is required"
 }
 
 @test "install branch coverage: root required" {

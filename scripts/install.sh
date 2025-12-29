@@ -94,6 +94,7 @@ install_packages() {
     ca-certificates \
     curl \
     git \
+    kbd \
     mosquitto-clients \
     nfs-common \
     python3 \
@@ -112,7 +113,7 @@ install_packages() {
     run_cmd apt-get install -y --no-install-recommends chromium-browser
   else
     cover_path "install:chromium-none"
-    log "Chromium package not found via apt-cache (skipping for now)"
+    die "Chromium is required, but neither 'chromium' nor 'chromium-browser' has an install candidate"
   fi
 }
 
