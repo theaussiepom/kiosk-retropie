@@ -14,23 +14,98 @@ on:
 
 permissions:
   contents: read
+  packages: read
+
+env:
+  DEVCONTAINER_IMAGE: ghcr.io/${{ github.repository_owner }}/kr-devcontainer:ci-${{ hashFiles('.devcontainer/**') }}
+  DEVCONTAINER_LOCAL_TAG: kiosk-retropie-devcontainer:ci
 
 jobs:
-  lint-permissions:
-    name: lint-permissions
+  build-devcontainer:
+    name: build-devcontainer
     runs-on: ubuntu-latest
+    # Only build/push on trusted contexts (fork PRs can't push to GHCR).
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    permissions:
+      contents: read
+      packages: write
     steps:
       - uses: actions/checkout@v4
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build devcontainer image
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check if devcontainer image already exists
+        id: image_exists
+        shell: bash
+        run: |
+          set -euo pipefail
+          if docker manifest inspect "${DEVCONTAINER_IMAGE}" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build devcontainer image (push for non-fork runs)
+        if: ${{ steps.image_exists.outputs.exists != 'true' }}
         uses: docker/build-push-action@v6
         with:
           context: .
           file: .devcontainer/Dockerfile
-          tags: kiosk-retropie-devcontainer:ci
+          tags: ${{ env.DEVCONTAINER_IMAGE }}
+          push: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  lint-permissions:
+    name: lint-permissions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull devcontainer image (cached)
+        id: devcontainer
+        shell: bash
+        run: |
+          set -euo pipefail
+          pulled=false
+          for i in {1..12}; do
+            if docker pull "${DEVCONTAINER_IMAGE}"; then
+              pulled=true
+              break
+            fi
+            sleep 10
+          done
+          echo "pulled=$pulled" >> "$GITHUB_OUTPUT"
+          if [[ "$pulled" == "true" ]]; then
+            docker tag "${DEVCONTAINER_IMAGE}" "${DEVCONTAINER_LOCAL_TAG}"
+          fi
+
+      - name: Set up Docker Buildx
+        if: ${{ steps.devcontainer.outputs.pulled != 'true' }}
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build devcontainer image
+        if: ${{ steps.devcontainer.outputs.pulled != 'true' }}
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: .devcontainer/Dockerfile
+          tags: ${{ env.DEVCONTAINER_LOCAL_TAG }}
           load: true
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -51,15 +126,42 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull devcontainer image (cached)
+        id: devcontainer
+        shell: bash
+        run: |
+          set -euo pipefail
+          pulled=false
+          for i in {1..12}; do
+            if docker pull "${DEVCONTAINER_IMAGE}"; then
+              pulled=true
+              break
+            fi
+            sleep 10
+          done
+          echo "pulled=$pulled" >> "$GITHUB_OUTPUT"
+          if [[ "$pulled" == "true" ]]; then
+            docker tag "${DEVCONTAINER_IMAGE}" "${DEVCONTAINER_LOCAL_TAG}"
+          fi
+
       - name: Set up Docker Buildx
+        if: ${{ steps.devcontainer.outputs.pulled != 'true' }}
         uses: docker/setup-buildx-action@v3
 
       - name: Build devcontainer image
+        if: ${{ steps.devcontainer.outputs.pulled != 'true' }}
         uses: docker/build-push-action@v6
         with:
           context: .
           file: .devcontainer/Dockerfile
-          tags: kiosk-retropie-devcontainer:ci
+          tags: ${{ env.DEVCONTAINER_LOCAL_TAG }}
           load: true
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -80,15 +182,42 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull devcontainer image (cached)
+        id: devcontainer
+        shell: bash
+        run: |
+          set -euo pipefail
+          pulled=false
+          for i in {1..12}; do
+            if docker pull "${DEVCONTAINER_IMAGE}"; then
+              pulled=true
+              break
+            fi
+            sleep 10
+          done
+          echo "pulled=$pulled" >> "$GITHUB_OUTPUT"
+          if [[ "$pulled" == "true" ]]; then
+            docker tag "${DEVCONTAINER_IMAGE}" "${DEVCONTAINER_LOCAL_TAG}"
+          fi
+
       - name: Set up Docker Buildx
+        if: ${{ steps.devcontainer.outputs.pulled != 'true' }}
         uses: docker/setup-buildx-action@v3
 
       - name: Build devcontainer image
+        if: ${{ steps.devcontainer.outputs.pulled != 'true' }}
         uses: docker/build-push-action@v6
         with:
           context: .
           file: .devcontainer/Dockerfile
-          tags: kiosk-retropie-devcontainer:ci
+          tags: ${{ env.DEVCONTAINER_LOCAL_TAG }}
           load: true
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -109,15 +238,42 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull devcontainer image (cached)
+        id: devcontainer
+        shell: bash
+        run: |
+          set -euo pipefail
+          pulled=false
+          for i in {1..12}; do
+            if docker pull "${DEVCONTAINER_IMAGE}"; then
+              pulled=true
+              break
+            fi
+            sleep 10
+          done
+          echo "pulled=$pulled" >> "$GITHUB_OUTPUT"
+          if [[ "$pulled" == "true" ]]; then
+            docker tag "${DEVCONTAINER_IMAGE}" "${DEVCONTAINER_LOCAL_TAG}"
+          fi
+
       - name: Set up Docker Buildx
+        if: ${{ steps.devcontainer.outputs.pulled != 'true' }}
         uses: docker/setup-buildx-action@v3
 
       - name: Build devcontainer image
+        if: ${{ steps.devcontainer.outputs.pulled != 'true' }}
         uses: docker/build-push-action@v6
         with:
           context: .
           file: .devcontainer/Dockerfile
-          tags: kiosk-retropie-devcontainer:ci
+          tags: ${{ env.DEVCONTAINER_LOCAL_TAG }}
           load: true
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -146,15 +302,42 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull devcontainer image (cached)
+        id: devcontainer
+        shell: bash
+        run: |
+          set -euo pipefail
+          pulled=false
+          for i in {1..12}; do
+            if docker pull "${DEVCONTAINER_IMAGE}"; then
+              pulled=true
+              break
+            fi
+            sleep 10
+          done
+          echo "pulled=$pulled" >> "$GITHUB_OUTPUT"
+          if [[ "$pulled" == "true" ]]; then
+            docker tag "${DEVCONTAINER_IMAGE}" "${DEVCONTAINER_LOCAL_TAG}"
+          fi
+
       - name: Set up Docker Buildx
+        if: ${{ steps.devcontainer.outputs.pulled != 'true' }}
         uses: docker/setup-buildx-action@v3
 
       - name: Build devcontainer image
+        if: ${{ steps.devcontainer.outputs.pulled != 'true' }}
         uses: docker/build-push-action@v6
         with:
           context: .
           file: .devcontainer/Dockerfile
-          tags: kiosk-retropie-devcontainer:ci
+          tags: ${{ env.DEVCONTAINER_LOCAL_TAG }}
           load: true
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -388,15 +571,42 @@ jobs:
           name: paths-log-integration
           path: tests/.tmp/
 
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull devcontainer image (cached)
+        id: devcontainer
+        shell: bash
+        run: |
+          set -euo pipefail
+          pulled=false
+          for i in {1..12}; do
+            if docker pull "${DEVCONTAINER_IMAGE}"; then
+              pulled=true
+              break
+            fi
+            sleep 10
+          done
+          echo "pulled=$pulled" >> "$GITHUB_OUTPUT"
+          if [[ "$pulled" == "true" ]]; then
+            docker tag "${DEVCONTAINER_IMAGE}" "${DEVCONTAINER_LOCAL_TAG}"
+          fi
+
       - name: Set up Docker Buildx
+        if: ${{ steps.devcontainer.outputs.pulled != 'true' }}
         uses: docker/setup-buildx-action@v3
 
       - name: Build devcontainer image
+        if: ${{ steps.devcontainer.outputs.pulled != 'true' }}
         uses: docker/build-push-action@v6
         with:
           context: .
           file: .devcontainer/Dockerfile
-          tags: kiosk-retropie-devcontainer:ci
+          tags: ${{ env.DEVCONTAINER_LOCAL_TAG }}
           load: true
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -430,15 +640,42 @@ jobs:
           name: kcov-part-scripts
           path: tests/.tmp/kcov-merge-input
 
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull devcontainer image (cached)
+        id: devcontainer
+        shell: bash
+        run: |
+          set -euo pipefail
+          pulled=false
+          for i in {1..12}; do
+            if docker pull "${DEVCONTAINER_IMAGE}"; then
+              pulled=true
+              break
+            fi
+            sleep 10
+          done
+          echo "pulled=$pulled" >> "$GITHUB_OUTPUT"
+          if [[ "$pulled" == "true" ]]; then
+            docker tag "${DEVCONTAINER_IMAGE}" "${DEVCONTAINER_LOCAL_TAG}"
+          fi
+
       - name: Set up Docker Buildx
+        if: ${{ steps.devcontainer.outputs.pulled != 'true' }}
         uses: docker/setup-buildx-action@v3
 
       - name: Build devcontainer image
+        if: ${{ steps.devcontainer.outputs.pulled != 'true' }}
         uses: docker/build-push-action@v6
         with:
           context: .
           file: .devcontainer/Dockerfile
-          tags: kiosk-retropie-devcontainer:ci
+          tags: ${{ env.DEVCONTAINER_LOCAL_TAG }}
           load: true
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -511,15 +748,42 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull devcontainer image (cached)
+        id: devcontainer
+        shell: bash
+        run: |
+          set -euo pipefail
+          pulled=false
+          for i in {1..12}; do
+            if docker pull "${DEVCONTAINER_IMAGE}"; then
+              pulled=true
+              break
+            fi
+            sleep 10
+          done
+          echo "pulled=$pulled" >> "$GITHUB_OUTPUT"
+          if [[ "$pulled" == "true" ]]; then
+            docker tag "${DEVCONTAINER_IMAGE}" "${DEVCONTAINER_LOCAL_TAG}"
+          fi
+
       - name: Set up Docker Buildx
+        if: ${{ steps.devcontainer.outputs.pulled != 'true' }}
         uses: docker/setup-buildx-action@v3
 
       - name: Build devcontainer image
+        if: ${{ steps.devcontainer.outputs.pulled != 'true' }}
         uses: docker/build-push-action@v6
         with:
           context: .
           file: .devcontainer/Dockerfile
-          tags: kiosk-retropie-devcontainer:ci
+          tags: ${{ env.DEVCONTAINER_LOCAL_TAG }}
           load: true
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -551,15 +815,42 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull devcontainer image (cached)
+        id: devcontainer
+        shell: bash
+        run: |
+          set -euo pipefail
+          pulled=false
+          for i in {1..12}; do
+            if docker pull "${DEVCONTAINER_IMAGE}"; then
+              pulled=true
+              break
+            fi
+            sleep 10
+          done
+          echo "pulled=$pulled" >> "$GITHUB_OUTPUT"
+          if [[ "$pulled" == "true" ]]; then
+            docker tag "${DEVCONTAINER_IMAGE}" "${DEVCONTAINER_LOCAL_TAG}"
+          fi
+
       - name: Set up Docker Buildx
+        if: ${{ steps.devcontainer.outputs.pulled != 'true' }}
         uses: docker/setup-buildx-action@v3
 
       - name: Build devcontainer image
+        if: ${{ steps.devcontainer.outputs.pulled != 'true' }}
         uses: docker/build-push-action@v6
         with:
           context: .
           file: .devcontainer/Dockerfile
-          tags: kiosk-retropie-devcontainer:ci
+          tags: ${{ env.DEVCONTAINER_LOCAL_TAG }}
           load: true
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -592,15 +883,42 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull devcontainer image (cached)
+        id: devcontainer
+        shell: bash
+        run: |
+          set -euo pipefail
+          pulled=false
+          for i in {1..12}; do
+            if docker pull "${DEVCONTAINER_IMAGE}"; then
+              pulled=true
+              break
+            fi
+            sleep 10
+          done
+          echo "pulled=$pulled" >> "$GITHUB_OUTPUT"
+          if [[ "$pulled" == "true" ]]; then
+            docker tag "${DEVCONTAINER_IMAGE}" "${DEVCONTAINER_LOCAL_TAG}"
+          fi
+
       - name: Set up Docker Buildx
+        if: ${{ steps.devcontainer.outputs.pulled != 'true' }}
         uses: docker/setup-buildx-action@v3
 
       - name: Build devcontainer image
+        if: ${{ steps.devcontainer.outputs.pulled != 'true' }}
         uses: docker/build-push-action@v6
         with:
           context: .
           file: .devcontainer/Dockerfile
-          tags: kiosk-retropie-devcontainer:ci
+          tags: ${{ env.DEVCONTAINER_LOCAL_TAG }}
           load: true
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -621,15 +939,42 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull devcontainer image (cached)
+        id: devcontainer
+        shell: bash
+        run: |
+          set -euo pipefail
+          pulled=false
+          for i in {1..12}; do
+            if docker pull "${DEVCONTAINER_IMAGE}"; then
+              pulled=true
+              break
+            fi
+            sleep 10
+          done
+          echo "pulled=$pulled" >> "$GITHUB_OUTPUT"
+          if [[ "$pulled" == "true" ]]; then
+            docker tag "${DEVCONTAINER_IMAGE}" "${DEVCONTAINER_LOCAL_TAG}"
+          fi
+
       - name: Set up Docker Buildx
+        if: ${{ steps.devcontainer.outputs.pulled != 'true' }}
         uses: docker/setup-buildx-action@v3
 
       - name: Build devcontainer image
+        if: ${{ steps.devcontainer.outputs.pulled != 'true' }}
         uses: docker/build-push-action@v6
         with:
           context: .
           file: .devcontainer/Dockerfile
-          tags: kiosk-retropie-devcontainer:ci
+          tags: ${{ env.DEVCONTAINER_LOCAL_TAG }}
           load: true
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -650,15 +995,42 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull devcontainer image (cached)
+        id: devcontainer
+        shell: bash
+        run: |
+          set -euo pipefail
+          pulled=false
+          for i in {1..12}; do
+            if docker pull "${DEVCONTAINER_IMAGE}"; then
+              pulled=true
+              break
+            fi
+            sleep 10
+          done
+          echo "pulled=$pulled" >> "$GITHUB_OUTPUT"
+          if [[ "$pulled" == "true" ]]; then
+            docker tag "${DEVCONTAINER_IMAGE}" "${DEVCONTAINER_LOCAL_TAG}"
+          fi
+
       - name: Set up Docker Buildx
+        if: ${{ steps.devcontainer.outputs.pulled != 'true' }}
         uses: docker/setup-buildx-action@v3
 
       - name: Build devcontainer image
+        if: ${{ steps.devcontainer.outputs.pulled != 'true' }}
         uses: docker/build-push-action@v6
         with:
           context: .
           file: .devcontainer/Dockerfile
-          tags: kiosk-retropie-devcontainer:ci
+          tags: ${{ env.DEVCONTAINER_LOCAL_TAG }}
           load: true
           cache-from: type=gha
           cache-to: type=gha,mode=max
