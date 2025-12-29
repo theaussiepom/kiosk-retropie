@@ -232,7 +232,7 @@ jobs:
               -v "$PWD:/work" \
               -w /work \
               "$image" \
-              bash -lc "$*"
+              bash -lc "git config --global --add safe.directory /work && $*"
           }
 
           base_image="${DEVCONTAINER_IMAGE_BASE}:ci-lint-base-${{ env.IMAGE_TAG }}"
