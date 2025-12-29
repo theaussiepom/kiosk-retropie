@@ -138,80 +138,55 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build devcontainer image (lint base)
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: .devcontainer/dockerfile.ci
-          target: base
-          tags: >-
-            ${{ env.DEVCONTAINER_IMAGE_BASE }}:ci-lint-base-${{ env.IMAGE_TAG }}
-          labels: >-
-            org.opencontainers.image.revision=${{ github.sha }}
-            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
-          push: true
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+      - name: Build lint devcontainer images (parallel)
+        shell: bash
+        run: |
+          set -euo pipefail
 
-      - name: Build devcontainer image (lint sh)
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: .devcontainer/dockerfile.ci
-          target: lint-sh
-          tags: >-
-            ${{ env.DEVCONTAINER_IMAGE_BASE }}:ci-lint-sh-${{ env.IMAGE_TAG }}
-          labels: >-
-            org.opencontainers.image.revision=${{ github.sha }}
-            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
-          push: true
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          build_if_missing() {
+            local target="$1"
+            local suffix="$2"
+            local image="${DEVCONTAINER_IMAGE_BASE}:ci-${suffix}-${{ env.IMAGE_TAG }}"
 
-      - name: Build devcontainer image (lint yaml)
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: .devcontainer/dockerfile.ci
-          target: lint-yaml
-          tags: >-
-            ${{ env.DEVCONTAINER_IMAGE_BASE }}:ci-lint-yaml-${{ env.IMAGE_TAG }}
-          labels: >-
-            org.opencontainers.image.revision=${{ github.sha }}
-            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
-          push: true
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+            if docker manifest inspect "$image" >/dev/null 2>&1; then
+              echo "Already exists: $image"
+              return 0
+            fi
 
-      - name: Build devcontainer image (lint systemd)
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: .devcontainer/dockerfile.ci
-          target: lint-systemd
-          tags: >-
-            ${{ env.DEVCONTAINER_IMAGE_BASE }}:ci-lint-systemd-${{ env.IMAGE_TAG }}
-          labels: >-
-            org.opencontainers.image.revision=${{ github.sha }}
-            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
-          push: true
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+            echo "Building: $image (target=$target)"
+            docker buildx build \
+              --file .devcontainer/dockerfile.ci \
+              --target "$target" \
+              --tag "$image" \
+              --label "org.opencontainers.image.revision=${{ github.sha }}" \
+              --label "org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}" \
+              --push \
+              --cache-from "type=gha,scope=ci-${suffix}" \
+              --cache-to "type=gha,mode=max,scope=ci-${suffix}" \
+              . &
 
-      - name: Build devcontainer image (lint markdown)
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: .devcontainer/dockerfile.ci
-          target: lint-markdown
-          tags: >-
-            ${{ env.DEVCONTAINER_IMAGE_BASE }}:ci-lint-markdown-${{ env.IMAGE_TAG }}
-          labels: >-
-            org.opencontainers.image.revision=${{ github.sha }}
-            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
-          push: true
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+            pids+=("$!")
+            names+=("$suffix")
+          }
+
+          declare -a pids=()
+          declare -a names=()
+
+          build_if_missing base lint-base
+          build_if_missing lint-sh lint-sh
+          build_if_missing lint-yaml lint-yaml
+          build_if_missing lint-systemd lint-systemd
+          build_if_missing lint-markdown lint-markdown
+
+          failed=0
+          for i in "${!pids[@]}"; do
+            if ! wait "${pids[$i]}"; then
+              echo "Build failed: ${names[$i]}" >&2
+              failed=1
+            fi
+          done
+
+          exit "$failed"
 
   lint:
     name: lint
@@ -266,14 +241,36 @@ jobs:
           systemd_image="${DEVCONTAINER_IMAGE_BASE}:ci-lint-systemd-${{ env.IMAGE_TAG }}"
           markdown_image="${DEVCONTAINER_IMAGE_BASE}:ci-lint-markdown-${{ env.IMAGE_TAG }}"
 
-          run_in_image "$base_image" ./scripts/ci.sh lint-permissions
-          run_in_image "$base_image" ./scripts/ci.sh lint-naming
-          run_in_image "$sh_image" ./scripts/ci.sh lint-sh
-          run_in_image "$yaml_image" ./scripts/ci.sh lint-yaml
-          run_in_image "$systemd_image" ./scripts/ci.sh lint-systemd
-          run_in_image "$markdown_image" ./scripts/ci.sh lint-markdown
-            kiosk-retropie-devcontainer:ci \
-            bash -lc "./scripts/ci.sh lint-markdown"
+          run_bg() {
+            local name="$1"
+            local image="$2"
+            shift 2
+
+            echo "== $name =="
+            run_in_image "$image" "$@" &
+            pids+=("$!")
+            names+=("$name")
+          }
+
+          declare -a pids=()
+          declare -a names=()
+
+          run_bg lint-permissions "$base_image" ./scripts/ci.sh lint-permissions
+          run_bg lint-naming "$base_image" ./scripts/ci.sh lint-naming
+          run_bg lint-sh "$sh_image" ./scripts/ci.sh lint-sh
+          run_bg lint-yaml "$yaml_image" ./scripts/ci.sh lint-yaml
+          run_bg lint-systemd "$systemd_image" ./scripts/ci.sh lint-systemd
+          run_bg lint-markdown "$markdown_image" ./scripts/ci.sh lint-markdown
+
+          failed=0
+          for i in "${!pids[@]}"; do
+            if ! wait "${pids[$i]}"; then
+              echo "Lint failed: ${names[$i]}" >&2
+              failed=1
+            fi
+          done
+
+          exit "$failed"
 
   test:
     name: test
