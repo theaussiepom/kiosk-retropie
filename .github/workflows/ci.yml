@@ -20,15 +20,12 @@ env:
   DEVCONTAINER_IMAGE_BASE: ghcr.io/${{ github.repository_owner }}/kr-devcontainer
   DEVCONTAINER_LOCAL_TAG: kiosk-retropie-devcontainer:ci
   IMAGE_TAG: ${{ github.sha }}
-  PUBLISH_IMAGES: >-
-    ${{ github.event_name != 'pull_request' ||
-        github.event.pull_request.head.repo.full_name == github.repository }}
 
 jobs:
   build-devcontainer-tests:
     name: build-devcontainer-tests
     runs-on: ubuntu-latest
-    if: ${{ env.PUBLISH_IMAGES == 'true' }}
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
     permissions:
       contents: read
       packages: write
@@ -76,7 +73,7 @@ jobs:
   build-devcontainer-coverage:
     name: build-devcontainer-coverage
     runs-on: ubuntu-latest
-    if: ${{ env.PUBLISH_IMAGES == 'true' }}
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
     permissions:
       contents: read
       packages: write
@@ -124,7 +121,7 @@ jobs:
   build-devcontainer-lint-base:
     name: build-devcontainer-lint-base
     runs-on: ubuntu-latest
-    if: ${{ env.PUBLISH_IMAGES == 'true' }}
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
     permissions:
       contents: read
       packages: write
@@ -172,7 +169,7 @@ jobs:
   build-devcontainer-lint-sh:
     name: build-devcontainer-lint-sh
     runs-on: ubuntu-latest
-    if: ${{ env.PUBLISH_IMAGES == 'true' }}
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
     permissions:
       contents: read
       packages: write
@@ -220,7 +217,7 @@ jobs:
   build-devcontainer-lint-yaml:
     name: build-devcontainer-lint-yaml
     runs-on: ubuntu-latest
-    if: ${{ env.PUBLISH_IMAGES == 'true' }}
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
     permissions:
       contents: read
       packages: write
@@ -268,7 +265,7 @@ jobs:
   build-devcontainer-lint-systemd:
     name: build-devcontainer-lint-systemd
     runs-on: ubuntu-latest
-    if: ${{ env.PUBLISH_IMAGES == 'true' }}
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
     permissions:
       contents: read
       packages: write
@@ -316,7 +313,7 @@ jobs:
   build-devcontainer-lint-markdown:
     name: build-devcontainer-lint-markdown
     runs-on: ubuntu-latest
-    if: ${{ env.PUBLISH_IMAGES == 'true' }}
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
     permissions:
       contents: read
       packages: write
