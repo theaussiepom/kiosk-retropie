@@ -1,0 +1,74 @@
+FROM mcr.microsoft.com/devcontainers/base:ubuntu-22.04 AS base
+
+# Keep CI images as small as possible while still matching repo CI expectations.
+# Individual job images extend this base with only the tools they need.
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends \
+  bash \
+  ca-certificates \
+  curl \
+  git \
+  gnupg \
+  make \
+  python3 \
+  python3-pip \
+  sudo \
+  && rm -rf /var/lib/apt/lists/*
+
+FROM base AS tests
+
+FROM base AS lint-sh
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends \
+  shellcheck \
+  shfmt \
+  && rm -rf /var/lib/apt/lists/*
+
+FROM base AS lint-yaml
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends \
+  yamllint \
+  && rm -rf /var/lib/apt/lists/*
+
+FROM base AS lint-systemd
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends \
+  systemd \
+  && rm -rf /var/lib/apt/lists/*
+
+FROM base AS lint-markdown
+# markdownlint-cli requires a modern Node.
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+  && apt-get update \
+  && apt-get install -y --no-install-recommends nodejs \
+  && rm -rf /var/lib/apt/lists/*
+
+RUN npm install -g markdownlint-cli \
+  && npm cache clean --force
+
+FROM tests AS coverage
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends \
+  kcov \
+  strace \
+  && rm -rf /var/lib/apt/lists/*
+
+# Full local devcontainer target: includes the superset of tools used across CI.
+# This replaces the old single Dockerfile while keeping CI able to build smaller flavors.
+FROM coverage AS dev
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends \
+  shellcheck \
+  shfmt \
+  systemd \
+  yamllint \
+  && rm -rf /var/lib/apt/lists/*
+
+# markdownlint-cli requires a modern Node.
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+  && apt-get update \
+  && apt-get install -y --no-install-recommends nodejs \
+  && rm -rf /var/lib/apt/lists/*
+
+RUN npm install -g markdownlint-cli \
+  && npm cache clean --force

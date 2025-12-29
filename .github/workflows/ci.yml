@@ -47,10 +47,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # Hash devcontainer inputs to get a stable, invalidation-friendly tag.
-          hash="$(find .devcontainer -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -c1-12)"
+          # Hash CI devcontainer inputs to get a stable, invalidation-friendly tag.
+          # Keep CI cache hits stable even if the local devcontainer changes.
+          hash="$(sha256sum .devcontainer/Dockerfile.ci | cut -d' ' -f1 | cut -c1-12)"
           echo "hash=$hash" >> "$GITHUB_OUTPUT"
-          echo "image=${DEVCONTAINER_IMAGE_BASE}:ci-${hash}" >> "$GITHUB_OUTPUT"
+          echo "image_base=${DEVCONTAINER_IMAGE_BASE}" >> "$GITHUB_OUTPUT"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -74,19 +75,121 @@ jobs:
             exit 0
           fi
 
-          if docker manifest inspect "${{ steps.devcontainer_meta.outputs.image }}" >/dev/null 2>&1; then
+          # We publish multiple CI images (small per job) under the same base repo,
+          # using tags like: ci-<flavor>-<hash>
+          image_base="${{ steps.devcontainer_meta.outputs.image_base }}"
+          ci_hash="${{ steps.devcontainer_meta.outputs.hash }}"
+          missing=0
+          for flavor in base tests lint-sh lint-yaml lint-markdown lint-systemd coverage; do
+            image="${image_base}:ci-${flavor}-${ci_hash}"
+            if docker manifest inspect "$image" >/dev/null 2>&1; then
+              echo "${flavor}_exists=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "${flavor}_exists=false" >> "$GITHUB_OUTPUT"
+              missing=1
+            fi
+          done
+
+          if [[ "$missing" -eq 0 ]]; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Build devcontainer image (push for non-fork runs)
-        if: ${{ steps.publish.outputs.publish == 'true' && steps.image_exists.outputs.exists != 'true' }}
+      - name: Build devcontainer image (base)
+        if: >-
+          ${{ steps.publish.outputs.publish == 'true' &&
+              steps.image_exists.outputs.base_exists != 'true' }}
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: .devcontainer/Dockerfile
-          tags: ${{ steps.devcontainer_meta.outputs.image }}
+          file: .devcontainer/Dockerfile.ci
+          target: base
+          tags: ${{format('{0}:ci-base-{1}',steps.devcontainer_meta.outputs.image_base,steps.devcontainer_meta.outputs.hash)}}
+          push: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build devcontainer image (tests)
+        if: >-
+          ${{ steps.publish.outputs.publish == 'true' &&
+              steps.image_exists.outputs.tests_exists != 'true' }}
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: .devcontainer/Dockerfile.ci
+          target: tests
+          tags: ${{format('{0}:ci-tests-{1}',steps.devcontainer_meta.outputs.image_base,steps.devcontainer_meta.outputs.hash)}}
+          push: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build devcontainer image (lint-sh)
+        if: >-
+          ${{ steps.publish.outputs.publish == 'true' &&
+              steps.image_exists.outputs.lint-sh_exists != 'true' }}
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: .devcontainer/Dockerfile.ci
+          target: lint-sh
+          tags: ${{format('{0}:ci-lint-sh-{1}',steps.devcontainer_meta.outputs.image_base,steps.devcontainer_meta.outputs.hash)}}
+          push: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build devcontainer image (lint-yaml)
+        if: >-
+          ${{ steps.publish.outputs.publish == 'true' &&
+              steps.image_exists.outputs.lint-yaml_exists != 'true' }}
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: .devcontainer/Dockerfile.ci
+          target: lint-yaml
+          tags: ${{format('{0}:ci-lint-yaml-{1}',steps.devcontainer_meta.outputs.image_base,steps.devcontainer_meta.outputs.hash)}}
+          push: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build devcontainer image (lint-markdown)
+        if: >-
+          ${{ steps.publish.outputs.publish == 'true' &&
+              steps.image_exists.outputs.lint-markdown_exists != 'true' }}
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: .devcontainer/Dockerfile.ci
+          target: lint-markdown
+          tags: ${{format('{0}:ci-lint-markdown-{1}',steps.devcontainer_meta.outputs.image_base,steps.devcontainer_meta.outputs.hash)}}
+          push: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build devcontainer image (lint-systemd)
+        if: >-
+          ${{ steps.publish.outputs.publish == 'true' &&
+              steps.image_exists.outputs.lint-systemd_exists != 'true' }}
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: .devcontainer/Dockerfile.ci
+          target: lint-systemd
+          tags: ${{format('{0}:ci-lint-systemd-{1}',steps.devcontainer_meta.outputs.image_base,steps.devcontainer_meta.outputs.hash)}}
+          push: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build devcontainer image (coverage)
+        if: >-
+          ${{ steps.publish.outputs.publish == 'true' &&
+              steps.image_exists.outputs.coverage_exists != 'true' }}
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: .devcontainer/Dockerfile.ci
+          target: coverage
+          tags: ${{format('{0}:ci-coverage-{1}',steps.devcontainer_meta.outputs.image_base,steps.devcontainer_meta.outputs.hash)}}
           push: true
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -110,8 +213,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          hash="$(find .devcontainer -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -c1-12)"
-          image="${DEVCONTAINER_IMAGE_BASE}:ci-${hash}"
+          hash="$(sha256sum .devcontainer/Dockerfile.ci | cut -d' ' -f1 | cut -c1-12)"
+          image="${DEVCONTAINER_IMAGE_BASE}:ci-base-${hash}"
           for i in {1..12}; do
             if docker pull "$image"; then
               docker tag "$image" "${DEVCONTAINER_LOCAL_TAG}"
@@ -152,8 +255,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          hash="$(find .devcontainer -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -c1-12)"
-          image="${DEVCONTAINER_IMAGE_BASE}:ci-${hash}"
+          hash="$(sha256sum .devcontainer/Dockerfile.ci | cut -d' ' -f1 | cut -c1-12)"
+          image="${DEVCONTAINER_IMAGE_BASE}:ci-base-${hash}"
           for i in {1..12}; do
             if docker pull "$image"; then
               docker tag "$image" "${DEVCONTAINER_LOCAL_TAG}"
@@ -194,8 +297,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          hash="$(find .devcontainer -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -c1-12)"
-          image="${DEVCONTAINER_IMAGE_BASE}:ci-${hash}"
+          hash="$(sha256sum .devcontainer/Dockerfile.ci | cut -d' ' -f1 | cut -c1-12)"
+          image="${DEVCONTAINER_IMAGE_BASE}:ci-lint-sh-${hash}"
           for i in {1..12}; do
             if docker pull "$image"; then
               docker tag "$image" "${DEVCONTAINER_LOCAL_TAG}"
@@ -236,8 +339,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          hash="$(find .devcontainer -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -c1-12)"
-          image="${DEVCONTAINER_IMAGE_BASE}:ci-${hash}"
+          hash="$(sha256sum .devcontainer/Dockerfile.ci | cut -d' ' -f1 | cut -c1-12)"
+          image="${DEVCONTAINER_IMAGE_BASE}:ci-tests-${hash}"
           for i in {1..12}; do
             if docker pull "$image"; then
               docker tag "$image" "${DEVCONTAINER_LOCAL_TAG}"
@@ -286,8 +389,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          hash="$(find .devcontainer -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -c1-12)"
-          image="${DEVCONTAINER_IMAGE_BASE}:ci-${hash}"
+          hash="$(sha256sum .devcontainer/Dockerfile.ci | cut -d' ' -f1 | cut -c1-12)"
+          image="${DEVCONTAINER_IMAGE_BASE}:ci-tests-${hash}"
           for i in {1..12}; do
             if docker pull "$image"; then
               docker tag "$image" "${DEVCONTAINER_LOCAL_TAG}"
@@ -539,8 +642,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          hash="$(find .devcontainer -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -c1-12)"
-          image="${DEVCONTAINER_IMAGE_BASE}:ci-${hash}"
+          hash="$(sha256sum .devcontainer/Dockerfile.ci | cut -d' ' -f1 | cut -c1-12)"
+          image="${DEVCONTAINER_IMAGE_BASE}:ci-tests-${hash}"
           for i in {1..12}; do
             if docker pull "$image"; then
               docker tag "$image" "${DEVCONTAINER_LOCAL_TAG}"
@@ -565,7 +668,13 @@ jobs:
   test-coverage-line:
     name: test-coverage-line (merge)
     runs-on: ubuntu-latest
-    needs: [test-unit, test-integration, test-coverage-line-bats, test-coverage-line-scripts]
+    needs:
+      [
+        test-unit,
+        test-integration,
+        test-coverage-line-bats,
+        test-coverage-line-scripts,
+      ]
     steps:
       - uses: actions/checkout@v4
 
@@ -592,8 +701,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          hash="$(find .devcontainer -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -c1-12)"
-          image="${DEVCONTAINER_IMAGE_BASE}:ci-${hash}"
+          hash="$(sha256sum .devcontainer/Dockerfile.ci | cut -d' ' -f1 | cut -c1-12)"
+          image="${DEVCONTAINER_IMAGE_BASE}:ci-coverage-${hash}"
           for i in {1..12}; do
             if docker pull "$image"; then
               docker tag "$image" "${DEVCONTAINER_LOCAL_TAG}"
@@ -684,8 +793,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          hash="$(find .devcontainer -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -c1-12)"
-          image="${DEVCONTAINER_IMAGE_BASE}:ci-${hash}"
+          hash="$(sha256sum .devcontainer/Dockerfile.ci | cut -d' ' -f1 | cut -c1-12)"
+          image="${DEVCONTAINER_IMAGE_BASE}:ci-coverage-${hash}"
           for i in {1..12}; do
             if docker pull "$image"; then
               docker tag "$image" "${DEVCONTAINER_LOCAL_TAG}"
@@ -735,8 +844,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          hash="$(find .devcontainer -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -c1-12)"
-          image="${DEVCONTAINER_IMAGE_BASE}:ci-${hash}"
+          hash="$(sha256sum .devcontainer/Dockerfile.ci | cut -d' ' -f1 | cut -c1-12)"
+          image="${DEVCONTAINER_IMAGE_BASE}:ci-coverage-${hash}"
           for i in {1..12}; do
             if docker pull "$image"; then
               docker tag "$image" "${DEVCONTAINER_LOCAL_TAG}"
@@ -789,8 +898,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          hash="$(find .devcontainer -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -c1-12)"
-          image="${DEVCONTAINER_IMAGE_BASE}:ci-${hash}"
+          hash="$(sha256sum .devcontainer/Dockerfile.ci | cut -d' ' -f1 | cut -c1-12)"
+          image="${DEVCONTAINER_IMAGE_BASE}:ci-lint-yaml-${hash}"
           for i in {1..12}; do
             if docker pull "$image"; then
               docker tag "$image" "${DEVCONTAINER_LOCAL_TAG}"
@@ -831,8 +940,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          hash="$(find .devcontainer -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -c1-12)"
-          image="${DEVCONTAINER_IMAGE_BASE}:ci-${hash}"
+          hash="$(sha256sum .devcontainer/Dockerfile.ci | cut -d' ' -f1 | cut -c1-12)"
+          image="${DEVCONTAINER_IMAGE_BASE}:ci-lint-systemd-${hash}"
           for i in {1..12}; do
             if docker pull "$image"; then
               docker tag "$image" "${DEVCONTAINER_LOCAL_TAG}"
@@ -873,8 +982,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          hash="$(find .devcontainer -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -c1-12)"
-          image="${DEVCONTAINER_IMAGE_BASE}:ci-${hash}"
+          hash="$(sha256sum .devcontainer/Dockerfile.ci | cut -d' ' -f1 | cut -c1-12)"
+          image="${DEVCONTAINER_IMAGE_BASE}:ci-lint-markdown-${hash}"
           for i in {1..12}; do
             if docker pull "$image"; then
               docker tag "$image" "${DEVCONTAINER_LOCAL_TAG}"
