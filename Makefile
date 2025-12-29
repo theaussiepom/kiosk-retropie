@@ -9,7 +9,8 @@ SHELL := /usr/bin/env bash
 
 DOCKER ?= docker
 DEVCONTAINER_IMAGE ?= kiosk-retropie-devcontainer:local
-DEVCONTAINER_DOCKERFILE ?= .devcontainer/Dockerfile
+DEVCONTAINER_DOCKERFILE ?= .devcontainer/Dockerfile.ci
+DEVCONTAINER_TARGET ?= dev
 DEVCONTAINER_CONTEXT ?= .
 DEVCONTAINER_WORKDIR ?= /work
 FORCE_CONTAINER_BUILD ?= 0
@@ -20,7 +21,7 @@ container-build:
 			echo "devcontainer image $(DEVCONTAINER_IMAGE) already exists; skipping build (set FORCE_CONTAINER_BUILD=1 to rebuild)"; \
 			exit 0; \
 		fi; \
-		$(DOCKER) build -t "$(DEVCONTAINER_IMAGE)" -f "$(DEVCONTAINER_DOCKERFILE)" "$(DEVCONTAINER_CONTEXT)"; \
+		$(DOCKER) build --target "$(DEVCONTAINER_TARGET)" -t "$(DEVCONTAINER_IMAGE)" -f "$(DEVCONTAINER_DOCKERFILE)" "$(DEVCONTAINER_CONTEXT)"; \
 	else \
 		echo "docker not found; skipping container build" >&2; \
 	fi
