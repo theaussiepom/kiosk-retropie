@@ -1,7 +1,7 @@
 {
   "name": "kiosk-retropie",
   "build": {
-    "dockerfile": "Dockerfile.ci",
+    "dockerfile": "dockerfile.ci",
     "target": "dev"
   },
   "remoteUser": "root",
