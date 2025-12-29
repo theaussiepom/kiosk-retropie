@@ -415,7 +415,8 @@ jobs:
               sudo -n apt-get update
               # chvt/fgconsole -> kbd
               # xinit + Xorg -> xinit + xserver-xorg
-              sudo -n apt-get install -y kbd xinit xserver-xorg
+              # xauth is commonly invoked by xinit.
+              sudo -n apt-get install -y kbd xauth xinit xserver-xorg
             else
               echo "Cannot auto-install because apt-get is unavailable." >&2
               exit 1
