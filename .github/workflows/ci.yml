@@ -389,7 +389,6 @@ jobs:
     name: test-hardware-arm64
     runs-on: [self-hosted, Linux, ARM64]
     timeout-minutes: 30
-    needs: [test-unit, test-integration]
     # SECURITY: never run untrusted fork PR code on a self-hosted runner.
     if: |
       (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) ||
