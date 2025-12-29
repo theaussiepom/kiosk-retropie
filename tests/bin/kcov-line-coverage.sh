@@ -1911,12 +1911,12 @@ run_allow_fail env KCOV_RETROPI_EXISTS=0 KCOV_APT_CACHE_MODE=none KCOV_FLOCK_MOD
   unset KIOSK_RETROPIE_CONFIG_ENV
   kiosk_retropie_config_env_path >/dev/null
 ) || true
-run_allow_fail env KCOV_RETROPI_EXISTS=1 KCOV_APT_CACHE_MODE=none KCOV_FLOCK_MODE=ok \
+run_allow_fail env KCOV_RETROPI_EXISTS=1 KCOV_APT_CACHE_MODE=chromium KCOV_FLOCK_MODE=ok \
   RETROPIE_INSTALL=0 \
   PATH="$stub_bin:/usr/bin:/bin" "$ROOT_DIR/scripts/install.sh"
 
 # Configured Chromium profile dir (covers install:chromium-profile-configured).
-run_allow_fail env KCOV_RETROPI_EXISTS=1 KCOV_APT_CACHE_MODE=none KCOV_FLOCK_MODE=ok \
+run_allow_fail env KCOV_RETROPI_EXISTS=1 KCOV_APT_CACHE_MODE=chromium KCOV_FLOCK_MODE=ok \
   KIOSK_CHROMIUM_PROFILE_DIR="$KIOSK_RETROPIE_ROOT/var/lib/kiosk-retropie/chromium-profile" \
   PATH="$stub_bin:/usr/bin:/bin" "$ROOT_DIR/scripts/install.sh"
 
@@ -1926,7 +1926,7 @@ install_exec_bin="$work_dir/bin-install-exec"
 mkdir -p "$install_exec_bin"
 printf '%s\n' '#!/usr/bin/env bash' 'set -euo pipefail' 'exit 0' >"$install_exec_bin/chown"
 chmod +x "$install_exec_bin/chown"
-run_allow_fail env KIOSK_RETROPIE_ALLOW_NON_ROOT=1 KIOSK_RETROPIE_DRY_RUN=0 KCOV_RETROPI_EXISTS=1 KCOV_APT_CACHE_MODE=none KCOV_FLOCK_MODE=ok \
+run_allow_fail env KIOSK_RETROPIE_ALLOW_NON_ROOT=1 KIOSK_RETROPIE_DRY_RUN=0 KCOV_RETROPI_EXISTS=1 KCOV_APT_CACHE_MODE=chromium KCOV_FLOCK_MODE=ok \
   PATH="$install_exec_bin:$stub_bin:/usr/bin:/bin" "$ROOT_DIR/scripts/install.sh"
 
 # Require-root failure branch.
