@@ -21,12 +21,15 @@ env:
   DEVCONTAINER_LOCAL_TAG: kiosk-retropie-devcontainer:ci
 
 jobs:
-  build-devcontainer:
-    name: build-devcontainer
+  devcontainer-meta:
+    name: devcontainer-meta
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
+    outputs:
+      publish: ${{ steps.publish.outputs.publish }}
+      hash: ${{ steps.devcontainer_meta.outputs.hash }}
     steps:
       - uses: actions/checkout@v4
 
@@ -53,11 +56,39 @@ jobs:
           echo "hash=$hash" >> "$GITHUB_OUTPUT"
           echo "image_base=${DEVCONTAINER_IMAGE_BASE}" >> "$GITHUB_OUTPUT"
 
+  build-devcontainer-flavor:
+    name: build-devcontainer (${{ matrix.flavor }})
+    runs-on: ubuntu-latest
+    needs: [devcontainer-meta]
+    if: ${{ needs.devcontainer-meta.outputs.publish == 'true' }}
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - flavor: base
+            target: base
+          - flavor: tests
+            target: tests
+          - flavor: lint-sh
+            target: lint-sh
+          - flavor: lint-yaml
+            target: lint-yaml
+          - flavor: lint-markdown
+            target: lint-markdown
+          - flavor: lint-systemd
+            target: lint-systemd
+          - flavor: coverage
+            target: coverage
+    steps:
+      - uses: actions/checkout@v4
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
       - name: Log in to GHCR
-        if: ${{ steps.publish.outputs.publish == 'true' }}
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -69,130 +100,39 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if [[ "${{ steps.publish.outputs.publish }}" != "true" ]]; then
-            # Fork PRs cannot access GHCR with write permissions; treat as cache-miss.
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          # We publish multiple CI images (small per job) under the same base repo,
-          # using tags like: ci-<flavor>-<hash>
-          image_base="${{ steps.devcontainer_meta.outputs.image_base }}"
-          ci_hash="${{ steps.devcontainer_meta.outputs.hash }}"
-          missing=0
-          for flavor in base tests lint-sh lint-yaml lint-markdown lint-systemd coverage; do
-            image="${image_base}:ci-${flavor}-${ci_hash}"
-            if docker manifest inspect "$image" >/dev/null 2>&1; then
-              echo "${flavor}_exists=true" >> "$GITHUB_OUTPUT"
-            else
-              echo "${flavor}_exists=false" >> "$GITHUB_OUTPUT"
-              missing=1
-            fi
-          done
-
-          if [[ "$missing" -eq 0 ]]; then
+          image="${DEVCONTAINER_IMAGE_BASE}:ci-${{ matrix.flavor }}-${{ needs.devcontainer-meta.outputs.hash }}"
+          if docker manifest inspect "$image" >/dev/null 2>&1; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Build devcontainer image (base)
-        if: >-
-          ${{ steps.publish.outputs.publish == 'true' &&
-              steps.image_exists.outputs.base_exists != 'true' }}
+      - name: Build devcontainer image (${{ matrix.flavor }})
+        if: ${{ steps.image_exists.outputs.exists != 'true' }}
         uses: docker/build-push-action@v6
         with:
           context: .
           file: .devcontainer/Dockerfile.ci
-          target: base
-          tags: ${{format('{0}:ci-base-{1}',steps.devcontainer_meta.outputs.image_base,steps.devcontainer_meta.outputs.hash)}}
+          target: ${{ matrix.target }}
+          tags: >-
+            ${{ env.DEVCONTAINER_IMAGE_BASE }}:ci-${{ matrix.flavor }}-${{ needs.devcontainer-meta.outputs.hash }}
           push: true
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Build devcontainer image (tests)
-        if: >-
-          ${{ steps.publish.outputs.publish == 'true' &&
-              steps.image_exists.outputs.tests_exists != 'true' }}
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: .devcontainer/Dockerfile.ci
-          target: tests
-          tags: ${{format('{0}:ci-tests-{1}',steps.devcontainer_meta.outputs.image_base,steps.devcontainer_meta.outputs.hash)}}
-          push: true
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Build devcontainer image (lint-sh)
-        if: >-
-          ${{ steps.publish.outputs.publish == 'true' &&
-              steps.image_exists.outputs.lint-sh_exists != 'true' }}
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: .devcontainer/Dockerfile.ci
-          target: lint-sh
-          tags: ${{format('{0}:ci-lint-sh-{1}',steps.devcontainer_meta.outputs.image_base,steps.devcontainer_meta.outputs.hash)}}
-          push: true
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Build devcontainer image (lint-yaml)
-        if: >-
-          ${{ steps.publish.outputs.publish == 'true' &&
-              steps.image_exists.outputs.lint-yaml_exists != 'true' }}
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: .devcontainer/Dockerfile.ci
-          target: lint-yaml
-          tags: ${{format('{0}:ci-lint-yaml-{1}',steps.devcontainer_meta.outputs.image_base,steps.devcontainer_meta.outputs.hash)}}
-          push: true
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Build devcontainer image (lint-markdown)
-        if: >-
-          ${{ steps.publish.outputs.publish == 'true' &&
-              steps.image_exists.outputs.lint-markdown_exists != 'true' }}
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: .devcontainer/Dockerfile.ci
-          target: lint-markdown
-          tags: ${{format('{0}:ci-lint-markdown-{1}',steps.devcontainer_meta.outputs.image_base,steps.devcontainer_meta.outputs.hash)}}
-          push: true
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Build devcontainer image (lint-systemd)
-        if: >-
-          ${{ steps.publish.outputs.publish == 'true' &&
-              steps.image_exists.outputs.lint-systemd_exists != 'true' }}
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: .devcontainer/Dockerfile.ci
-          target: lint-systemd
-          tags: ${{format('{0}:ci-lint-systemd-{1}',steps.devcontainer_meta.outputs.image_base,steps.devcontainer_meta.outputs.hash)}}
-          push: true
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Build devcontainer image (coverage)
-        if: >-
-          ${{ steps.publish.outputs.publish == 'true' &&
-              steps.image_exists.outputs.coverage_exists != 'true' }}
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: .devcontainer/Dockerfile.ci
-          target: coverage
-          tags: ${{format('{0}:ci-coverage-{1}',steps.devcontainer_meta.outputs.image_base,steps.devcontainer_meta.outputs.hash)}}
-          push: true
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+  build-devcontainer:
+    name: build-devcontainer
+    runs-on: ubuntu-latest
+    needs: [devcontainer-meta, build-devcontainer-flavor]
+    if: ${{ needs.devcontainer-meta.outputs.publish == 'true' }}
+    permissions:
+      contents: read
+    steps:
+      - name: All devcontainer flavors built
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "All devcontainer flavors are ready: ci-<flavor>-${{ needs.devcontainer-meta.outputs.hash }}"
 
   lint-permissions:
     name: lint-permissions
