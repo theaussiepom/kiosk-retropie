@@ -412,11 +412,23 @@ jobs:
             bash -lc './scripts/ci.sh tests-path-coverage'
 
   test-coverage-line:
-    name: test-coverage-line
+    name: test-coverage-line (merge)
     runs-on: ubuntu-latest
-    needs: [test-unit, test-integration]
+    needs: [test-unit, test-integration, test-coverage-line-bats, test-coverage-line-scripts]
     steps:
       - uses: actions/checkout@v4
+
+      - name: Download kcov bats part
+        uses: actions/download-artifact@v4
+        with:
+          name: kcov-part-bats
+          path: tests/.tmp/kcov-merge-input
+
+      - name: Download kcov scripts part
+        uses: actions/download-artifact@v4
+        with:
+          name: kcov-part-scripts
+          path: tests/.tmp/kcov-merge-input
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -440,7 +452,14 @@ jobs:
             -v "$PWD:/work" \
             -w /work \
             kiosk-retropie-devcontainer:ci \
-            bash -lc './scripts/ci.sh coverage'
+            bash -lc '
+              set -euo pipefail
+              export KCOV_OUT_DIR=/work/tests/.tmp/kcov-merge-out
+              export KCOV_MERGE_BATS_DIR=/work/tests/.tmp/kcov-merge-input/bats
+              export KCOV_MERGE_COVERAGE_DIR=/work/tests/.tmp/kcov-merge-input/coverage
+              export KCOV_MERGE_WRAPPED_DIR=/work/tests/.tmp/kcov-merge-input/coverage-wrapped/kcov-merged
+              ./scripts/ci.sh coverage-merge
+            '
 
       - name: Show kcov output paths
         if: always()
@@ -470,7 +489,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: kcov-coverage
-          path: coverage/
+          path: tests/.tmp/kcov-merge-out/
           if-no-files-found: warn
 
       - name: Upload kcov logs artifact
@@ -479,11 +498,91 @@ jobs:
         with:
           name: kcov-logs
           path: |
-            coverage/*.log
-            coverage/**/*.log
-            coverage/*.strace
-            coverage/**/*.strace
+            tests/.tmp/kcov-merge-out/*.log
+            tests/.tmp/kcov-merge-out/**/*.log
+            tests/.tmp/kcov-merge-out/*.strace
+            tests/.tmp/kcov-merge-out/**/*.strace
           if-no-files-found: warn
+
+  test-coverage-line-bats:
+    name: test-coverage-line (bats)
+    runs-on: ubuntu-latest
+    needs: [test-unit, test-integration]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build devcontainer image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: .devcontainer/Dockerfile
+          tags: kiosk-retropie-devcontainer:ci
+          load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Run kcov bats part in devcontainer
+        timeout-minutes: 20
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf tests/.tmp/kcov-part-bats
+          docker run --rm \
+            -v "$PWD:/work" \
+            -w /work \
+            kiosk-retropie-devcontainer:ci \
+            bash -lc 'export KCOV_OUT_DIR=/work/tests/.tmp/kcov-part-bats && ./scripts/ci.sh coverage-bats'
+
+      - name: Upload kcov bats part
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kcov-part-bats
+          path: tests/.tmp/kcov-part-bats/
+          if-no-files-found: error
+
+  test-coverage-line-scripts:
+    name: test-coverage-line (scripts)
+    runs-on: ubuntu-latest
+    needs: [test-unit, test-integration]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build devcontainer image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: .devcontainer/Dockerfile
+          tags: kiosk-retropie-devcontainer:ci
+          load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Run kcov scripts part in devcontainer
+        timeout-minutes: 20
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf tests/.tmp/kcov-part-scripts
+          docker run --rm \
+            -v "$PWD:/work" \
+            -w /work \
+            kiosk-retropie-devcontainer:ci \
+            bash -lc 'export KCOV_OUT_DIR=/work/tests/.tmp/kcov-part-scripts && ./scripts/ci.sh coverage-scripts'
+
+      - name: Upload kcov scripts part
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kcov-part-scripts
+          path: tests/.tmp/kcov-part-scripts/
+          if-no-files-found: error
 
   # Coverage enforcement is handled by ./scripts/ci.sh coverage
 

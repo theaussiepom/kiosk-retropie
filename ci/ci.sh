@@ -32,10 +32,13 @@ if [[ $# -gt 0 ]]; then
       tests-integration) parts+=(22-tests-integration.sh) ;;
       tests-path-coverage) parts+=(23-tests-path-coverage.sh) ;;
       coverage) parts+=(60-coverage.sh) ;;
+      coverage-bats) parts+=(61-coverage-bats.sh) ;;
+      coverage-scripts) parts+=(62-coverage-scripts.sh) ;;
+      coverage-merge) parts+=(63-coverage-merge.sh) ;;
       lint-permissions) parts+=(05-lint-permissions.sh) ;;
       *)
         echo "Unknown CI part: $p" >&2
-        echo "Valid parts: lint-permissions lint-naming lint-sh lint-yaml lint-systemd lint-markdown tests tests-unit tests-integration tests-path-coverage coverage" >&2
+        echo "Valid parts: lint-permissions lint-naming lint-sh lint-yaml lint-systemd lint-markdown tests tests-unit tests-integration tests-path-coverage coverage coverage-bats coverage-scripts coverage-merge" >&2
         exit 2
         ;;
     esac
