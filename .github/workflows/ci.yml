@@ -165,12 +165,19 @@ jobs:
               --cache-to "type=gha,mode=max,scope=ci-${suffix}" \
               . &
 
-            pids+=("$!")
+            local pid="$!"
+            local started_at
+            started_at="$(date -Is)"
+            echo "Started build: ${suffix} pid=${pid} at ${started_at}"
+
+            pids+=("$pid")
             names+=("$suffix")
+            started_ats+=("$started_at")
           }
 
           declare -a pids=()
           declare -a names=()
+          declare -a started_ats=()
 
           build_if_missing base lint-base
           build_if_missing lint-sh lint-sh
@@ -181,8 +188,14 @@ jobs:
           failed=0
           for i in "${!pids[@]}"; do
             if ! wait "${pids[$i]}"; then
-              echo "Build failed: ${names[$i]}" >&2
+              local ended_at
+              ended_at="$(date -Is)"
+              echo "Build failed: ${names[$i]} pid=${pids[$i]} started_at=${started_ats[$i]} ended_at=${ended_at}" >&2
               failed=1
+            else
+              local ended_at
+              ended_at="$(date -Is)"
+              echo "Build complete: ${names[$i]} pid=${pids[$i]} started_at=${started_ats[$i]} ended_at=${ended_at}"
             fi
           done
 
@@ -227,8 +240,7 @@ jobs:
             local image="$1"
             shift
 
-            pull_with_retries "$image"
-            docker run --rm \
+            docker run --rm --pull=never \
               -v "$PWD:/work" \
               -w /work \
               "$image" \
@@ -241,19 +253,64 @@ jobs:
           systemd_image="${DEVCONTAINER_IMAGE_BASE}:ci-lint-systemd-${{ env.IMAGE_TAG }}"
           markdown_image="${DEVCONTAINER_IMAGE_BASE}:ci-lint-markdown-${{ env.IMAGE_TAG }}"
 
+          echo "== pre-pull devcontainer images (parallel) =="
+          declare -a pull_pids=()
+          declare -a pull_images=()
+
+          pull_bg() {
+            local image="$1"
+
+            echo "Pulling: ${image}"
+            pull_with_retries "$image" &
+
+            local pid="$!"
+            echo "Started pull: ${image} pid=${pid}"
+            pull_pids+=("$pid")
+            pull_images+=("$image")
+          }
+
+          # Unique images only (base is shared by multiple lint stages).
+          pull_bg "$base_image"
+          pull_bg "$sh_image"
+          pull_bg "$yaml_image"
+          pull_bg "$systemd_image"
+          pull_bg "$markdown_image"
+
+          pull_failed=0
+          for i in "${!pull_pids[@]}"; do
+            if ! wait "${pull_pids[$i]}"; then
+              echo "Failed to pull: ${pull_images[$i]}" >&2
+              pull_failed=1
+            else
+              echo "Pulled: ${pull_images[$i]}"
+            fi
+          done
+
+          if [[ "$pull_failed" -ne 0 ]]; then
+            exit 1
+          fi
+
           run_bg() {
             local name="$1"
             local image="$2"
             shift 2
 
-            echo "== $name =="
+            local started_at
+            started_at="$(date -Is)"
+            echo "== ${name} (start ${started_at}) =="
             run_in_image "$image" "$@" &
-            pids+=("$!")
+
+            local pid="$!"
+            echo "Started lint: ${name} pid=${pid}"
+
+            pids+=("$pid")
             names+=("$name")
+            started_ats+=("$started_at")
           }
 
           declare -a pids=()
           declare -a names=()
+          declare -a started_ats=()
 
           run_bg lint-permissions "$base_image" ./scripts/ci.sh lint-permissions
           run_bg lint-naming "$base_image" ./scripts/ci.sh lint-naming
@@ -265,8 +322,14 @@ jobs:
           failed=0
           for i in "${!pids[@]}"; do
             if ! wait "${pids[$i]}"; then
-              echo "Lint failed: ${names[$i]}" >&2
+              local ended_at
+              ended_at="$(date -Is)"
+              echo "Lint failed: ${names[$i]} pid=${pids[$i]} started_at=${started_ats[$i]} ended_at=${ended_at}" >&2
               failed=1
+            else
+              local ended_at
+              ended_at="$(date -Is)"
+              echo "Lint complete: ${names[$i]} pid=${pids[$i]} started_at=${started_ats[$i]} ended_at=${ended_at}"
             fi
           done
 
