@@ -19,48 +19,16 @@ permissions:
 env:
   DEVCONTAINER_IMAGE_BASE: ghcr.io/${{ github.repository_owner }}/kr-devcontainer
   DEVCONTAINER_LOCAL_TAG: kiosk-retropie-devcontainer:ci
+  IMAGE_TAG: ${{ github.sha }}
+  PUBLISH_IMAGES: >-
+    ${{ github.event_name != 'pull_request' ||
+        github.event.pull_request.head.repo.full_name == github.repository }}
 
 jobs:
-  devcontainer-meta:
-    name: devcontainer-meta
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-    outputs:
-      publish: ${{ steps.publish.outputs.publish }}
-      hash: ${{ steps.devcontainer_meta.outputs.hash }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Decide whether to publish (fork-safe)
-        id: publish
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [[ "${{ github.event_name }}" == "pull_request" && \
-            "${{ github.event.pull_request.head.repo.full_name }}" != "${{ github.repository }}" ]]; then
-            echo "publish=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "publish=true" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Compute devcontainer image tag
-        id: devcontainer_meta
-        shell: bash
-        run: |
-          set -euo pipefail
-          # Hash CI devcontainer inputs to get a stable, invalidation-friendly tag.
-          # Keep CI cache hits stable even if the local devcontainer changes.
-          hash="$(sha256sum .devcontainer/dockerfile.ci | cut -d' ' -f1 | cut -c1-12)"
-          echo "hash=$hash" >> "$GITHUB_OUTPUT"
-          echo "image_base=${DEVCONTAINER_IMAGE_BASE}" >> "$GITHUB_OUTPUT"
-
   build-devcontainer-tests:
     name: build-devcontainer-tests
     runs-on: ubuntu-latest
-    needs: [devcontainer-meta]
-    if: ${{ needs.devcontainer-meta.outputs.publish == 'true' }}
+    if: ${{ env.PUBLISH_IMAGES == 'true' }}
     permissions:
       contents: read
       packages: write
@@ -82,7 +50,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          image="${DEVCONTAINER_IMAGE_BASE}:ci-tests-${{ needs.devcontainer-meta.outputs.hash }}"
+          image="${DEVCONTAINER_IMAGE_BASE}:ci-tests-${{ env.IMAGE_TAG }}"
           if docker manifest inspect "$image" >/dev/null 2>&1; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
           else
@@ -97,7 +65,7 @@ jobs:
           file: .devcontainer/dockerfile.ci
           target: tests
           tags: >-
-            ${{ env.DEVCONTAINER_IMAGE_BASE }}:ci-tests-${{ needs.devcontainer-meta.outputs.hash }}
+            ${{ env.DEVCONTAINER_IMAGE_BASE }}:ci-tests-${{ env.IMAGE_TAG }}
           labels: >-
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
@@ -108,8 +76,7 @@ jobs:
   build-devcontainer-coverage:
     name: build-devcontainer-coverage
     runs-on: ubuntu-latest
-    needs: [devcontainer-meta]
-    if: ${{ needs.devcontainer-meta.outputs.publish == 'true' }}
+    if: ${{ env.PUBLISH_IMAGES == 'true' }}
     permissions:
       contents: read
       packages: write
@@ -131,7 +98,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          image="${DEVCONTAINER_IMAGE_BASE}:ci-coverage-${{ needs.devcontainer-meta.outputs.hash }}"
+          image="${DEVCONTAINER_IMAGE_BASE}:ci-coverage-${{ env.IMAGE_TAG }}"
           if docker manifest inspect "$image" >/dev/null 2>&1; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
           else
@@ -146,7 +113,7 @@ jobs:
           file: .devcontainer/dockerfile.ci
           target: coverage
           tags: >-
-            ${{ env.DEVCONTAINER_IMAGE_BASE }}:ci-coverage-${{ needs.devcontainer-meta.outputs.hash }}
+            ${{ env.DEVCONTAINER_IMAGE_BASE }}:ci-coverage-${{ env.IMAGE_TAG }}
           labels: >-
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
@@ -154,36 +121,13 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  build-devcontainer-lint:
-    name: build-devcontainer-lint (${{ matrix.name }})
+  build-devcontainer-lint-base:
+    name: build-devcontainer-lint-base
     runs-on: ubuntu-latest
-    needs: [devcontainer-meta]
-    if: ${{ needs.devcontainer-meta.outputs.publish == 'true' }}
+    if: ${{ env.PUBLISH_IMAGES == 'true' }}
     permissions:
       contents: read
       packages: write
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: permissions
-            docker_target: base
-            image_suffix: lint-permissions
-          - name: naming
-            docker_target: base
-            image_suffix: lint-naming
-          - name: sh
-            docker_target: lint-sh
-            image_suffix: lint-sh
-          - name: yaml
-            docker_target: lint-yaml
-            image_suffix: lint-yaml
-          - name: systemd
-            docker_target: lint-systemd
-            image_suffix: lint-systemd
-          - name: markdown
-            docker_target: lint-markdown
-            image_suffix: lint-markdown
     steps:
       - uses: actions/checkout@v4
 
@@ -202,23 +146,22 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          hash="${{ needs.devcontainer-meta.outputs.hash }}"
-          image="${DEVCONTAINER_IMAGE_BASE}:ci-${{ matrix.image_suffix }}-${hash}"
+          image="${DEVCONTAINER_IMAGE_BASE}:ci-lint-base-${{ env.IMAGE_TAG }}"
           if docker manifest inspect "$image" >/dev/null 2>&1; then
             echo "exists=true" >> "$GITHUB_OUTPUT"
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Build devcontainer image (lint)
+      - name: Build devcontainer image (lint base)
         if: ${{ steps.image_exists.outputs.exists != 'true' }}
         uses: docker/build-push-action@v6
         with:
           context: .
           file: .devcontainer/dockerfile.ci
-          target: ${{ matrix.docker_target }}
+          target: base
           tags: >-
-            ${{ env.DEVCONTAINER_IMAGE_BASE }}:ci-${{ matrix.image_suffix }}-${{ needs.devcontainer-meta.outputs.hash }}
+            ${{ env.DEVCONTAINER_IMAGE_BASE }}:ci-lint-base-${{ env.IMAGE_TAG }}
           labels: >-
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
@@ -226,42 +169,206 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  lint:
-    name: lint (${{ matrix.name }})
+  build-devcontainer-lint-sh:
+    name: build-devcontainer-lint-sh
     runs-on: ubuntu-latest
-    needs: [devcontainer-meta, build-devcontainer-lint]
+    if: ${{ env.PUBLISH_IMAGES == 'true' }}
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check if devcontainer image already exists
+        id: image_exists
+        shell: bash
+        run: |
+          set -euo pipefail
+          image="${DEVCONTAINER_IMAGE_BASE}:ci-lint-sh-${{ env.IMAGE_TAG }}"
+          if docker manifest inspect "$image" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build devcontainer image (lint sh)
+        if: ${{ steps.image_exists.outputs.exists != 'true' }}
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: .devcontainer/dockerfile.ci
+          target: lint-sh
+          tags: >-
+            ${{ env.DEVCONTAINER_IMAGE_BASE }}:ci-lint-sh-${{ env.IMAGE_TAG }}
+          labels: >-
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+          push: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  build-devcontainer-lint-yaml:
+    name: build-devcontainer-lint-yaml
+    runs-on: ubuntu-latest
+    if: ${{ env.PUBLISH_IMAGES == 'true' }}
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check if devcontainer image already exists
+        id: image_exists
+        shell: bash
+        run: |
+          set -euo pipefail
+          image="${DEVCONTAINER_IMAGE_BASE}:ci-lint-yaml-${{ env.IMAGE_TAG }}"
+          if docker manifest inspect "$image" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build devcontainer image (lint yaml)
+        if: ${{ steps.image_exists.outputs.exists != 'true' }}
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: .devcontainer/dockerfile.ci
+          target: lint-yaml
+          tags: >-
+            ${{ env.DEVCONTAINER_IMAGE_BASE }}:ci-lint-yaml-${{ env.IMAGE_TAG }}
+          labels: >-
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+          push: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  build-devcontainer-lint-systemd:
+    name: build-devcontainer-lint-systemd
+    runs-on: ubuntu-latest
+    if: ${{ env.PUBLISH_IMAGES == 'true' }}
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check if devcontainer image already exists
+        id: image_exists
+        shell: bash
+        run: |
+          set -euo pipefail
+          image="${DEVCONTAINER_IMAGE_BASE}:ci-lint-systemd-${{ env.IMAGE_TAG }}"
+          if docker manifest inspect "$image" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build devcontainer image (lint systemd)
+        if: ${{ steps.image_exists.outputs.exists != 'true' }}
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: .devcontainer/dockerfile.ci
+          target: lint-systemd
+          tags: >-
+            ${{ env.DEVCONTAINER_IMAGE_BASE }}:ci-lint-systemd-${{ env.IMAGE_TAG }}
+          labels: >-
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+          push: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  build-devcontainer-lint-markdown:
+    name: build-devcontainer-lint-markdown
+    runs-on: ubuntu-latest
+    if: ${{ env.PUBLISH_IMAGES == 'true' }}
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check if devcontainer image already exists
+        id: image_exists
+        shell: bash
+        run: |
+          set -euo pipefail
+          image="${DEVCONTAINER_IMAGE_BASE}:ci-lint-markdown-${{ env.IMAGE_TAG }}"
+          if docker manifest inspect "$image" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build devcontainer image (lint markdown)
+        if: ${{ steps.image_exists.outputs.exists != 'true' }}
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: .devcontainer/dockerfile.ci
+          target: lint-markdown
+          tags: >-
+            ${{ env.DEVCONTAINER_IMAGE_BASE }}:ci-lint-markdown-${{ env.IMAGE_TAG }}
+          labels: >-
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+          push: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  lint-permissions:
+    name: lint-permissions
+    runs-on: ubuntu-latest
+    needs: [build-devcontainer-lint-base]
     if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
     permissions:
       contents: read
       packages: read
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: permissions
-            ci_part: lint-permissions
-            docker_target: base
-            image_suffix: lint-permissions
-          - name: naming
-            ci_part: lint-naming
-            docker_target: base
-            image_suffix: lint-naming
-          - name: sh
-            ci_part: lint-sh
-            docker_target: lint-sh
-            image_suffix: lint-sh
-          - name: yaml
-            ci_part: lint-yaml
-            docker_target: lint-yaml
-            image_suffix: lint-yaml
-          - name: systemd
-            ci_part: lint-systemd
-            docker_target: lint-systemd
-            image_suffix: lint-systemd
-          - name: markdown
-            ci_part: lint-markdown
-            docker_target: lint-markdown
-            image_suffix: lint-markdown
     steps:
       - uses: actions/checkout@v4
 
@@ -276,8 +383,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          hash="${{ needs.devcontainer-meta.outputs.hash }}"
-          image="${DEVCONTAINER_IMAGE_BASE}:ci-${{ matrix.image_suffix }}-${hash}"
+          image="${DEVCONTAINER_IMAGE_BASE}:ci-lint-base-${{ env.IMAGE_TAG }}"
           for i in {1..12}; do
             if docker pull "$image"; then
               docker tag "$image" "${DEVCONTAINER_LOCAL_TAG}"
@@ -297,12 +403,232 @@ jobs:
             -v "$PWD:/work" \
             -w /work \
             kiosk-retropie-devcontainer:ci \
-            bash -lc "./scripts/ci.sh ${{ matrix.ci_part }}"
+            bash -lc "./scripts/ci.sh lint-permissions"
+
+  lint-naming:
+    name: lint-naming
+    runs-on: ubuntu-latest
+    needs: [build-devcontainer-lint-base]
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull devcontainer image (cached)
+        shell: bash
+        run: |
+          set -euo pipefail
+          image="${DEVCONTAINER_IMAGE_BASE}:ci-lint-base-${{ env.IMAGE_TAG }}"
+          for i in {1..12}; do
+            if docker pull "$image"; then
+              docker tag "$image" "${DEVCONTAINER_LOCAL_TAG}"
+              exit 0
+            fi
+            sleep 10
+          done
+
+          echo "Failed to pull devcontainer image: $image" >&2
+          exit 1
+
+      - name: Run stage in devcontainer
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -v "$PWD:/work" \
+            -w /work \
+            kiosk-retropie-devcontainer:ci \
+            bash -lc "./scripts/ci.sh lint-naming"
+
+  lint-sh:
+    name: lint-sh
+    runs-on: ubuntu-latest
+    needs: [build-devcontainer-lint-sh]
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull devcontainer image (cached)
+        shell: bash
+        run: |
+          set -euo pipefail
+          image="${DEVCONTAINER_IMAGE_BASE}:ci-lint-sh-${{ env.IMAGE_TAG }}"
+          for i in {1..12}; do
+            if docker pull "$image"; then
+              docker tag "$image" "${DEVCONTAINER_LOCAL_TAG}"
+              exit 0
+            fi
+            sleep 10
+          done
+
+          echo "Failed to pull devcontainer image: $image" >&2
+          exit 1
+
+      - name: Run stage in devcontainer
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -v "$PWD:/work" \
+            -w /work \
+            kiosk-retropie-devcontainer:ci \
+            bash -lc "./scripts/ci.sh lint-sh"
+
+  lint-yaml:
+    name: lint-yaml
+    runs-on: ubuntu-latest
+    needs: [build-devcontainer-lint-yaml]
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull devcontainer image (cached)
+        shell: bash
+        run: |
+          set -euo pipefail
+          image="${DEVCONTAINER_IMAGE_BASE}:ci-lint-yaml-${{ env.IMAGE_TAG }}"
+          for i in {1..12}; do
+            if docker pull "$image"; then
+              docker tag "$image" "${DEVCONTAINER_LOCAL_TAG}"
+              exit 0
+            fi
+            sleep 10
+          done
+
+          echo "Failed to pull devcontainer image: $image" >&2
+          exit 1
+
+      - name: Run stage in devcontainer
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -v "$PWD:/work" \
+            -w /work \
+            kiosk-retropie-devcontainer:ci \
+            bash -lc "./scripts/ci.sh lint-yaml"
+
+  lint-systemd:
+    name: lint-systemd
+    runs-on: ubuntu-latest
+    needs: [build-devcontainer-lint-systemd]
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull devcontainer image (cached)
+        shell: bash
+        run: |
+          set -euo pipefail
+          image="${DEVCONTAINER_IMAGE_BASE}:ci-lint-systemd-${{ env.IMAGE_TAG }}"
+          for i in {1..12}; do
+            if docker pull "$image"; then
+              docker tag "$image" "${DEVCONTAINER_LOCAL_TAG}"
+              exit 0
+            fi
+            sleep 10
+          done
+
+          echo "Failed to pull devcontainer image: $image" >&2
+          exit 1
+
+      - name: Run stage in devcontainer
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -v "$PWD:/work" \
+            -w /work \
+            kiosk-retropie-devcontainer:ci \
+            bash -lc "./scripts/ci.sh lint-systemd"
+
+  lint-markdown:
+    name: lint-markdown
+    runs-on: ubuntu-latest
+    needs: [build-devcontainer-lint-markdown]
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull devcontainer image (cached)
+        shell: bash
+        run: |
+          set -euo pipefail
+          image="${DEVCONTAINER_IMAGE_BASE}:ci-lint-markdown-${{ env.IMAGE_TAG }}"
+          for i in {1..12}; do
+            if docker pull "$image"; then
+              docker tag "$image" "${DEVCONTAINER_LOCAL_TAG}"
+              exit 0
+            fi
+            sleep 10
+          done
+
+          echo "Failed to pull devcontainer image: $image" >&2
+          exit 1
+
+      - name: Run stage in devcontainer
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -v "$PWD:/work" \
+            -w /work \
+            kiosk-retropie-devcontainer:ci \
+            bash -lc "./scripts/ci.sh lint-markdown"
 
   test:
     name: test
     runs-on: ubuntu-latest
-    needs: [devcontainer-meta, build-devcontainer-tests]
+    needs: [build-devcontainer-tests]
     if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
     permissions:
       contents: read
@@ -324,8 +650,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          hash="${{ needs.devcontainer-meta.outputs.hash }}"
-          image="${DEVCONTAINER_IMAGE_BASE}:ci-tests-${hash}"
+          image="${DEVCONTAINER_IMAGE_BASE}:ci-tests-${{ env.IMAGE_TAG }}"
           for i in {1..12}; do
             if docker pull "$image"; then
               docker tag "$image" "${DEVCONTAINER_LOCAL_TAG}"
@@ -367,7 +692,6 @@ jobs:
     name: test-hardware-arm64
     runs-on: [self-hosted, Linux, ARM64]
     timeout-minutes: 30
-    needs: [devcontainer-meta]
     # SECURITY: never run untrusted fork PR code on a self-hosted runner.
     if: |
       (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) ||
@@ -571,7 +895,7 @@ jobs:
   test-coverage-path:
     name: test-coverage-path
     runs-on: ubuntu-latest
-    needs: [devcontainer-meta, build-devcontainer-tests, test]
+    needs: [build-devcontainer-tests, test]
     steps:
       - uses: actions/checkout@v4
 
@@ -598,8 +922,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          hash="${{ needs.devcontainer-meta.outputs.hash }}"
-          image="${DEVCONTAINER_IMAGE_BASE}:ci-tests-${hash}"
+          image="${DEVCONTAINER_IMAGE_BASE}:ci-tests-${{ env.IMAGE_TAG }}"
           for i in {1..12}; do
             if docker pull "$image"; then
               docker tag "$image" "${DEVCONTAINER_LOCAL_TAG}"
@@ -626,7 +949,6 @@ jobs:
     runs-on: ubuntu-latest
     needs:
       [
-        devcontainer-meta,
         build-devcontainer-coverage,
         test,
         test-coverage-line-bats,
@@ -658,8 +980,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          hash="${{ needs.devcontainer-meta.outputs.hash }}"
-          image="${DEVCONTAINER_IMAGE_BASE}:ci-coverage-${hash}"
+          image="${DEVCONTAINER_IMAGE_BASE}:ci-coverage-${{ env.IMAGE_TAG }}"
           for i in {1..12}; do
             if docker pull "$image"; then
               docker tag "$image" "${DEVCONTAINER_LOCAL_TAG}"
@@ -735,7 +1056,7 @@ jobs:
   test-coverage-line-bats:
     name: test-coverage-line (bats)
     runs-on: ubuntu-latest
-    needs: [devcontainer-meta, build-devcontainer-coverage, test]
+    needs: [build-devcontainer-coverage, test]
     steps:
       - uses: actions/checkout@v4
 
@@ -750,8 +1071,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          hash="${{ needs.devcontainer-meta.outputs.hash }}"
-          image="${DEVCONTAINER_IMAGE_BASE}:ci-coverage-${hash}"
+          image="${DEVCONTAINER_IMAGE_BASE}:ci-coverage-${{ env.IMAGE_TAG }}"
           for i in {1..12}; do
             if docker pull "$image"; then
               docker tag "$image" "${DEVCONTAINER_LOCAL_TAG}"
@@ -786,7 +1106,7 @@ jobs:
   test-coverage-line-scripts:
     name: test-coverage-line (scripts)
     runs-on: ubuntu-latest
-    needs: [devcontainer-meta, build-devcontainer-coverage, test]
+    needs: [build-devcontainer-coverage, test]
     steps:
       - uses: actions/checkout@v4
 
@@ -801,8 +1121,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          hash="${{ needs.devcontainer-meta.outputs.hash }}"
-          image="${DEVCONTAINER_IMAGE_BASE}:ci-coverage-${hash}"
+          image="${DEVCONTAINER_IMAGE_BASE}:ci-coverage-${{ env.IMAGE_TAG }}"
           for i in {1..12}; do
             if docker pull "$image"; then
               docker tag "$image" "${DEVCONTAINER_LOCAL_TAG}"
