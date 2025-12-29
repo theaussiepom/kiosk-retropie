@@ -177,218 +177,11 @@ jobs:
           path: tests/.tmp/kiosk-retropie-paths.log
           if-no-files-found: warn
 
-  test-path-coverage:
-    name: test-path-coverage
-    runs-on: ubuntu-latest
-    needs: [test-unit, test-integration]
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Download unit paths log
-        uses: actions/download-artifact@v4
-        with:
-          name: paths-log-unit
-          path: tests/.tmp/
-
-      - name: Download integration paths log
-        uses: actions/download-artifact@v4
-        with:
-          name: paths-log-integration
-          path: tests/.tmp/
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build devcontainer image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: .devcontainer/Dockerfile
-          tags: kiosk-retropie-devcontainer:ci
-          load: true
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Run stage in devcontainer
-        shell: bash
-        run: |
-          set -euo pipefail
-          docker run --rm \
-            -v "$PWD:/work" \
-            -w /work \
-            kiosk-retropie-devcontainer:ci \
-            bash -lc './scripts/ci.sh tests-path-coverage'
-
-  test-line-coverage:
-    name: test-line-coverage
-    runs-on: ubuntu-latest
-    needs: [test-unit, test-integration]
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build devcontainer image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: .devcontainer/Dockerfile
-          tags: kiosk-retropie-devcontainer:ci
-          load: true
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Run stage in devcontainer
-        timeout-minutes: 20
-        shell: bash
-        run: |
-          set -euo pipefail
-          docker run --rm \
-            -v "$PWD:/work" \
-            -w /work \
-            kiosk-retropie-devcontainer:ci \
-            bash -lc './scripts/ci.sh coverage'
-
-      - name: Show kcov output paths
-        if: always()
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo "Listing coverage/ (if present)"
-          ls -la coverage || true
-          echo "Searching for coverage.json under coverage/"
-          find coverage -maxdepth 4 -name coverage.json -print 2>/dev/null || true
-          echo "Searching for kcov logs under coverage/"
-          find coverage -maxdepth 2 -name '*.log' -print 2>/dev/null || true
-
-      - name: Show kcov log tails (failure only)
-        if: failure()
-        shell: bash
-        run: |
-          set -euo pipefail
-          for f in coverage/*.log; do
-            [ -f "$f" ] || continue
-            echo "--- $f (last 200 lines) ---"
-            tail -n 200 "$f" || true
-          done
-
-      - name: Upload kcov coverage artifact
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: kcov-coverage
-          path: coverage/
-          if-no-files-found: warn
-
-      - name: Upload kcov logs artifact
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: kcov-logs
-          path: |
-            coverage/*.log
-            coverage/**/*.log
-            coverage/*.strace
-            coverage/**/*.strace
-          if-no-files-found: warn
-
-  # Coverage enforcement is handled by ./scripts/ci.sh coverage
-
-  lint-yaml:
-    name: lint-yaml
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build devcontainer image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: .devcontainer/Dockerfile
-          tags: kiosk-retropie-devcontainer:ci
-          load: true
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Run stage in devcontainer
-        shell: bash
-        run: |
-          set -euo pipefail
-          docker run --rm \
-            -v "$PWD:/work" \
-            -w /work \
-            kiosk-retropie-devcontainer:ci \
-            bash -lc './scripts/ci.sh lint-yaml'
-
-  lint-systemd:
-    name: lint-systemd
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build devcontainer image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: .devcontainer/Dockerfile
-          tags: kiosk-retropie-devcontainer:ci
-          load: true
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Run stage in devcontainer
-        shell: bash
-        run: |
-          set -euo pipefail
-          docker run --rm \
-            -v "$PWD:/work" \
-            -w /work \
-            kiosk-retropie-devcontainer:ci \
-            bash -lc './scripts/ci.sh lint-systemd'
-
-  lint-markdown:
-    name: lint-markdown
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build devcontainer image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: .devcontainer/Dockerfile
-          tags: kiosk-retropie-devcontainer:ci
-          load: true
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Run stage in devcontainer
-        shell: bash
-        run: |
-          set -euo pipefail
-          docker run --rm \
-            -v "$PWD:/work" \
-            -w /work \
-            kiosk-retropie-devcontainer:ci \
-            bash -lc './scripts/ci.sh lint-markdown'
-
-  arm64-hw-integration:
-    name: arm64-hw-integration (self-hosted Linux ARM64)
+  test-hardware-arm64:
+    name: test-hardware-arm64
     runs-on: [self-hosted, Linux, ARM64]
     timeout-minutes: 30
-    needs:
-      - test-unit
-      - test-integration
+    needs: [test-unit, test-integration]
     # SECURITY: never run untrusted fork PR code on a self-hosted runner.
     if: |
       (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) ||
@@ -575,3 +368,208 @@ jobs:
           export KIOSK_RETROPIE_HW_REQUIRE_UINPUT=1
           export KIOSK_RETROPIE_HW_REQUIRE_VT_XORG=1
           sudo -E bash ./tests/bin/run-bats-hw.sh
+
+  test-coverage-path:
+    name: test-coverage-path
+    runs-on: ubuntu-latest
+    needs: [test-unit, test-integration]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download unit paths log
+        uses: actions/download-artifact@v4
+        with:
+          name: paths-log-unit
+          path: tests/.tmp/
+
+      - name: Download integration paths log
+        uses: actions/download-artifact@v4
+        with:
+          name: paths-log-integration
+          path: tests/.tmp/
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build devcontainer image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: .devcontainer/Dockerfile
+          tags: kiosk-retropie-devcontainer:ci
+          load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Run stage in devcontainer
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -v "$PWD:/work" \
+            -w /work \
+            kiosk-retropie-devcontainer:ci \
+            bash -lc './scripts/ci.sh tests-path-coverage'
+
+  test-coverage-line:
+    name: test-coverage-line
+    runs-on: ubuntu-latest
+    needs: [test-unit, test-integration]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build devcontainer image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: .devcontainer/Dockerfile
+          tags: kiosk-retropie-devcontainer:ci
+          load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Run stage in devcontainer
+        timeout-minutes: 20
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -v "$PWD:/work" \
+            -w /work \
+            kiosk-retropie-devcontainer:ci \
+            bash -lc './scripts/ci.sh coverage'
+
+      - name: Show kcov output paths
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Listing coverage/ (if present)"
+          ls -la coverage || true
+          echo "Searching for coverage.json under coverage/"
+          find coverage -maxdepth 4 -name coverage.json -print 2>/dev/null || true
+          echo "Searching for kcov logs under coverage/"
+          find coverage -maxdepth 2 -name '*.log' -print 2>/dev/null || true
+
+      - name: Show kcov log tails (failure only)
+        if: failure()
+        shell: bash
+        run: |
+          set -euo pipefail
+          for f in coverage/*.log; do
+            [ -f "$f" ] || continue
+            echo "--- $f (last 200 lines) ---"
+            tail -n 200 "$f" || true
+          done
+
+      - name: Upload kcov coverage artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kcov-coverage
+          path: coverage/
+          if-no-files-found: warn
+
+      - name: Upload kcov logs artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kcov-logs
+          path: |
+            coverage/*.log
+            coverage/**/*.log
+            coverage/*.strace
+            coverage/**/*.strace
+          if-no-files-found: warn
+
+  # Coverage enforcement is handled by ./scripts/ci.sh coverage
+
+  lint-yaml:
+    name: lint-yaml
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build devcontainer image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: .devcontainer/Dockerfile
+          tags: kiosk-retropie-devcontainer:ci
+          load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Run stage in devcontainer
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -v "$PWD:/work" \
+            -w /work \
+            kiosk-retropie-devcontainer:ci \
+            bash -lc './scripts/ci.sh lint-yaml'
+
+  lint-systemd:
+    name: lint-systemd
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build devcontainer image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: .devcontainer/Dockerfile
+          tags: kiosk-retropie-devcontainer:ci
+          load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Run stage in devcontainer
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -v "$PWD:/work" \
+            -w /work \
+            kiosk-retropie-devcontainer:ci \
+            bash -lc './scripts/ci.sh lint-systemd'
+
+  lint-markdown:
+    name: lint-markdown
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build devcontainer image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: .devcontainer/Dockerfile
+          tags: kiosk-retropie-devcontainer:ci
+          load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Run stage in devcontainer
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -v "$PWD:/work" \
+            -w /work \
+            kiosk-retropie-devcontainer:ci \
+            bash -lc './scripts/ci.sh lint-markdown'
