@@ -905,11 +905,25 @@ jobs:
                 exit 1
               fi
 
-              scripts_base_dir="$(dirname "$(dirname "$wrapped_dir")")"
-              scripts_coverage_dir="$scripts_base_dir/coverage"
-              if [[ ! -f "$scripts_coverage_dir/coverage.json" ]]; then
-                echo "Could not locate scripts coverage.json at: $scripts_coverage_dir/coverage.json" >&2
-                find "$scripts_base_dir" -maxdepth 4 -print >&2 || true
+              # kcov writes coverage.json under a per-command subdirectory, not directly under the
+              # coverage output directory. Locate the kcov-line-coverage output robustly.
+              scripts_coverage_leaf_dir="$(
+                find "$merge_input" -maxdepth 10 -type f -name coverage.json \
+                  -path "*/kcov-line-coverage.sh.*/*" \
+                  -not -path "*/coverage-wrapped/*" \
+                  -print -quit \
+                  | xargs -r dirname
+              )"
+              if [[ -z "$scripts_coverage_leaf_dir" ]]; then
+                echo "Could not locate scripts kcov-line coverage.json under: $merge_input" >&2
+                find "$merge_input" -maxdepth 4 -print >&2 || true
+                exit 1
+              fi
+
+              scripts_coverage_dir="$(dirname "$scripts_coverage_leaf_dir")"
+              if [[ ! -f "$scripts_coverage_dir/index.html" ]]; then
+                echo "Could not locate scripts kcov-line index.html at: $scripts_coverage_dir/index.html" >&2
+                find "$scripts_coverage_dir" -maxdepth 2 -print >&2 || true
                 exit 1
               fi
 
