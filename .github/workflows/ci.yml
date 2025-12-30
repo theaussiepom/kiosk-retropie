@@ -298,7 +298,11 @@ jobs:
             local started_at
             started_at="$(date -Is)"
             echo "== ${name} (start ${started_at}) =="
-            run_in_image "$image" "$@" &
+
+            local log_file="${logs_dir}/${name}.log"
+            : >"$log_file"
+
+            run_in_image "$image" "$@" >"$log_file" 2>&1 &
 
             local pid="$!"
             echo "Started lint: ${name} pid=${pid}"
@@ -306,11 +310,19 @@ jobs:
             pids+=("$pid")
             names+=("$name")
             started_ats+=("$started_at")
+            log_files+=("$log_file")
           }
 
           declare -a pids=()
           declare -a names=()
           declare -a started_ats=()
+          declare -a log_files=()
+
+          logs_dir="$(mktemp -d)"
+          cleanup() {
+            rm -rf "$logs_dir"
+          }
+          trap cleanup EXIT
 
           run_bg lint-permissions "$base_image" ./scripts/ci.sh lint-permissions
           run_bg lint-naming "$base_image" ./scripts/ci.sh lint-naming
@@ -331,6 +343,12 @@ jobs:
               ended_at="$(date -Is)"
               echo "Lint complete: ${names[$i]} pid=${pids[$i]} started_at=${started_ats[$i]} ended_at=${ended_at}"
             fi
+
+            echo "::group::${names[$i]} output"
+            # Always print the captured output (even on failure) so the UI shows
+            # each lint stage in its own collapsible section.
+            cat "${log_files[$i]}" || true
+            echo "::endgroup::"
           done
 
           exit "$failed"
