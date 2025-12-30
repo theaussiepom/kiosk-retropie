@@ -873,14 +873,52 @@ jobs:
             kiosk-retropie-devcontainer:ci \
             bash -lc '
               set -euo pipefail
+
+              merge_input=/work/tests/.tmp/kcov-merge-input
+
+              bats_unit_dir="$(
+                find "$merge_input/bats-unit" -maxdepth 8 -type f -name index.html -print -quit \
+                  | xargs -r dirname
+              )"
+              if [[ -z "$bats_unit_dir" ]]; then
+                echo "Could not locate bats unit kcov output under: $merge_input/bats-unit" >&2
+                find "$merge_input/bats-unit" -maxdepth 4 -print >&2 || true
+                exit 1
+              fi
+
+              bats_integration_dir="$(
+                find "$merge_input/bats-integration" -maxdepth 8 -type f -name index.html -print -quit \
+                  | xargs -r dirname
+              )"
+              if [[ -z "$bats_integration_dir" ]]; then
+                echo "Could not locate bats integration kcov output under: $merge_input/bats-integration" >&2
+                find "$merge_input/bats-integration" -maxdepth 4 -print >&2 || true
+                exit 1
+              fi
+
+              wrapped_dir="$(
+                find "$merge_input" -maxdepth 10 -type d -path '*/coverage-wrapped/kcov-merged' -print -quit
+              )"
+              if [[ -z "$wrapped_dir" ]]; then
+                echo "Could not locate scripts wrapped merge dir under: $merge_input" >&2
+                find "$merge_input" -maxdepth 4 -print >&2 || true
+                exit 1
+              fi
+
+              scripts_base_dir="$(dirname "$(dirname "$wrapped_dir")")"
+              scripts_coverage_dir="$scripts_base_dir/coverage"
+              if [[ ! -f "$scripts_coverage_dir/coverage.json" ]]; then
+                echo "Could not locate scripts coverage.json at: $scripts_coverage_dir/coverage.json" >&2
+                find "$scripts_base_dir" -maxdepth 4 -print >&2 || true
+                exit 1
+              fi
+
               export KCOV_OUT_DIR=/work/tests/.tmp/kcov-merge-out
-              export KCOV_MERGE_BATS_DIRS=$(
-                printf '%s,%s' \
-                  '/work/tests/.tmp/kcov-merge-input/bats-unit/bats' \
-                  '/work/tests/.tmp/kcov-merge-input/bats-integration/bats'
-              )
-              export KCOV_MERGE_COVERAGE_DIR=/work/tests/.tmp/kcov-merge-input/coverage
-              export KCOV_MERGE_WRAPPED_DIR=/work/tests/.tmp/kcov-merge-input/coverage-wrapped/kcov-merged
+              export KCOV_MERGE_BATS_DIRS="$(
+                printf '%s,%s' "$bats_unit_dir" "$bats_integration_dir"
+              )"
+              export KCOV_MERGE_COVERAGE_DIR="$scripts_coverage_dir"
+              export KCOV_MERGE_WRAPPED_DIR="$wrapped_dir"
               ./scripts/ci.sh coverage-merge
             '
 
