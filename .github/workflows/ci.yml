@@ -23,7 +23,7 @@ env:
 
 jobs:
   test-hardware-arm64:
-    name: test-hardware-arm64
+    name: 00 test-hardware-arm64
     runs-on: [self-hosted, Linux, ARM64]
     timeout-minutes: 30
     # SECURITY: never run untrusted fork PR code on a self-hosted runner.
@@ -616,8 +616,8 @@ jobs:
             kiosk-retropie-devcontainer:ci \
             bash -lc './scripts/ci.sh lint-markdown'
 
-  test-coverage:
-    name: test-coverage
+  test-coverage-line-bats-unit:
+    name: test-unit
     runs-on: ubuntu-latest
     needs: [build-devcontainer-coverage]
     steps:
@@ -646,58 +646,263 @@ jobs:
           echo "Failed to pull devcontainer image: $image" >&2
           exit 1
 
-      - name: Run coverage (unit + integration + scripts + path + merge)
-        timeout-minutes: 45
+      - name: Run kcov bats part in devcontainer
+        timeout-minutes: 20
         shell: bash
         run: |
           set -euo pipefail
-          rm -rf tests/.tmp/kcov-part-bats-unit \
-            tests/.tmp/kcov-part-bats-integration \
-            tests/.tmp/kcov-part-scripts \
-            tests/.tmp/kcov-merge-input \
-            tests/.tmp/kcov-merge-out \
-            coverage
+          rm -rf tests/.tmp/kcov-part-bats-unit
+          docker run --rm \
+            -v "$PWD:/work" \
+            -w /work \
+            kiosk-retropie-devcontainer:ci \
+            bash -lc '
+              export KCOV_BATS_SUITE=unit
+              export KCOV_OUT_DIR=/work/tests/.tmp/kcov-part-bats-unit
+              ./scripts/ci.sh coverage-bats
+            '
 
+      - name: Upload kcov bats (unit) part
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kcov-part-bats-unit
+          path: tests/.tmp/kcov-part-bats-unit/
+          if-no-files-found: error
+
+      - name: Upload unit paths log artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: paths-log-unit
+          path: tests/.tmp/kiosk-retropie-paths.unit.log
+          if-no-files-found: warn
+
+  test-coverage-line-bats-integration:
+    name: test-integration
+    runs-on: ubuntu-latest
+    needs: [build-devcontainer-coverage]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull devcontainer image (cached)
+        shell: bash
+        run: |
+          set -euo pipefail
+          image="${DEVCONTAINER_IMAGE_BASE}:ci-coverage-${{ env.IMAGE_TAG }}"
+          for i in {1..12}; do
+            if docker pull "$image"; then
+              docker tag "$image" "${DEVCONTAINER_LOCAL_TAG}"
+              exit 0
+            fi
+            sleep 10
+          done
+
+          echo "Failed to pull devcontainer image: $image" >&2
+          exit 1
+
+      - name: Run kcov bats part in devcontainer
+        timeout-minutes: 20
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf tests/.tmp/kcov-part-bats-integration
+          docker run --rm \
+            -v "$PWD:/work" \
+            -w /work \
+            kiosk-retropie-devcontainer:ci \
+            bash -lc '
+              export KCOV_BATS_SUITE=integration
+              export KCOV_OUT_DIR=/work/tests/.tmp/kcov-part-bats-integration
+              ./scripts/ci.sh coverage-bats
+            '
+
+      - name: Upload kcov bats (integration) part
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kcov-part-bats-integration
+          path: tests/.tmp/kcov-part-bats-integration/
+          if-no-files-found: error
+
+      - name: Upload integration paths log artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: paths-log-integration
+          path: tests/.tmp/kiosk-retropie-paths.log
+          if-no-files-found: warn
+
+  test-coverage-line-scripts:
+    name: test-remaining-coverage
+    runs-on: ubuntu-latest
+    needs: [build-devcontainer-coverage]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull devcontainer image (cached)
+        shell: bash
+        run: |
+          set -euo pipefail
+          image="${DEVCONTAINER_IMAGE_BASE}:ci-coverage-${{ env.IMAGE_TAG }}"
+          for i in {1..12}; do
+            if docker pull "$image"; then
+              docker tag "$image" "${DEVCONTAINER_LOCAL_TAG}"
+              exit 0
+            fi
+            sleep 10
+          done
+
+          echo "Failed to pull devcontainer image: $image" >&2
+          exit 1
+
+      - name: Run kcov scripts part in devcontainer
+        timeout-minutes: 20
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf tests/.tmp/kcov-part-scripts
+          docker run --rm \
+            -v "$PWD:/work" \
+            -w /work \
+            kiosk-retropie-devcontainer:ci \
+            bash -lc 'export KCOV_OUT_DIR=/work/tests/.tmp/kcov-part-scripts && ./scripts/ci.sh coverage-scripts'
+
+      - name: Upload kcov scripts part
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kcov-part-scripts
+          path: tests/.tmp/kcov-part-scripts/
+          if-no-files-found: error
+
+  test-coverage-path:
+    name: test-coverage-path
+    runs-on: ubuntu-latest
+    needs:
+      [
+        test-coverage-line-bats-unit,
+        test-coverage-line-bats-integration,
+        test-coverage-line-scripts,
+      ]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download unit paths log
+        uses: actions/download-artifact@v4
+        with:
+          name: paths-log-unit
+          path: tests/.tmp/
+
+      - name: Download integration paths log
+        uses: actions/download-artifact@v4
+        with:
+          name: paths-log-integration
+          path: tests/.tmp/
+
+      - name: Verify required PATH ids
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./scripts/ci.sh tests-path-coverage
+
+  test-coverage-line:
+    name: test-coverage-line
+    runs-on: ubuntu-latest
+    needs:
+      [
+        build-devcontainer-coverage,
+        test-coverage-line-bats-unit,
+        test-coverage-line-bats-integration,
+        test-coverage-line-scripts,
+      ]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download kcov bats (unit) part
+        uses: actions/download-artifact@v4
+        with:
+          name: kcov-part-bats-unit
+          path: tests/.tmp/kcov-merge-input/bats-unit
+
+      - name: Download kcov bats (integration) part
+        uses: actions/download-artifact@v4
+        with:
+          name: kcov-part-bats-integration
+          path: tests/.tmp/kcov-merge-input/bats-integration
+
+      - name: Download kcov scripts part
+        uses: actions/download-artifact@v4
+        with:
+          name: kcov-part-scripts
+          path: tests/.tmp/kcov-merge-input
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull devcontainer image (cached)
+        shell: bash
+        run: |
+          set -euo pipefail
+          image="${DEVCONTAINER_IMAGE_BASE}:ci-coverage-${{ env.IMAGE_TAG }}"
+          for i in {1..12}; do
+            if docker pull "$image"; then
+              docker tag "$image" "${DEVCONTAINER_LOCAL_TAG}"
+              exit 0
+            fi
+            sleep 10
+          done
+
+          echo "Failed to pull devcontainer image: $image" >&2
+          exit 1
+
+      - name: Run stage in devcontainer
+        timeout-minutes: 20
+        shell: bash
+        run: |
+          set -euo pipefail
           docker run --rm \
             -v "$PWD:/work" \
             -w /work \
             kiosk-retropie-devcontainer:ci \
             bash -lc '
               set -euo pipefail
-
-              export KCOV_BATS_SUITE=unit
-              export KCOV_OUT_DIR=/work/tests/.tmp/kcov-part-bats-unit
-              ./scripts/ci.sh coverage-bats
-
-              export KCOV_BATS_SUITE=integration
-              export KCOV_OUT_DIR=/work/tests/.tmp/kcov-part-bats-integration
-              ./scripts/ci.sh coverage-bats
-
-              export KCOV_OUT_DIR=/work/tests/.tmp/kcov-part-scripts
-              ./scripts/ci.sh coverage-scripts
-
-              ./scripts/ci.sh tests-path-coverage
-
-              rm -rf /work/tests/.tmp/kcov-merge-input /work/tests/.tmp/kcov-merge-out
-              mkdir -p /work/tests/.tmp/kcov-merge-input/bats-unit /work/tests/.tmp/kcov-merge-input/bats-integration
-
-              cp -a /work/tests/.tmp/kcov-part-bats-unit/. /work/tests/.tmp/kcov-merge-input/bats-unit/
-              cp -a /work/tests/.tmp/kcov-part-bats-integration/. /work/tests/.tmp/kcov-merge-input/bats-integration/
-              cp -a /work/tests/.tmp/kcov-part-scripts/. /work/tests/.tmp/kcov-merge-input/
-
               export KCOV_OUT_DIR=/work/tests/.tmp/kcov-merge-out
               export KCOV_MERGE_BATS_DIRS=$(
-                printf "%s,%s" \
-                  "/work/tests/.tmp/kcov-merge-input/bats-unit/bats" \
-                  "/work/tests/.tmp/kcov-merge-input/bats-integration/bats"
+                printf '%s,%s' \
+                  '/work/tests/.tmp/kcov-merge-input/bats-unit/bats' \
+                  '/work/tests/.tmp/kcov-merge-input/bats-integration/bats'
               )
               export KCOV_MERGE_COVERAGE_DIR=/work/tests/.tmp/kcov-merge-input/coverage
               export KCOV_MERGE_WRAPPED_DIR=/work/tests/.tmp/kcov-merge-input/coverage-wrapped/kcov-merged
               ./scripts/ci.sh coverage-merge
             '
 
-          mkdir -p coverage
-          find tests/.tmp/kcov-merge-out -maxdepth 2 -name '*.log' -print -exec cp -v '{}' coverage/ ';' || true
+      - name: Show kcov output paths
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Listing tests/.tmp/kcov-merge-out/"
+          find tests/.tmp/kcov-merge-out -maxdepth 4 -type f -print | sed 's#^#  #' || true
 
       - name: Verify kcov output exists
         shell: bash
@@ -706,6 +911,39 @@ jobs:
           test -d tests/.tmp/kcov-merge-out
           test -f tests/.tmp/kcov-merge-out/index.html
           test -f tests/.tmp/kcov-merge-out/coverage/coverage.json
+
+      - name: Collect kcov output for debugging
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p coverage
+
+          # kcov emits logs in the merge output directory.
+          find tests/.tmp/kcov-merge-out -maxdepth 2 -name '*.log' -print -exec cp -v '{}' coverage/ ';' || true
+
+      - name: Show kcov output summary
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Listing coverage/ (if present)"
+          ls -la coverage || true
+          echo "Searching for coverage.json under coverage/"
+          find coverage -maxdepth 4 -name coverage.json -print 2>/dev/null || true
+          echo "Searching for kcov logs under coverage/"
+          find coverage -maxdepth 2 -name '*.log' -print 2>/dev/null || true
+
+      - name: Show kcov log tails (failure only)
+        if: failure()
+        shell: bash
+        run: |
+          set -euo pipefail
+          for f in coverage/*.log; do
+            [ -f "$f" ] || continue
+            echo "--- $f (last 200 lines) ---"
+            tail -n 200 "$f" || true
+          done
 
       - name: Upload kcov coverage artifact
         if: always()
@@ -725,5 +963,4 @@ jobs:
             tests/.tmp/kcov-merge-out/**/*.log
             tests/.tmp/kcov-merge-out/*.strace
             tests/.tmp/kcov-merge-out/**/*.strace
-            coverage/*.log
           if-no-files-found: warn
