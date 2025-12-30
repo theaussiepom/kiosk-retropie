@@ -949,8 +949,9 @@ jobs:
         run: |
           set -euo pipefail
           test -d tests/.tmp/kcov-merge-out
-          test -f tests/.tmp/kcov-merge-out/index.html
-          test -f tests/.tmp/kcov-merge-out/coverage/coverage.json
+          test -d tests/.tmp/kcov-merge-out/kcov-merged
+          test -f tests/.tmp/kcov-merge-out/kcov-merged/index.html
+          test -f tests/.tmp/kcov-merge-out/kcov-merged/kcov-merged/coverage.json
 
       - name: Collect kcov output for debugging
         if: always()
