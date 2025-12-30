@@ -70,8 +70,8 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  build-devcontainer-lint:
-    name: build-devcontainer-lint
+  build-devcontainer-lint-base:
+    name: build-devcontainer-lint-base
     runs-on: ubuntu-latest
     if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
     permissions:
@@ -89,69 +89,123 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build lint devcontainer images (parallel)
+      - name: Build lint devcontainer image (lint-base)
         shell: bash
         run: |
           set -euo pipefail
+          suffix=lint-base
+          target=lint-base
+          image="${DEVCONTAINER_IMAGE_BASE}:ci-${suffix}-${{ env.IMAGE_TAG }}"
 
-          build_if_missing() {
-            local target="$1"
-            local suffix="$2"
-            local image="${DEVCONTAINER_IMAGE_BASE}:ci-${suffix}-${{ env.IMAGE_TAG }}"
+          if docker manifest inspect "$image" >/dev/null 2>&1; then
+            echo "Already exists: $image"
+            exit 0
+          fi
 
-            if docker manifest inspect "$image" >/dev/null 2>&1; then
-              echo "Already exists: $image"
-              return 0
-            fi
+          echo "Building: $image (target=$target)"
+          docker buildx build \
+            --file .devcontainer/dockerfile.ci \
+            --target "$target" \
+            --tag "$image" \
+            --label "org.opencontainers.image.revision=${{ github.sha }}" \
+            --label "org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}" \
+            --push \
+            --cache-from "type=gha,scope=ci-${suffix}" \
+            --cache-to "type=gha,mode=max,scope=ci-${suffix}" \
+            .
 
-            echo "Building: $image (target=$target)"
-            docker buildx build \
-              --file .devcontainer/dockerfile.ci \
-              --target "$target" \
-              --tag "$image" \
-              --label "org.opencontainers.image.revision=${{ github.sha }}" \
-              --label "org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}" \
-              --push \
-              --cache-from "type=gha,scope=ci-${suffix}" \
-              --cache-to "type=gha,mode=max,scope=ci-${suffix}" \
-              . &
+  build-devcontainer-lint-sh:
+    name: build-devcontainer-lint-sh
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
 
-            local pid="$!"
-            local started_at
-            started_at="$(date -Is)"
-            echo "Started build: ${suffix} pid=${pid} at ${started_at}"
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-            pids+=("$pid")
-            names+=("$suffix")
-            started_ats+=("$started_at")
-          }
+      - name: Build lint devcontainer image (lint-sh)
+        shell: bash
+        run: |
+          set -euo pipefail
+          suffix=lint-sh
+          target=lint-sh
+          image="${DEVCONTAINER_IMAGE_BASE}:ci-${suffix}-${{ env.IMAGE_TAG }}"
 
-          declare -a pids=()
-          declare -a names=()
-          declare -a started_ats=()
+          if docker manifest inspect "$image" >/dev/null 2>&1; then
+            echo "Already exists: $image"
+            exit 0
+          fi
 
-          build_if_missing lint-base lint-base
-          build_if_missing lint-sh lint-sh
-          build_if_missing lint-markdown lint-markdown
+          echo "Building: $image (target=$target)"
+          docker buildx build \
+            --file .devcontainer/dockerfile.ci \
+            --target "$target" \
+            --tag "$image" \
+            --label "org.opencontainers.image.revision=${{ github.sha }}" \
+            --label "org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}" \
+            --push \
+            --cache-from "type=gha,scope=ci-${suffix}" \
+            --cache-to "type=gha,mode=max,scope=ci-${suffix}" \
+            .
 
-          failed=0
-          for i in "${!pids[@]}"; do
-            if ! wait "${pids[$i]}"; then
-              ended_at="$(date -Is)"
-              echo "Build failed: ${names[$i]} pid=${pids[$i]} started_at=${started_ats[$i]} ended_at=${ended_at}" >&2
-              failed=1
-            else
-              ended_at="$(date -Is)"
-              echo "Build complete: ${names[$i]} pid=${pids[$i]} started_at=${started_ats[$i]} ended_at=${ended_at}"
-            fi
-          done
+  build-devcontainer-lint-markdown:
+    name: build-devcontainer-lint-markdown
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
 
-          exit "$failed"
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build lint devcontainer image (lint-markdown)
+        shell: bash
+        run: |
+          set -euo pipefail
+          suffix=lint-markdown
+          target=lint-markdown
+          image="${DEVCONTAINER_IMAGE_BASE}:ci-${suffix}-${{ env.IMAGE_TAG }}"
+
+          if docker manifest inspect "$image" >/dev/null 2>&1; then
+            echo "Already exists: $image"
+            exit 0
+          fi
+
+          echo "Building: $image (target=$target)"
+          docker buildx build \
+            --file .devcontainer/dockerfile.ci \
+            --target "$target" \
+            --tag "$image" \
+            --label "org.opencontainers.image.revision=${{ github.sha }}" \
+            --label "org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}" \
+            --push \
+            --cache-from "type=gha,scope=ci-${suffix}" \
+            --cache-to "type=gha,mode=max,scope=ci-${suffix}" \
+            .
 
   lint-permissions:
     name: lint-permissions
     runs-on: ubuntu-latest
-    needs: [build-devcontainer-lint]
+    needs: [build-devcontainer-lint-base]
     if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
     permissions:
       contents: read
@@ -195,7 +249,7 @@ jobs:
   lint-naming:
     name: lint-naming
     runs-on: ubuntu-latest
-    needs: [build-devcontainer-lint]
+    needs: [build-devcontainer-lint-base]
     if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
     permissions:
       contents: read
@@ -239,7 +293,7 @@ jobs:
   lint-sh:
     name: lint-sh
     runs-on: ubuntu-latest
-    needs: [build-devcontainer-lint]
+    needs: [build-devcontainer-lint-sh]
     if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
     permissions:
       contents: read
@@ -283,7 +337,7 @@ jobs:
   lint-yaml:
     name: lint-yaml
     runs-on: ubuntu-latest
-    needs: [build-devcontainer-lint]
+    needs: [build-devcontainer-lint-base]
     if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
     permissions:
       contents: read
@@ -327,7 +381,7 @@ jobs:
   lint-systemd:
     name: lint-systemd
     runs-on: ubuntu-latest
-    needs: [build-devcontainer-lint]
+    needs: [build-devcontainer-lint-base]
     if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
     permissions:
       contents: read
@@ -575,7 +629,7 @@ jobs:
   lint-markdown:
     name: lint-markdown
     runs-on: ubuntu-latest
-    needs: [build-devcontainer-lint]
+    needs: [build-devcontainer-lint-markdown]
     if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
     permissions:
       contents: read
