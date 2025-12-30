@@ -790,8 +790,8 @@ jobs:
           path: tests/.tmp/kcov-part-scripts/
           if-no-files-found: error
 
-  test-coverage-line:
-    name: test-coverage-line
+  test-coverage:
+    name: test-coverage
     runs-on: ubuntu-latest
     needs:
       [
