@@ -63,7 +63,7 @@ That is the same pipeline GitHub CI uses.
 Build the devcontainer image:
 
 ```bash
-docker build -t kiosk-retropie-devcontainer -f .devcontainer/Dockerfile .
+docker build -t kiosk-retropie-devcontainer -f .devcontainer/dockerfile.ci --target dev .
 ```
 
 Run the full pipeline inside it:
@@ -130,7 +130,7 @@ These don’t usually show up in container CI, but they matter on actual Raspber
 ## Local CI tip: don’t rebuild containers every run
 
 `make ci` / `make container-run` will reuse the existing devcontainer image if it already exists.
-To force a rebuild (e.g. after changing `.devcontainer/Dockerfile`), run:
+To force a rebuild (e.g. after changing `.devcontainer/dockerfile.ci`), run:
 
 ```bash
 FORCE_CONTAINER_BUILD=1 make ci
