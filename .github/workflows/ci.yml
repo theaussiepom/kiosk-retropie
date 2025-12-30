@@ -897,7 +897,7 @@ jobs:
               fi
 
               wrapped_dir="$(
-                find "$merge_input" -maxdepth 10 -type d -path '*/coverage-wrapped/kcov-merged' -print -quit
+                find "$merge_input" -maxdepth 10 -type d -path "*/coverage-wrapped/kcov-merged" -print -quit
               )"
               if [[ -z "$wrapped_dir" ]]; then
                 echo "Could not locate scripts wrapped merge dir under: $merge_input" >&2
@@ -915,7 +915,7 @@ jobs:
 
               export KCOV_OUT_DIR=/work/tests/.tmp/kcov-merge-out
               export KCOV_MERGE_BATS_DIRS="$(
-                printf '%s,%s' "$bats_unit_dir" "$bats_integration_dir"
+                printf "%s,%s" "$bats_unit_dir" "$bats_integration_dir"
               )"
               export KCOV_MERGE_COVERAGE_DIR="$scripts_coverage_dir"
               export KCOV_MERGE_WRAPPED_DIR="$wrapped_dir"
