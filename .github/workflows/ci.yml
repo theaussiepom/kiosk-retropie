@@ -199,8 +199,8 @@ jobs:
 
           exit "$failed"
 
-  lint:
-    name: lint
+  lint-permissions:
+    name: lint-permissions
     runs-on: ubuntu-latest
     needs: [build-devcontainer-lint]
     if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
@@ -217,137 +217,251 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Run lint stages in devcontainers
+      - name: Pull devcontainer image (cached)
         shell: bash
         run: |
           set -euo pipefail
-
-          pull_with_retries() {
-            local image="$1"
-            for i in {1..12}; do
-              if docker pull "$image"; then
-                return 0
-              fi
-              sleep 10
-            done
-            echo "Failed to pull devcontainer image: $image" >&2
-            return 1
-          }
-
-          run_in_image() {
-            local image="$1"
-            shift
-
-            docker run --rm --pull=never \
-              -v "$PWD:/work" \
-              -w /work \
-              "$image" \
-              bash -lc "git config --global --add safe.directory /work && $*"
-          }
-
-          base_image="${DEVCONTAINER_IMAGE_BASE}:ci-lint-base-${{ env.IMAGE_TAG }}"
-          sh_image="${DEVCONTAINER_IMAGE_BASE}:ci-lint-sh-${{ env.IMAGE_TAG }}"
-          yaml_image="${DEVCONTAINER_IMAGE_BASE}:ci-lint-yaml-${{ env.IMAGE_TAG }}"
-          systemd_image="${DEVCONTAINER_IMAGE_BASE}:ci-lint-systemd-${{ env.IMAGE_TAG }}"
-          markdown_image="${DEVCONTAINER_IMAGE_BASE}:ci-lint-markdown-${{ env.IMAGE_TAG }}"
-
-          echo "== pre-pull devcontainer images (parallel) =="
-          declare -a pull_pids=()
-          declare -a pull_images=()
-
-          pull_bg() {
-            local image="$1"
-
-            echo "Pulling: ${image}"
-            pull_with_retries "$image" &
-
-            local pid="$!"
-            echo "Started pull: ${image} pid=${pid}"
-            pull_pids+=("$pid")
-            pull_images+=("$image")
-          }
-
-          # Unique images only (base is shared by multiple lint stages).
-          pull_bg "$base_image"
-          pull_bg "$sh_image"
-          pull_bg "$yaml_image"
-          pull_bg "$systemd_image"
-          pull_bg "$markdown_image"
-
-          pull_failed=0
-          for i in "${!pull_pids[@]}"; do
-            if ! wait "${pull_pids[$i]}"; then
-              echo "Failed to pull: ${pull_images[$i]}" >&2
-              pull_failed=1
-            else
-              echo "Pulled: ${pull_images[$i]}"
+          image="${DEVCONTAINER_IMAGE_BASE}:ci-lint-base-${{ env.IMAGE_TAG }}"
+          for i in {1..12}; do
+            if docker pull "$image"; then
+              docker tag "$image" "${DEVCONTAINER_LOCAL_TAG}"
+              exit 0
             fi
+            sleep 10
           done
 
-          if [[ "$pull_failed" -ne 0 ]]; then
-            exit 1
-          fi
+          echo "Failed to pull devcontainer image: $image" >&2
+          exit 1
 
-          run_bg() {
-            local name="$1"
-            local image="$2"
-            shift 2
+      - name: Run stage in devcontainer
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -v "$PWD:/work" \
+            -w /work \
+            kiosk-retropie-devcontainer:ci \
+            bash -lc './scripts/ci.sh lint-permissions'
 
-            local started_at
-            started_at="$(date -Is)"
-            echo "== ${name} (start ${started_at}) =="
+  lint-naming:
+    name: lint-naming
+    runs-on: ubuntu-latest
+    needs: [build-devcontainer-lint]
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@v4
 
-            local log_file="${logs_dir}/${name}.log"
-            : >"$log_file"
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-            run_in_image "$image" "$@" >"$log_file" 2>&1 &
-
-            local pid="$!"
-            echo "Started lint: ${name} pid=${pid}"
-
-            pids+=("$pid")
-            names+=("$name")
-            started_ats+=("$started_at")
-            log_files+=("$log_file")
-          }
-
-          declare -a pids=()
-          declare -a names=()
-          declare -a started_ats=()
-          declare -a log_files=()
-
-          logs_dir="$(mktemp -d)"
-          cleanup() {
-            rm -rf "$logs_dir"
-          }
-          trap cleanup EXIT
-
-          run_bg lint-permissions "$base_image" ./scripts/ci.sh lint-permissions
-          run_bg lint-naming "$base_image" ./scripts/ci.sh lint-naming
-          run_bg lint-sh "$sh_image" ./scripts/ci.sh lint-sh
-          run_bg lint-yaml "$yaml_image" ./scripts/ci.sh lint-yaml
-          run_bg lint-systemd "$systemd_image" ./scripts/ci.sh lint-systemd
-          run_bg lint-markdown "$markdown_image" ./scripts/ci.sh lint-markdown
-
-          failed=0
-          for i in "${!pids[@]}"; do
-            if ! wait "${pids[$i]}"; then
-              ended_at="$(date -Is)"
-              echo "Lint failed: ${names[$i]} pid=${pids[$i]} started_at=${started_ats[$i]} ended_at=${ended_at}" >&2
-              failed=1
-            else
-              ended_at="$(date -Is)"
-              echo "Lint complete: ${names[$i]} pid=${pids[$i]} started_at=${started_ats[$i]} ended_at=${ended_at}"
+      - name: Pull devcontainer image (cached)
+        shell: bash
+        run: |
+          set -euo pipefail
+          image="${DEVCONTAINER_IMAGE_BASE}:ci-lint-base-${{ env.IMAGE_TAG }}"
+          for i in {1..12}; do
+            if docker pull "$image"; then
+              docker tag "$image" "${DEVCONTAINER_LOCAL_TAG}"
+              exit 0
             fi
-
-            echo "::group::${names[$i]} output"
-            # Always print the captured output (even on failure) so the UI shows
-            # each lint stage in its own collapsible section.
-            cat "${log_files[$i]}" || true
-            echo "::endgroup::"
+            sleep 10
           done
 
-          exit "$failed"
+          echo "Failed to pull devcontainer image: $image" >&2
+          exit 1
+
+      - name: Run stage in devcontainer
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -v "$PWD:/work" \
+            -w /work \
+            kiosk-retropie-devcontainer:ci \
+            bash -lc './scripts/ci.sh lint-naming'
+
+  lint-sh:
+    name: lint-sh
+    runs-on: ubuntu-latest
+    needs: [build-devcontainer-lint]
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull devcontainer image (cached)
+        shell: bash
+        run: |
+          set -euo pipefail
+          image="${DEVCONTAINER_IMAGE_BASE}:ci-lint-sh-${{ env.IMAGE_TAG }}"
+          for i in {1..12}; do
+            if docker pull "$image"; then
+              docker tag "$image" "${DEVCONTAINER_LOCAL_TAG}"
+              exit 0
+            fi
+            sleep 10
+          done
+
+          echo "Failed to pull devcontainer image: $image" >&2
+          exit 1
+
+      - name: Run stage in devcontainer
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -v "$PWD:/work" \
+            -w /work \
+            kiosk-retropie-devcontainer:ci \
+            bash -lc './scripts/ci.sh lint-sh'
+
+  lint-yaml:
+    name: lint-yaml
+    runs-on: ubuntu-latest
+    needs: [build-devcontainer-lint]
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull devcontainer image (cached)
+        shell: bash
+        run: |
+          set -euo pipefail
+          image="${DEVCONTAINER_IMAGE_BASE}:ci-lint-yaml-${{ env.IMAGE_TAG }}"
+          for i in {1..12}; do
+            if docker pull "$image"; then
+              docker tag "$image" "${DEVCONTAINER_LOCAL_TAG}"
+              exit 0
+            fi
+            sleep 10
+          done
+
+          echo "Failed to pull devcontainer image: $image" >&2
+          exit 1
+
+      - name: Run stage in devcontainer
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -v "$PWD:/work" \
+            -w /work \
+            kiosk-retropie-devcontainer:ci \
+            bash -lc './scripts/ci.sh lint-yaml'
+
+  lint-systemd:
+    name: lint-systemd
+    runs-on: ubuntu-latest
+    needs: [build-devcontainer-lint]
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull devcontainer image (cached)
+        shell: bash
+        run: |
+          set -euo pipefail
+          image="${DEVCONTAINER_IMAGE_BASE}:ci-lint-systemd-${{ env.IMAGE_TAG }}"
+          for i in {1..12}; do
+            if docker pull "$image"; then
+              docker tag "$image" "${DEVCONTAINER_LOCAL_TAG}"
+              exit 0
+            fi
+            sleep 10
+          done
+
+          echo "Failed to pull devcontainer image: $image" >&2
+          exit 1
+
+      - name: Run stage in devcontainer
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -v "$PWD:/work" \
+            -w /work \
+            kiosk-retropie-devcontainer:ci \
+            bash -lc './scripts/ci.sh lint-systemd'
+
+  lint-markdown:
+    name: lint-markdown
+    runs-on: ubuntu-latest
+    needs: [build-devcontainer-lint]
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull devcontainer image (cached)
+        shell: bash
+        run: |
+          set -euo pipefail
+          image="${DEVCONTAINER_IMAGE_BASE}:ci-lint-markdown-${{ env.IMAGE_TAG }}"
+          for i in {1..12}; do
+            if docker pull "$image"; then
+              docker tag "$image" "${DEVCONTAINER_LOCAL_TAG}"
+              exit 0
+            fi
+            sleep 10
+          done
+
+          echo "Failed to pull devcontainer image: $image" >&2
+          exit 1
+
+      - name: Run stage in devcontainer
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -v "$PWD:/work" \
+            -w /work \
+            kiosk-retropie-devcontainer:ci \
+            bash -lc './scripts/ci.sh lint-markdown'
 
   test:
     name: test
