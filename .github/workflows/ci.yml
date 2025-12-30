@@ -20,6 +20,8 @@ env:
   DEVCONTAINER_IMAGE_BASE: ghcr.io/${{ github.repository_owner }}/kr-devcontainer
   DEVCONTAINER_LOCAL_TAG: kiosk-retropie-devcontainer:ci
   IMAGE_TAG: ${{ github.sha }}
+  PULL_RETRIES: 12
+  PULL_SLEEP_SECONDS: 10
 
 jobs:
   test-hardware-arm64:
@@ -322,7 +324,7 @@ jobs:
 
             local pid="$!"
             local started_at
-            started_at="$(date -Is)"
+            started_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
             echo "Started build: ${suffix} pid=${pid} at ${started_at}"
 
             pids+=("$pid")
@@ -341,11 +343,11 @@ jobs:
           failed=0
           for i in "${!pids[@]}"; do
             if ! wait "${pids[$i]}"; then
-              ended_at="$(date -Is)"
+              ended_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
               echo "Build failed: ${names[$i]} pid=${pids[$i]} started_at=${started_ats[$i]} ended_at=${ended_at}" >&2
               failed=1
             else
-              ended_at="$(date -Is)"
+              ended_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
               echo "Build complete: ${names[$i]} pid=${pids[$i]} started_at=${started_ats[$i]} ended_at=${ended_at}"
             fi
           done
@@ -375,12 +377,12 @@ jobs:
         run: |
           set -euo pipefail
           image="${DEVCONTAINER_IMAGE_BASE}:ci-lint-base-${{ env.IMAGE_TAG }}"
-          for i in {1..12}; do
+          for i in $(seq 1 "${PULL_RETRIES}"); do
             if docker pull "$image"; then
               docker tag "$image" "${DEVCONTAINER_LOCAL_TAG}"
               exit 0
             fi
-            sleep 10
+            sleep "${PULL_SLEEP_SECONDS}"
           done
 
           echo "Failed to pull devcontainer image: $image" >&2
@@ -419,12 +421,12 @@ jobs:
         run: |
           set -euo pipefail
           image="${DEVCONTAINER_IMAGE_BASE}:ci-lint-base-${{ env.IMAGE_TAG }}"
-          for i in {1..12}; do
+          for i in $(seq 1 "${PULL_RETRIES}"); do
             if docker pull "$image"; then
               docker tag "$image" "${DEVCONTAINER_LOCAL_TAG}"
               exit 0
             fi
-            sleep 10
+            sleep "${PULL_SLEEP_SECONDS}"
           done
 
           echo "Failed to pull devcontainer image: $image" >&2
@@ -463,12 +465,12 @@ jobs:
         run: |
           set -euo pipefail
           image="${DEVCONTAINER_IMAGE_BASE}:ci-lint-sh-${{ env.IMAGE_TAG }}"
-          for i in {1..12}; do
+          for i in $(seq 1 "${PULL_RETRIES}"); do
             if docker pull "$image"; then
               docker tag "$image" "${DEVCONTAINER_LOCAL_TAG}"
               exit 0
             fi
-            sleep 10
+            sleep "${PULL_SLEEP_SECONDS}"
           done
 
           echo "Failed to pull devcontainer image: $image" >&2
@@ -507,12 +509,12 @@ jobs:
         run: |
           set -euo pipefail
           image="${DEVCONTAINER_IMAGE_BASE}:ci-lint-base-${{ env.IMAGE_TAG }}"
-          for i in {1..12}; do
+          for i in $(seq 1 "${PULL_RETRIES}"); do
             if docker pull "$image"; then
               docker tag "$image" "${DEVCONTAINER_LOCAL_TAG}"
               exit 0
             fi
-            sleep 10
+            sleep "${PULL_SLEEP_SECONDS}"
           done
 
           echo "Failed to pull devcontainer image: $image" >&2
@@ -551,12 +553,12 @@ jobs:
         run: |
           set -euo pipefail
           image="${DEVCONTAINER_IMAGE_BASE}:ci-lint-base-${{ env.IMAGE_TAG }}"
-          for i in {1..12}; do
+          for i in $(seq 1 "${PULL_RETRIES}"); do
             if docker pull "$image"; then
               docker tag "$image" "${DEVCONTAINER_LOCAL_TAG}"
               exit 0
             fi
-            sleep 10
+            sleep "${PULL_SLEEP_SECONDS}"
           done
 
           echo "Failed to pull devcontainer image: $image" >&2
@@ -595,12 +597,12 @@ jobs:
         run: |
           set -euo pipefail
           image="${DEVCONTAINER_IMAGE_BASE}:ci-lint-markdown-${{ env.IMAGE_TAG }}"
-          for i in {1..12}; do
+          for i in $(seq 1 "${PULL_RETRIES}"); do
             if docker pull "$image"; then
               docker tag "$image" "${DEVCONTAINER_LOCAL_TAG}"
               exit 0
             fi
-            sleep 10
+            sleep "${PULL_SLEEP_SECONDS}"
           done
 
           echo "Failed to pull devcontainer image: $image" >&2
@@ -620,6 +622,7 @@ jobs:
     name: test-unit
     runs-on: ubuntu-latest
     needs: [build-devcontainer-test]
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
     steps:
       - uses: actions/checkout@v4
 
@@ -635,12 +638,12 @@ jobs:
         run: |
           set -euo pipefail
           image="${DEVCONTAINER_IMAGE_BASE}:ci-coverage-${{ env.IMAGE_TAG }}"
-          for i in {1..12}; do
+          for i in $(seq 1 "${PULL_RETRIES}"); do
             if docker pull "$image"; then
               docker tag "$image" "${DEVCONTAINER_LOCAL_TAG}"
               exit 0
             fi
-            sleep 10
+            sleep "${PULL_SLEEP_SECONDS}"
           done
 
           echo "Failed to pull devcontainer image: $image" >&2
@@ -682,6 +685,7 @@ jobs:
     name: test-integration
     runs-on: ubuntu-latest
     needs: [build-devcontainer-test]
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
     steps:
       - uses: actions/checkout@v4
 
@@ -697,12 +701,12 @@ jobs:
         run: |
           set -euo pipefail
           image="${DEVCONTAINER_IMAGE_BASE}:ci-coverage-${{ env.IMAGE_TAG }}"
-          for i in {1..12}; do
+          for i in $(seq 1 "${PULL_RETRIES}"); do
             if docker pull "$image"; then
               docker tag "$image" "${DEVCONTAINER_LOCAL_TAG}"
               exit 0
             fi
-            sleep 10
+            sleep "${PULL_SLEEP_SECONDS}"
           done
 
           echo "Failed to pull devcontainer image: $image" >&2
@@ -744,6 +748,7 @@ jobs:
     name: test-remaining-coverage
     runs-on: ubuntu-latest
     needs: [build-devcontainer-test]
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
     steps:
       - uses: actions/checkout@v4
 
@@ -759,12 +764,12 @@ jobs:
         run: |
           set -euo pipefail
           image="${DEVCONTAINER_IMAGE_BASE}:ci-coverage-${{ env.IMAGE_TAG }}"
-          for i in {1..12}; do
+          for i in $(seq 1 "${PULL_RETRIES}"); do
             if docker pull "$image"; then
               docker tag "$image" "${DEVCONTAINER_LOCAL_TAG}"
               exit 0
             fi
-            sleep 10
+            sleep "${PULL_SLEEP_SECONDS}"
           done
 
           echo "Failed to pull devcontainer image: $image" >&2
@@ -793,6 +798,7 @@ jobs:
   test-coverage:
     name: test-coverage
     runs-on: ubuntu-latest
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
     needs:
       [
         build-devcontainer-test,
@@ -845,12 +851,12 @@ jobs:
         run: |
           set -euo pipefail
           image="${DEVCONTAINER_IMAGE_BASE}:ci-coverage-${{ env.IMAGE_TAG }}"
-          for i in {1..12}; do
+          for i in $(seq 1 "${PULL_RETRIES}"); do
             if docker pull "$image"; then
               docker tag "$image" "${DEVCONTAINER_LOCAL_TAG}"
               exit 0
             fi
-            sleep 10
+            sleep "${PULL_SLEEP_SECONDS}"
           done
 
           echo "Failed to pull devcontainer image: $image" >&2
@@ -871,70 +877,7 @@ jobs:
             -v "$PWD:/work" \
             -w /work \
             kiosk-retropie-devcontainer:ci \
-            bash -lc '
-              set -euo pipefail
-
-              merge_input=/work/tests/.tmp/kcov-merge-input
-
-              bats_unit_dir="$(
-                find "$merge_input/bats-unit" -maxdepth 8 -type f -name index.html -print -quit \
-                  | xargs -r dirname
-              )"
-              if [[ -z "$bats_unit_dir" ]]; then
-                echo "Could not locate bats unit kcov output under: $merge_input/bats-unit" >&2
-                find "$merge_input/bats-unit" -maxdepth 4 -print >&2 || true
-                exit 1
-              fi
-
-              bats_integration_dir="$(
-                find "$merge_input/bats-integration" -maxdepth 8 -type f -name index.html -print -quit \
-                  | xargs -r dirname
-              )"
-              if [[ -z "$bats_integration_dir" ]]; then
-                echo "Could not locate bats integration kcov output under: $merge_input/bats-integration" >&2
-                find "$merge_input/bats-integration" -maxdepth 4 -print >&2 || true
-                exit 1
-              fi
-
-              wrapped_dir="$(
-                find "$merge_input" -maxdepth 10 -type d -path "*/coverage-wrapped/kcov-merged" -print -quit
-              )"
-              if [[ -z "$wrapped_dir" ]]; then
-                echo "Could not locate scripts wrapped merge dir under: $merge_input" >&2
-                find "$merge_input" -maxdepth 4 -print >&2 || true
-                exit 1
-              fi
-
-              # kcov writes coverage.json under a per-command subdirectory, not directly under the
-              # coverage output directory. Locate the kcov-line-coverage output robustly.
-              scripts_coverage_leaf_dir="$(
-                find "$merge_input" -maxdepth 10 -type f -name coverage.json \
-                  -path "*/kcov-line-coverage.sh.*/*" \
-                  -not -path "*/coverage-wrapped/*" \
-                  -print -quit \
-                  | xargs -r dirname
-              )"
-              if [[ -z "$scripts_coverage_leaf_dir" ]]; then
-                echo "Could not locate scripts kcov-line coverage.json under: $merge_input" >&2
-                find "$merge_input" -maxdepth 4 -print >&2 || true
-                exit 1
-              fi
-
-              scripts_coverage_dir="$(dirname "$scripts_coverage_leaf_dir")"
-              if [[ ! -f "$scripts_coverage_dir/index.html" ]]; then
-                echo "Could not locate scripts kcov-line index.html at: $scripts_coverage_dir/index.html" >&2
-                find "$scripts_coverage_dir" -maxdepth 2 -print >&2 || true
-                exit 1
-              fi
-
-              export KCOV_OUT_DIR=/work/tests/.tmp/kcov-merge-out
-              export KCOV_MERGE_BATS_DIRS="$(
-                printf "%s,%s" "$bats_unit_dir" "$bats_integration_dir"
-              )"
-              export KCOV_MERGE_COVERAGE_DIR="$scripts_coverage_dir"
-              export KCOV_MERGE_WRAPPED_DIR="$wrapped_dir"
-              ./scripts/ci.sh coverage-merge
-            '
+            bash -lc 'bash ./scripts/ci-coverage-merge.sh'
 
       - name: Show kcov output paths
         if: always()

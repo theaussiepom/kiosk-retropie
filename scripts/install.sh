@@ -90,6 +90,7 @@ install_packages() {
   }
 
   # NOTE: Keep the base set minimal; we can extend as services are implemented.
+  # kbd provides chvt/fgconsole for VT switching.
   run_cmd apt-get update
   run_cmd apt-get install -y --no-install-recommends \
     ca-certificates \
@@ -106,6 +107,7 @@ install_packages() {
   # Chromium package name varies by distro/release.
   # Debian/Raspberry Pi OS (newer) typically ships `chromium`, while older
   # Raspberry Pi OS releases used `chromium-browser`.
+  # If both candidates exist, prefer `chromium`.
   if apt_has_install_candidate chromium; then
     cover_path "install:chromium-pkg"
     run_cmd apt-get install -y --no-install-recommends chromium
