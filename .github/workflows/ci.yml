@@ -188,12 +188,10 @@ jobs:
           failed=0
           for i in "${!pids[@]}"; do
             if ! wait "${pids[$i]}"; then
-              local ended_at
               ended_at="$(date -Is)"
               echo "Build failed: ${names[$i]} pid=${pids[$i]} started_at=${started_ats[$i]} ended_at=${ended_at}" >&2
               failed=1
             else
-              local ended_at
               ended_at="$(date -Is)"
               echo "Build complete: ${names[$i]} pid=${pids[$i]} started_at=${started_ats[$i]} ended_at=${ended_at}"
             fi
@@ -334,12 +332,10 @@ jobs:
           failed=0
           for i in "${!pids[@]}"; do
             if ! wait "${pids[$i]}"; then
-              local ended_at
               ended_at="$(date -Is)"
               echo "Lint failed: ${names[$i]} pid=${pids[$i]} started_at=${started_ats[$i]} ended_at=${ended_at}" >&2
               failed=1
             else
-              local ended_at
               ended_at="$(date -Is)"
               echo "Lint complete: ${names[$i]} pid=${pids[$i]} started_at=${started_ats[$i]} ended_at=${ended_at}"
             fi
