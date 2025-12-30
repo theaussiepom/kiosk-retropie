@@ -790,11 +790,12 @@ jobs:
           path: tests/.tmp/kcov-part-scripts/
           if-no-files-found: error
 
-  test-coverage-path:
-    name: test-coverage-path
+  test-coverage-line:
+    name: test-coverage-line
     runs-on: ubuntu-latest
     needs:
       [
+        build-devcontainer-coverage,
         test-coverage-line-bats-unit,
         test-coverage-line-bats-integration,
         test-coverage-line-scripts,
@@ -813,25 +814,6 @@ jobs:
         with:
           name: paths-log-integration
           path: tests/.tmp/
-
-      - name: Verify required PATH ids
-        shell: bash
-        run: |
-          set -euo pipefail
-          ./scripts/ci.sh tests-path-coverage
-
-  test-coverage-line:
-    name: test-coverage-line
-    runs-on: ubuntu-latest
-    needs:
-      [
-        build-devcontainer-coverage,
-        test-coverage-line-bats-unit,
-        test-coverage-line-bats-integration,
-        test-coverage-line-scripts,
-      ]
-    steps:
-      - uses: actions/checkout@v4
 
       - name: Download kcov bats (unit) part
         uses: actions/download-artifact@v4
@@ -873,6 +855,12 @@ jobs:
 
           echo "Failed to pull devcontainer image: $image" >&2
           exit 1
+
+      - name: Verify required PATH ids
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./scripts/ci.sh tests-path-coverage
 
       - name: Run stage in devcontainer
         timeout-minutes: 20
