@@ -616,8 +616,8 @@ jobs:
             kiosk-retropie-devcontainer:ci \
             bash -lc './scripts/ci.sh lint-markdown'
 
-  test-coverage-line-bats-unit:
-    name: test-unit
+  test-coverage-bats:
+    name: test-coverage-bats
     runs-on: ubuntu-latest
     needs: [build-devcontainer-coverage]
     steps:
@@ -646,19 +646,25 @@ jobs:
           echo "Failed to pull devcontainer image: $image" >&2
           exit 1
 
-      - name: Run kcov bats part in devcontainer
-        timeout-minutes: 20
+      - name: Run kcov bats (unit + integration) in devcontainer
+        timeout-minutes: 40
         shell: bash
         run: |
           set -euo pipefail
-          rm -rf tests/.tmp/kcov-part-bats-unit
+          rm -rf tests/.tmp/kcov-part-bats-unit tests/.tmp/kcov-part-bats-integration
           docker run --rm \
             -v "$PWD:/work" \
             -w /work \
             kiosk-retropie-devcontainer:ci \
             bash -lc '
+              set -euo pipefail
+
               export KCOV_BATS_SUITE=unit
               export KCOV_OUT_DIR=/work/tests/.tmp/kcov-part-bats-unit
+              ./scripts/ci.sh coverage-bats
+
+              export KCOV_BATS_SUITE=integration
+              export KCOV_OUT_DIR=/work/tests/.tmp/kcov-part-bats-integration
               ./scripts/ci.sh coverage-bats
             '
 
@@ -670,60 +676,6 @@ jobs:
           path: tests/.tmp/kcov-part-bats-unit/
           if-no-files-found: error
 
-      - name: Upload unit paths log artifact
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: paths-log-unit
-          path: tests/.tmp/kiosk-retropie-paths.unit.log
-          if-no-files-found: warn
-
-  test-coverage-line-bats-integration:
-    name: test-integration
-    runs-on: ubuntu-latest
-    needs: [build-devcontainer-coverage]
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Pull devcontainer image (cached)
-        shell: bash
-        run: |
-          set -euo pipefail
-          image="${DEVCONTAINER_IMAGE_BASE}:ci-coverage-${{ env.IMAGE_TAG }}"
-          for i in {1..12}; do
-            if docker pull "$image"; then
-              docker tag "$image" "${DEVCONTAINER_LOCAL_TAG}"
-              exit 0
-            fi
-            sleep 10
-          done
-
-          echo "Failed to pull devcontainer image: $image" >&2
-          exit 1
-
-      - name: Run kcov bats part in devcontainer
-        timeout-minutes: 20
-        shell: bash
-        run: |
-          set -euo pipefail
-          rm -rf tests/.tmp/kcov-part-bats-integration
-          docker run --rm \
-            -v "$PWD:/work" \
-            -w /work \
-            kiosk-retropie-devcontainer:ci \
-            bash -lc '
-              export KCOV_BATS_SUITE=integration
-              export KCOV_OUT_DIR=/work/tests/.tmp/kcov-part-bats-integration
-              ./scripts/ci.sh coverage-bats
-            '
-
       - name: Upload kcov bats (integration) part
         if: always()
         uses: actions/upload-artifact@v4
@@ -731,6 +683,14 @@ jobs:
           name: kcov-part-bats-integration
           path: tests/.tmp/kcov-part-bats-integration/
           if-no-files-found: error
+
+      - name: Upload unit paths log artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: paths-log-unit
+          path: tests/.tmp/kiosk-retropie-paths.unit.log
+          if-no-files-found: warn
 
       - name: Upload integration paths log artifact
         if: always()
@@ -740,8 +700,8 @@ jobs:
           path: tests/.tmp/kiosk-retropie-paths.log
           if-no-files-found: warn
 
-  test-coverage-line-scripts:
-    name: test-remaining-coverage
+  test-coverage-scripts:
+    name: test-coverage-scripts
     runs-on: ubuntu-latest
     needs: [build-devcontainer-coverage]
     steps:
@@ -770,7 +730,7 @@ jobs:
           echo "Failed to pull devcontainer image: $image" >&2
           exit 1
 
-      - name: Run kcov scripts part in devcontainer
+      - name: Run kcov scripts in devcontainer
         timeout-minutes: 20
         shell: bash
         run: |
@@ -796,9 +756,8 @@ jobs:
     needs:
       [
         build-devcontainer-coverage,
-        test-coverage-line-bats-unit,
-        test-coverage-line-bats-integration,
-        test-coverage-line-scripts,
+        test-coverage-bats,
+        test-coverage-scripts,
       ]
     steps:
       - uses: actions/checkout@v4
