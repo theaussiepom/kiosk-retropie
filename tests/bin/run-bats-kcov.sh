@@ -284,7 +284,19 @@ run_kcov_merge() {
 # process exec()s into bats. To keep the original behavior (which already
 # captured coverage from the Bats suite), run Bats under kcov as its own run.
 if step_enabled bats; then
-  run_kcov "bats" "Bash Automated Testing System (bats)" "$out_dir/bats" "$ROOT_DIR/tests/bin/run-bats-integration.sh" "$@"
+  bats_suite="${KCOV_BATS_SUITE:-integration}"
+  bats_runner=""
+  case "$bats_suite" in
+    unit) bats_runner="$ROOT_DIR/tests/bin/run-bats-unit.sh" ;;
+    integration) bats_runner="$ROOT_DIR/tests/bin/run-bats-integration.sh" ;;
+    *)
+      echo "Invalid KCOV_BATS_SUITE value: $bats_suite" >&2
+      echo "Allowed: unit | integration" >&2
+      exit 2
+      ;;
+  esac
+
+  run_kcov "bats" "Bash Automated Testing System (bats) [$bats_suite]" "$out_dir/bats" "$bats_runner" "$@"
 fi
 
 # Run additional coverage paths under kcov.
@@ -307,7 +319,22 @@ fi
 # Merge into a stable location consumed by assert-kcov-100.sh.
 if step_enabled merge; then
   merge_bats_dir="${KCOV_MERGE_BATS_DIR:-$out_dir/bats}"
+  merge_bats_dirs_csv="${KCOV_MERGE_BATS_DIRS:-}"
   merge_coverage_dir="${KCOV_MERGE_COVERAGE_DIR:-$out_dir/coverage}"
   merge_wrapped_dir="${KCOV_MERGE_WRAPPED_DIR:-$out_dir/coverage-wrapped/kcov-merged}"
-  run_kcov_merge "merge" "$out_dir/kcov-merged" "$merge_bats_dir" "$merge_coverage_dir" "$merge_wrapped_dir"
+
+  merge_inputs=()
+  if [[ -n "$merge_bats_dirs_csv" ]]; then
+    IFS=',' read -r -a _merge_bats_dirs_parts <<<"$merge_bats_dirs_csv"
+    for part in "${_merge_bats_dirs_parts[@]}"; do
+      [[ -n "$part" ]] || continue
+      merge_inputs+=("$part")
+    done
+    unset -v _merge_bats_dirs_parts
+  else
+    merge_inputs+=("$merge_bats_dir")
+  fi
+  merge_inputs+=("$merge_coverage_dir" "$merge_wrapped_dir")
+
+  run_kcov_merge "merge" "$out_dir/kcov-merged" "${merge_inputs[@]}"
 fi
