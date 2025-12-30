@@ -22,6 +22,210 @@ env:
   IMAGE_TAG: ${{ github.sha }}
 
 jobs:
+  test-hardware-arm64:
+    name: test-hardware-arm64
+    runs-on: [self-hosted, Linux, ARM64]
+    timeout-minutes: 30
+    # SECURITY: never run untrusted fork PR code on a self-hosted runner.
+    if: |
+      (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) ||
+      github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'push'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.ref || github.ref }}
+
+      - name: Host info (Raspberry Pi OS sanity)
+        shell: bash
+        run: |
+          set -euo pipefail
+          uname -a
+          cat /etc/os-release || true
+          bash --version | head -n 1
+          systemctl --version | head -n 1 || true
+
+      - name: Ensure passwordless sudo (required for sysfs hardware tests)
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v sudo >/dev/null 2>&1; then
+            echo "sudo is required on the self-hosted runner for hardware tests" >&2
+            exit 1
+          fi
+          if ! sudo -n true >/dev/null 2>&1; then
+            echo "Hardware tests need passwordless sudo to write /sys (LEDs/backlight)." >&2
+            echo "Configure the runner user with NOPASSWD for sudo, then re-run." >&2
+            exit 1
+          fi
+
+      - name: Ensure retropi user (required for VT/Xorg hardware tests)
+        shell: bash
+        run: |
+          set -euo pipefail
+          if id -u retropi >/dev/null 2>&1; then
+            exit 0
+          fi
+          echo "Creating user retropi for hardware tests" >&2
+          sudo -n useradd -m -s /bin/bash retropi
+
+      - name: Ensure retropi device groups (best-effort)
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Some distros gate access to /dev/dri and input devices via groups.
+          for grp in video render input; do
+            if getent group "$grp" >/dev/null 2>&1; then
+              sudo -n usermod -aG "$grp" retropi
+            fi
+          done
+
+      - name: Stop display manager (free VTs for tty7/tty8)
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "DISPLAY_MANAGER_WAS_ACTIVE=0" >> "$GITHUB_ENV"
+          if systemctl list-unit-files --type=service | awk '{print $1}' | grep -qx 'display-manager.service'; then
+            if systemctl is-active --quiet display-manager.service; then
+              echo "Stopping display-manager.service to free VT7/VT8" >&2
+              echo "DISPLAY_MANAGER_WAS_ACTIVE=1" >> "$GITHUB_ENV"
+              sudo -n systemctl stop display-manager.service
+            fi
+          fi
+
+      - name: Ensure VT/Xorg tooling (required for tty7/tty8 smoke tests)
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          missing=()
+          for cmd in chvt fgconsole xinit; do
+            if ! command -v "$cmd" >/dev/null 2>&1; then
+              missing+=("$cmd")
+            fi
+          done
+          if [[ ! -x /usr/lib/xorg/Xorg ]]; then
+            missing+=("/usr/lib/xorg/Xorg")
+          fi
+
+          if (( ${#missing[@]} > 0 )); then
+            echo "Missing VT/Xorg tooling: ${missing[*]}" >&2
+            if command -v apt-get >/dev/null 2>&1; then
+              sudo -n apt-get update
+              # chvt/fgconsole -> kbd
+              # xinit + Xorg -> xinit + xserver-xorg
+              # xauth is commonly invoked by xinit.
+              sudo -n apt-get install -y kbd xauth xinit xserver-xorg
+            else
+              echo "Cannot auto-install because apt-get is unavailable." >&2
+              exit 1
+            fi
+          fi
+
+          for cmd in chvt fgconsole xinit; do
+            command -v "$cmd" >/dev/null 2>&1 || {
+              echo "VT/Xorg tooling still missing after install: $cmd" >&2
+              exit 1
+            }
+          done
+          [[ -x /usr/lib/xorg/Xorg ]] || {
+            echo "VT/Xorg tooling still missing after install: /usr/lib/xorg/Xorg" >&2
+            exit 1
+          }
+
+      - name: Install required systemd units (for HW tests)
+        shell: bash
+        run: |
+          set -euo pipefail
+          systemd_dir=/etc/systemd/system
+          sudo -n install -d "$systemd_dir"
+          sudo -n install -m 0644 \
+            systemd/kiosk-retropie-led-mqtt.service \
+            "$systemd_dir/kiosk-retropie-led-mqtt.service"
+          sudo -n install -m 0644 \
+            systemd/kiosk-retropie-screen-brightness-mqtt.service \
+            "$systemd_dir/kiosk-retropie-screen-brightness-mqtt.service"
+          sudo -n install -m 0644 \
+            systemd/kiosk-retropie-home-assistant-mqtt.service \
+            "$systemd_dir/kiosk-retropie-home-assistant-mqtt.service"
+
+          # Install the scripts expected by these units.
+          lib_dir=/usr/local/lib/kiosk-retropie
+          sudo -n install -d "$lib_dir" "$lib_dir/lib"
+          sudo -n install -m 0755 scripts/lib/common.sh "$lib_dir/lib/common.sh"
+          sudo -n install -m 0755 scripts/lib/logging.sh "$lib_dir/lib/logging.sh"
+          sudo -n install -m 0755 scripts/lib/path.sh "$lib_dir/lib/path.sh"
+          sudo -n install -m 0755 scripts/mqtt/home-assistant-mqtt.sh "$lib_dir/kiosk-retropie-home-assistant-mqtt.sh"
+          sudo -n systemctl daemon-reload
+
+      - name: Ensure MQTT tooling (required for MQTT bridge hardware tests)
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=()
+          for cmd in mosquitto mosquitto_pub mosquitto_sub; do
+            if ! command -v "$cmd" >/dev/null 2>&1; then
+              missing+=("$cmd")
+            fi
+          done
+
+          if (( ${#missing[@]} > 0 )); then
+            echo "Missing MQTT tooling: ${missing[*]}" >&2
+
+            if command -v apt-get >/dev/null 2>&1; then
+              echo "Installing mosquitto tooling via apt-get..." >&2
+              sudo -n apt-get update
+              sudo -n apt-get install -y mosquitto mosquitto-clients
+            else
+              echo "Cannot auto-install because apt-get is unavailable." >&2
+              echo "Install mosquitto + clients on the runner, then re-run." >&2
+              exit 1
+            fi
+          fi
+
+          for cmd in mosquitto mosquitto_pub mosquitto_sub; do
+            command -v "$cmd" >/dev/null 2>&1 || {
+              echo "MQTT tooling still missing after install: $cmd" >&2
+              exit 1
+            }
+          done
+
+      - name: Ensure uinput device (required for controller hardware tests)
+        shell: bash
+        run: |
+          set -euo pipefail
+          if command -v modprobe >/dev/null 2>&1; then
+            # Ensure input modules are loaded so uinput devices appear under /dev/input/event*.
+            sudo -n modprobe uinput 2>/dev/null || true
+            sudo -n modprobe evdev 2>/dev/null || true
+          fi
+          if [[ ! -e /dev/uinput ]]; then
+            echo "Missing /dev/uinput on runner." >&2
+            echo "Load it with: sudo modprobe uinput" >&2
+            echo "To persist: ensure uinput module loads at boot." >&2
+            exit 1
+          fi
+
+      - name: Run HW integration tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          export KIOSK_RETROPIE_HW_REQUIRE_UNITS=1
+          export KIOSK_RETROPIE_HW_REQUIRE_UINPUT=1
+          export KIOSK_RETROPIE_HW_REQUIRE_VT_XORG=1
+          sudo -E bash ./tests/bin/run-bats-hw.sh
+
+      - name: Restart display manager (cleanup)
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${DISPLAY_MANAGER_WAS_ACTIVE:-0}" == "1" ]]; then
+            echo "Restarting display-manager.service (was active before tests)" >&2
+            sudo -n systemctl start display-manager.service || true
+          fi
+
   build-devcontainer-coverage:
     name: build-devcontainer-coverage
     runs-on: ubuntu-latest
@@ -368,210 +572,6 @@ jobs:
             kiosk-retropie-devcontainer:ci \
             bash -lc './scripts/ci.sh lint-systemd'
 
-  test-hardware-arm64:
-    name: test-hardware-arm64
-    runs-on: [self-hosted, Linux, ARM64]
-    timeout-minutes: 30
-    # SECURITY: never run untrusted fork PR code on a self-hosted runner.
-    if: |
-      (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) ||
-      github.event_name == 'workflow_dispatch' ||
-      github.event_name == 'push'
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.inputs.ref || github.ref }}
-
-      - name: Host info (Raspberry Pi OS sanity)
-        shell: bash
-        run: |
-          set -euo pipefail
-          uname -a
-          cat /etc/os-release || true
-          bash --version | head -n 1
-          systemctl --version | head -n 1 || true
-
-      - name: Ensure passwordless sudo (required for sysfs hardware tests)
-        shell: bash
-        run: |
-          set -euo pipefail
-          if ! command -v sudo >/dev/null 2>&1; then
-            echo "sudo is required on the self-hosted runner for hardware tests" >&2
-            exit 1
-          fi
-          if ! sudo -n true >/dev/null 2>&1; then
-            echo "Hardware tests need passwordless sudo to write /sys (LEDs/backlight)." >&2
-            echo "Configure the runner user with NOPASSWD for sudo, then re-run." >&2
-            exit 1
-          fi
-
-      - name: Ensure retropi user (required for VT/Xorg hardware tests)
-        shell: bash
-        run: |
-          set -euo pipefail
-          if id -u retropi >/dev/null 2>&1; then
-            exit 0
-          fi
-          echo "Creating user retropi for hardware tests" >&2
-          sudo -n useradd -m -s /bin/bash retropi
-
-      - name: Ensure retropi device groups (best-effort)
-        shell: bash
-        run: |
-          set -euo pipefail
-          # Some distros gate access to /dev/dri and input devices via groups.
-          for grp in video render input; do
-            if getent group "$grp" >/dev/null 2>&1; then
-              sudo -n usermod -aG "$grp" retropi
-            fi
-          done
-
-      - name: Stop display manager (free VTs for tty7/tty8)
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo "DISPLAY_MANAGER_WAS_ACTIVE=0" >> "$GITHUB_ENV"
-          if systemctl list-unit-files --type=service | awk '{print $1}' | grep -qx 'display-manager.service'; then
-            if systemctl is-active --quiet display-manager.service; then
-              echo "Stopping display-manager.service to free VT7/VT8" >&2
-              echo "DISPLAY_MANAGER_WAS_ACTIVE=1" >> "$GITHUB_ENV"
-              sudo -n systemctl stop display-manager.service
-            fi
-          fi
-
-      - name: Ensure VT/Xorg tooling (required for tty7/tty8 smoke tests)
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          missing=()
-          for cmd in chvt fgconsole xinit; do
-            if ! command -v "$cmd" >/dev/null 2>&1; then
-              missing+=("$cmd")
-            fi
-          done
-          if [[ ! -x /usr/lib/xorg/Xorg ]]; then
-            missing+=("/usr/lib/xorg/Xorg")
-          fi
-
-          if (( ${#missing[@]} > 0 )); then
-            echo "Missing VT/Xorg tooling: ${missing[*]}" >&2
-            if command -v apt-get >/dev/null 2>&1; then
-              sudo -n apt-get update
-              # chvt/fgconsole -> kbd
-              # xinit + Xorg -> xinit + xserver-xorg
-              # xauth is commonly invoked by xinit.
-              sudo -n apt-get install -y kbd xauth xinit xserver-xorg
-            else
-              echo "Cannot auto-install because apt-get is unavailable." >&2
-              exit 1
-            fi
-          fi
-
-          for cmd in chvt fgconsole xinit; do
-            command -v "$cmd" >/dev/null 2>&1 || {
-              echo "VT/Xorg tooling still missing after install: $cmd" >&2
-              exit 1
-            }
-          done
-          [[ -x /usr/lib/xorg/Xorg ]] || {
-            echo "VT/Xorg tooling still missing after install: /usr/lib/xorg/Xorg" >&2
-            exit 1
-          }
-
-      - name: Install required systemd units (for HW tests)
-        shell: bash
-        run: |
-          set -euo pipefail
-          systemd_dir=/etc/systemd/system
-          sudo -n install -d "$systemd_dir"
-          sudo -n install -m 0644 \
-            systemd/kiosk-retropie-led-mqtt.service \
-            "$systemd_dir/kiosk-retropie-led-mqtt.service"
-          sudo -n install -m 0644 \
-            systemd/kiosk-retropie-screen-brightness-mqtt.service \
-            "$systemd_dir/kiosk-retropie-screen-brightness-mqtt.service"
-          sudo -n install -m 0644 \
-            systemd/kiosk-retropie-home-assistant-mqtt.service \
-            "$systemd_dir/kiosk-retropie-home-assistant-mqtt.service"
-
-          # Install the scripts expected by these units.
-          lib_dir=/usr/local/lib/kiosk-retropie
-          sudo -n install -d "$lib_dir" "$lib_dir/lib"
-          sudo -n install -m 0755 scripts/lib/common.sh "$lib_dir/lib/common.sh"
-          sudo -n install -m 0755 scripts/lib/logging.sh "$lib_dir/lib/logging.sh"
-          sudo -n install -m 0755 scripts/lib/path.sh "$lib_dir/lib/path.sh"
-          sudo -n install -m 0755 scripts/mqtt/home-assistant-mqtt.sh "$lib_dir/kiosk-retropie-home-assistant-mqtt.sh"
-          sudo -n systemctl daemon-reload
-
-      - name: Ensure MQTT tooling (required for MQTT bridge hardware tests)
-        shell: bash
-        run: |
-          set -euo pipefail
-          missing=()
-          for cmd in mosquitto mosquitto_pub mosquitto_sub; do
-            if ! command -v "$cmd" >/dev/null 2>&1; then
-              missing+=("$cmd")
-            fi
-          done
-
-          if (( ${#missing[@]} > 0 )); then
-            echo "Missing MQTT tooling: ${missing[*]}" >&2
-
-            if command -v apt-get >/dev/null 2>&1; then
-              echo "Installing mosquitto tooling via apt-get..." >&2
-              sudo -n apt-get update
-              sudo -n apt-get install -y mosquitto mosquitto-clients
-            else
-              echo "Cannot auto-install because apt-get is unavailable." >&2
-              echo "Install mosquitto + clients on the runner, then re-run." >&2
-              exit 1
-            fi
-          fi
-
-          for cmd in mosquitto mosquitto_pub mosquitto_sub; do
-            command -v "$cmd" >/dev/null 2>&1 || {
-              echo "MQTT tooling still missing after install: $cmd" >&2
-              exit 1
-            }
-          done
-
-      - name: Ensure uinput device (required for controller hardware tests)
-        shell: bash
-        run: |
-          set -euo pipefail
-          if command -v modprobe >/dev/null 2>&1; then
-            # Ensure input modules are loaded so uinput devices appear under /dev/input/event*.
-            sudo -n modprobe uinput 2>/dev/null || true
-            sudo -n modprobe evdev 2>/dev/null || true
-          fi
-          if [[ ! -e /dev/uinput ]]; then
-            echo "Missing /dev/uinput on runner." >&2
-            echo "Load it with: sudo modprobe uinput" >&2
-            echo "To persist: ensure uinput module loads at boot." >&2
-            exit 1
-          fi
-
-      - name: Run HW integration tests
-        shell: bash
-        run: |
-          set -euo pipefail
-          export KIOSK_RETROPIE_HW_REQUIRE_UNITS=1
-          export KIOSK_RETROPIE_HW_REQUIRE_UINPUT=1
-          export KIOSK_RETROPIE_HW_REQUIRE_VT_XORG=1
-          sudo -E bash ./tests/bin/run-bats-hw.sh
-
-      - name: Restart display manager (cleanup)
-        if: always()
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [[ "${DISPLAY_MANAGER_WAS_ACTIVE:-0}" == "1" ]]; then
-            echo "Restarting display-manager.service (was active before tests)" >&2
-            sudo -n systemctl start display-manager.service || true
-          fi
-
   lint-markdown:
     name: lint-markdown
     runs-on: ubuntu-latest
@@ -628,7 +628,6 @@ jobs:
         with:
           name: paths-log-unit
           path: tests/.tmp/
-
       - name: Download integration paths log
         uses: actions/download-artifact@v4
         with:
@@ -642,7 +641,7 @@ jobs:
           ./scripts/ci.sh tests-path-coverage
 
   test-coverage-line:
-    name: test-coverage-line (merge)
+    name: test-coverage-line
     runs-on: ubuntu-latest
     needs:
       [
