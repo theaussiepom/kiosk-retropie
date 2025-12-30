@@ -130,10 +130,8 @@ jobs:
           declare -a names=()
           declare -a started_ats=()
 
-          build_if_missing base lint-base
+          build_if_missing lint-base lint-base
           build_if_missing lint-sh lint-sh
-          build_if_missing lint-yaml lint-yaml
-          build_if_missing lint-systemd lint-systemd
           build_if_missing lint-markdown lint-markdown
 
           failed=0
@@ -304,7 +302,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          image="${DEVCONTAINER_IMAGE_BASE}:ci-lint-yaml-${{ env.IMAGE_TAG }}"
+          image="${DEVCONTAINER_IMAGE_BASE}:ci-lint-base-${{ env.IMAGE_TAG }}"
           for i in {1..12}; do
             if docker pull "$image"; then
               docker tag "$image" "${DEVCONTAINER_LOCAL_TAG}"
@@ -348,7 +346,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          image="${DEVCONTAINER_IMAGE_BASE}:ci-lint-systemd-${{ env.IMAGE_TAG }}"
+          image="${DEVCONTAINER_IMAGE_BASE}:ci-lint-base-${{ env.IMAGE_TAG }}"
           for i in {1..12}; do
             if docker pull "$image"; then
               docker tag "$image" "${DEVCONTAINER_LOCAL_TAG}"

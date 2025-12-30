@@ -2,51 +2,89 @@
   "version": "2.0.0",
   "tasks": [
     {
+      "label": "lint - build containers",
+      "dependsOrder": "parallel",
+      "dependsOn": [
+        "lint - build container (base)",
+        "lint - build container (sh)",
+        "lint - build container (markdown)"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "lint - build container (base)",
+      "type": "shell",
+      "command": "make container-build-lint-base",
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "lint - build container (sh)",
+      "type": "shell",
+      "command": "make container-build-lint-sh",
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "lint - build container (markdown)",
+      "type": "shell",
+      "command": "make container-build-lint-markdown",
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
       "label": "lint - all",
       "type": "shell",
       "command": "make lint",
+      "dependsOn": ["lint - build containers"],
       "group": "build",
       "problemMatcher": []
     },
     {
       "label": "lint - permissions",
       "type": "shell",
-      "command": "make container-run CMD='./scripts/ci.sh lint-permissions'",
+      "command": "make container-run DEVCONTAINER_IMAGE=kiosk-retropie-devcontainer:lint-base DEVCONTAINER_TARGET=lint-base CMD='./scripts/ci.sh lint-permissions'",
+      "dependsOn": ["lint - build containers"],
       "group": "build",
       "problemMatcher": []
     },
     {
       "label": "lint - naming",
       "type": "shell",
-      "command": "make container-run CMD='./scripts/ci.sh lint-naming'",
+      "command": "make container-run DEVCONTAINER_IMAGE=kiosk-retropie-devcontainer:lint-base DEVCONTAINER_TARGET=lint-base CMD='./scripts/ci.sh lint-naming'",
+      "dependsOn": ["lint - build containers"],
       "group": "build",
       "problemMatcher": []
     },
     {
       "label": "lint - sh",
       "type": "shell",
-      "command": "make container-run CMD='./scripts/ci.sh lint-sh'",
+      "command": "make container-run DEVCONTAINER_IMAGE=kiosk-retropie-devcontainer:lint-sh DEVCONTAINER_TARGET=lint-sh CMD='./scripts/ci.sh lint-sh'",
+      "dependsOn": ["lint - build containers"],
       "group": "build",
       "problemMatcher": []
     },
     {
       "label": "lint - yaml",
       "type": "shell",
-      "command": "make container-run CMD='./scripts/ci.sh lint-yaml'",
+      "command": "make container-run DEVCONTAINER_IMAGE=kiosk-retropie-devcontainer:lint-base DEVCONTAINER_TARGET=lint-base CMD='./scripts/ci.sh lint-yaml'",
+      "dependsOn": ["lint - build containers"],
       "group": "build",
       "problemMatcher": []
     },
     {
       "label": "lint - systemd",
       "type": "shell",
-      "command": "make container-run CMD='./scripts/ci.sh lint-systemd'",
+      "command": "make container-run DEVCONTAINER_IMAGE=kiosk-retropie-devcontainer:lint-base DEVCONTAINER_TARGET=lint-base CMD='./scripts/ci.sh lint-systemd'",
+      "dependsOn": ["lint - build containers"],
       "group": "build",
       "problemMatcher": []
     },
     {
       "label": "lint - markdown",
       "type": "shell",
-      "command": "make container-run CMD='./scripts/ci.sh lint-markdown'",
+      "command": "make container-run DEVCONTAINER_IMAGE=kiosk-retropie-devcontainer:lint-markdown DEVCONTAINER_TARGET=lint-markdown CMD='./scripts/ci.sh lint-markdown'",
+      "dependsOn": ["lint - build containers"],
       "group": "build",
       "problemMatcher": []
     },
