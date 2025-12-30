@@ -15,23 +15,20 @@ RUN apt-get update \
   sudo \
   && rm -rf /var/lib/apt/lists/*
 
+# Shared lint image for checks that can safely share dependencies.
+# Used for: lint-permissions, lint-naming, lint-yaml, lint-systemd.
+FROM base AS lint-base
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends \
+  systemd \
+  yamllint \
+  && rm -rf /var/lib/apt/lists/*
+
 FROM base AS lint-sh
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
   shellcheck \
   shfmt \
-  && rm -rf /var/lib/apt/lists/*
-
-FROM base AS lint-yaml
-RUN apt-get update \
-  && apt-get install -y --no-install-recommends \
-  yamllint \
-  && rm -rf /var/lib/apt/lists/*
-
-FROM base AS lint-systemd
-RUN apt-get update \
-  && apt-get install -y --no-install-recommends \
-  systemd \
   && rm -rf /var/lib/apt/lists/*
 
 FROM base AS lint-markdown

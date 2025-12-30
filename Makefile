@@ -2,6 +2,7 @@ SHELL := /usr/bin/env bash
 
 .PHONY: help tools \
   container-build container-shell container-run \
+	container-build-lint container-build-lint-base container-build-lint-sh container-build-lint-markdown \
 	lint lint-sh lint-yaml lint-systemd lint-markdown \
   format format-shell \
   test test-unit test-integration path-coverage coverage \
@@ -25,6 +26,32 @@ container-build:
 	else \
 		echo "docker not found; skipping container build" >&2; \
 	fi
+
+# Build lint images in parallel (mirrors GitHub Actions lint build job).
+container-build-lint:
+	@if ! command -v "$(DOCKER)" >/dev/null 2>&1; then \
+		echo "docker not found; cannot build lint containers" >&2; \
+		exit 2; \
+	fi; \
+	$(MAKE) -s container-build-lint-base & \
+	$(MAKE) -s container-build-lint-sh & \
+	$(MAKE) -s container-build-lint-markdown & \
+	wait
+
+container-build-lint-base:
+	@$(MAKE) -s container-build \
+		DEVCONTAINER_TARGET=lint-base \
+		DEVCONTAINER_IMAGE=kiosk-retropie-devcontainer:lint-base
+
+container-build-lint-sh:
+	@$(MAKE) -s container-build \
+		DEVCONTAINER_TARGET=lint-sh \
+		DEVCONTAINER_IMAGE=kiosk-retropie-devcontainer:lint-sh
+
+container-build-lint-markdown:
+	@$(MAKE) -s container-build \
+		DEVCONTAINER_TARGET=lint-markdown \
+		DEVCONTAINER_IMAGE=kiosk-retropie-devcontainer:lint-markdown
 
 container-shell:
 	@if ! command -v "$(DOCKER)" >/dev/null 2>&1; then \
