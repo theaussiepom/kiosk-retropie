@@ -105,6 +105,39 @@ sudo ./scripts/install.sh
 The installer creates the `retropi` user if it does not already exist, and installs systemd units that run
 kiosk/Retro mode under that account.
 
+## Updating / re-running the installer
+
+You can re-run the installer to apply updates (packages, files, systemd units) without re-installing RetroPie.
+
+1. Update the repo:
+
+```bash
+cd /opt/kiosk-retropie
+git pull --ff-only
+```
+
+1. Re-run the installer:
+
+```bash
+sudo ./scripts/install.sh
+```
+
+### RetroPie install marker
+
+On first install, RetroPie is installed once and then marked as installed.
+On subsequent runs, if the RetroPie marker is present, the installer skips the long RetroPie-Setup install step.
+
+- Default marker path: `/var/lib/kiosk-retropie/retropie-installed`
+- Override (advanced): set `KIOSK_RETROPIE_RETROPIE_MARKER` to a custom path
+
+If you have a Pi that already has RetroPie installed and you want to ensure the installer does not re-run it,
+create the marker file manually:
+
+```bash
+sudo mkdir -p /var/lib/kiosk-retropie
+sudo date -u +%Y-%m-%dT%H:%M:%SZ | sudo tee /var/lib/kiosk-retropie/retropie-installed >/dev/null
+```
+
 ## Configuration
 
 Runtime configuration lives in `/etc/kiosk-retropie/config.env`.
