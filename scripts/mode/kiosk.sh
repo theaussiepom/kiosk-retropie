@@ -24,7 +24,7 @@ source "$LIB_DIR/x11.sh"
 chromium_bin() {
   local candidate=""
   local c
-  for c in chromium-browser chromium; do
+  for c in chromium chromium-browser; do
     if command -v "$c" > /dev/null 2>&1; then
       candidate="$c"
       break

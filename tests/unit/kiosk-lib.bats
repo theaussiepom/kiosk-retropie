@@ -17,7 +17,25 @@ test_teardown() {
   rm -rf "${KIOSK_RETROPIE_ROOT}" || true
 }
 
-@test "chromium_bin prefers chromium-browser when present" {
+@test "chromium_bin prefers chromium when both exist" {
+  local bindir
+  bindir="$(mktemp -d)"
+  ln -s "${KIOSK_RETROPIE_REPO_ROOT}/tests/stubs/chromium" "$bindir/chromium"
+  ln -s "${KIOSK_RETROPIE_REPO_ROOT}/tests/stubs/chromium-browser" "$bindir/chromium-browser"
+
+  local old_path="$PATH"
+  PATH="$bindir:$old_path"
+
+  run chromium_bin
+  PATH="$old_path"
+
+  assert_success
+  assert_output "chromium"
+
+  rm -rf "$bindir"
+}
+
+@test "chromium_bin returns chromium-browser when chromium absent" {
   local bindir
   bindir="$(mktemp -d)"
   ln -s "${KIOSK_RETROPIE_REPO_ROOT}/tests/stubs/chromium-browser" "$bindir/chromium-browser"
