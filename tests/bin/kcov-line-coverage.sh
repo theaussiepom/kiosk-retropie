@@ -1118,6 +1118,13 @@ mv "$stub_bin/chromium-browser" "$stub_bin/chromium-browser.__kcov_hidden" 2>/de
 run_allow_fail env KIOSK_URL=http://example.invalid KIOSK_RETROPIE_DRY_RUN=1 "$ROOT_DIR/scripts/mode/kiosk.sh"
 mv "$stub_bin/chromium-browser.__kcov_hidden" "$stub_bin/chromium-browser" 2>/dev/null || true
 
+# Ensure chromium_bin chooses chromium-browser (when chromium is absent).
+mv "$stub_bin/chromium" "$stub_bin/chromium.__kcov_hidden" 2>/dev/null || true
+mv "$ROOT_DIR/tests/stubs/chromium" "$ROOT_DIR/tests/stubs/chromium.__kcov_hidden" 2>/dev/null || true
+run_allow_fail env KIOSK_URL=http://example.invalid KIOSK_RETROPIE_DRY_RUN=1 "$ROOT_DIR/scripts/mode/kiosk.sh"
+mv "$stub_bin/chromium.__kcov_hidden" "$stub_bin/chromium" 2>/dev/null || true
+mv "$ROOT_DIR/tests/stubs/chromium.__kcov_hidden" "$ROOT_DIR/tests/stubs/chromium" 2>/dev/null || true
+
 rm -f "$mode_lib_link" 2>/dev/null || true
 
 # Missing chromium/chromium-browser branch.
