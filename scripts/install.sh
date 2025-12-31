@@ -11,6 +11,7 @@ source "$SCRIPT_DIR/lib/common.sh"
 source "$SCRIPT_DIR/lib/config.sh"
 
 MARKER_FILE="${KIOSK_RETROPIE_INSTALLED_MARKER:-$(kiosk_retropie_path /var/lib/kiosk-retropie/installed)}"
+RETROPIE_MARKER_FILE="${KIOSK_RETROPIE_RETROPIE_MARKER:-$(kiosk_retropie_path /var/lib/kiosk-retropie/retropie-installed)}"
 LOCK_FILE="${KIOSK_RETROPIE_INSTALL_LOCK:-$(kiosk_retropie_path /var/lock/kiosk-retropie-install.lock)}"
 
 log() {
@@ -291,17 +292,30 @@ write_marker() {
   date -u +%Y-%m-%dT%H:%M:%SZ > "$MARKER_FILE"
 }
 
+write_retropie_marker() {
+  run_cmd mkdir -p "$(dirname "$RETROPIE_MARKER_FILE")"
+  if [[ "${KIOSK_RETROPIE_DRY_RUN:-0}" == "1" ]]; then
+    cover_path "install:write-retropie-marker-dry-run"
+    record_call "write_retropie_marker $RETROPIE_MARKER_FILE"
+    return 0
+  fi
+  cover_path "install:write-retropie-marker-write"
+  date -u +%Y-%m-%dT%H:%M:%SZ > "$RETROPIE_MARKER_FILE"
+}
+
 main() {
   require_root
   load_config_env
   export KIOSK_RETROPIE_LOG_PREFIX="kiosk-retropie install"
 
+  local update_mode=0
+
   validate_required_config
 
   if [[ -f "$MARKER_FILE" ]]; then
     cover_path "install:marker-present-early"
-    log "Already installed ($MARKER_FILE present)"
-    exit 0
+    log "Already installed ($MARKER_FILE present); continuing in update mode"
+    update_mode=1
   fi
 
   run_cmd mkdir -p "$(dirname "$LOCK_FILE")"
@@ -312,7 +326,7 @@ main() {
   fi
   cover_path "install:lock-acquired"
 
-  if [[ -f "$MARKER_FILE" ]]; then
+  if [[ "$update_mode" == "0" && -f "$MARKER_FILE" ]]; then
     cover_path "install:marker-after-lock"
     log "Already installed (marker appeared while waiting for lock)"
     exit 0
@@ -331,9 +345,18 @@ main() {
   install_files
 
   if [[ "${RETROPIE_INSTALL:-1}" == "1" ]]; then
-    cover_path "install:optional-retropie-enabled"
-    log "Installing RetroPie"
-    run_cmd "${KIOSK_RETROPIE_LIBDIR:-$(kiosk_retropie_path /usr/local/lib/kiosk-retropie)}/install-retropie.sh" || log "RetroPie install failed (continuing)"
+    if [[ -f "$RETROPIE_MARKER_FILE" ]]; then
+      cover_path "install:optional-retropie-skip-installed"
+      log "RetroPie already installed ($RETROPIE_MARKER_FILE present); skipping"
+    else
+      cover_path "install:optional-retropie-enabled"
+      log "Installing RetroPie"
+      if run_cmd "${KIOSK_RETROPIE_LIBDIR:-$(kiosk_retropie_path /usr/local/lib/kiosk-retropie)}/install-retropie.sh"; then
+        write_retropie_marker
+      else
+        log "RetroPie install failed (continuing)"
+      fi
+    fi
   else
     cover_path "install:optional-retropie-disabled"
   fi

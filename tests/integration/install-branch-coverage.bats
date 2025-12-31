@@ -23,6 +23,8 @@ test_teardown() {
 @test "install branch coverage: marker present early" {
   export KIOSK_RETROPIE_INSTALLED_MARKER="$TEST_ROOT/var/lib/kiosk-retropie/installed"
   : >"$KIOSK_RETROPIE_INSTALLED_MARKER"
+  export APT_CACHE_HAS_CHROMIUM=1
+  export RETROPIE_INSTALL=0
   run bash "$KIOSK_RETROPIE_REPO_ROOT/scripts/install.sh"
   assert_success
 }
@@ -33,9 +35,40 @@ test_teardown() {
   export KIOSK_RETROPIE_DRY_RUN=1
   export KIOSK_RETROPIE_INSTALLED_MARKER="$TEST_ROOT/var/lib/kiosk-retropie/installed"
   : >"$KIOSK_RETROPIE_INSTALLED_MARKER"
+  export APT_CACHE_HAS_CHROMIUM=1
+  export RETROPIE_INSTALL=0
 
   run bash "$KIOSK_RETROPIE_REPO_ROOT/scripts/install.sh"
   assert_success
+}
+
+@test "install branch coverage: optional retropie skipped when marker present" {
+  export KIOSK_RETROPIE_ALLOW_NON_ROOT=1
+  export KIOSK_RETROPIE_DRY_RUN=1
+  export ID_RETROPI_EXISTS=1
+  export APT_CACHE_HAS_CHROMIUM=1
+  export RETROPIE_INSTALL=1
+  export KIOSK_RETROPIE_RETROPIE_MARKER="$TEST_ROOT/var/lib/kiosk-retropie/retropie-installed"
+  : >"$KIOSK_RETROPIE_RETROPIE_MARKER"
+
+  rm -f "$TEST_ROOT/var/lib/kiosk-retropie/installed"
+  unset KIOSK_RETROPIE_STUB_FLOCK_TOUCH_MARKER || true
+  unset KIOSK_RETROPIE_STUB_FLOCK_EXIT_CODE || true
+
+  run bash "$KIOSK_RETROPIE_REPO_ROOT/scripts/install.sh"
+  assert_success
+  assert_file_contains "$TEST_ROOT/calls.log" "PATH install:optional-retropie-skip-installed"
+}
+
+@test "install branch coverage: write retropie marker real" {
+  export KIOSK_RETROPIE_DRY_RUN=0
+  export KIOSK_RETROPIE_RETROPIE_MARKER="$TEST_ROOT/var/lib/kiosk-retropie/retropie-installed-real"
+
+  source "$KIOSK_RETROPIE_REPO_ROOT/scripts/install.sh"
+
+  run write_retropie_marker
+  assert_success
+  [ -s "$KIOSK_RETROPIE_RETROPIE_MARKER" ]
 }
 
 @test "install branch coverage: chromium none" {
