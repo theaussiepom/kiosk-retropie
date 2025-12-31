@@ -158,6 +158,15 @@ jobs:
           sudo -n install -m 0755 scripts/lib/common.sh "$lib_dir/lib/common.sh"
           sudo -n install -m 0755 scripts/lib/logging.sh "$lib_dir/lib/logging.sh"
           sudo -n install -m 0755 scripts/lib/path.sh "$lib_dir/lib/path.sh"
+          sudo -n install -m 0755 \
+            scripts/leds/led-mqtt.sh \
+            "$lib_dir/kiosk-retropie-led-mqtt.sh"
+          sudo -n install -m 0755 \
+            scripts/leds/ledctl.sh \
+            "$lib_dir/ledctl.sh"
+          sudo -n install -m 0755 \
+            scripts/screen/screen-brightness-mqtt.sh \
+            "$lib_dir/kiosk-retropie-screen-brightness-mqtt.sh"
           sudo -n install -m 0755 scripts/mqtt/home-assistant-mqtt.sh "$lib_dir/kiosk-retropie-home-assistant-mqtt.sh"
           sudo -n systemctl daemon-reload
 
