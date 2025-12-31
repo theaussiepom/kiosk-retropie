@@ -1936,3 +1936,77 @@ run_allow_fail env KIOSK_RETROPIE_ALLOW_NON_ROOT=0 KCOV_RETROPI_EXISTS=1 KCOV_AP
 # Require-root success branch.
 run_allow_fail env KIOSK_RETROPIE_ALLOW_NON_ROOT=0 KIOSK_RETROPIE_EUID_OVERRIDE=0 KIOSK_RETROPIE_DRY_RUN=1 KCOV_RETROPI_EXISTS=1 KCOV_APT_CACHE_MODE=none KCOV_FLOCK_MODE=ok \
   PATH="$stub_bin:/usr/bin:/bin" "$ROOT_DIR/scripts/install.sh"
+
+# Cover scripts/ci/coverage-merge.sh branches.
+merge_input="$ROOT_DIR/tests/.tmp/kcov-merge-input"
+"${RM_BIN:-/bin/rm}" -rf "$merge_input" >/dev/null 2>&1 || true
+
+# Missing merge input.
+run_allow_fail env KIOSK_RETROPIE_CI_COVERAGE_MERGE_ALLOW_FAIL=1 \
+  "$ROOT_DIR/scripts/ci/coverage-merge.sh"
+run_allow_fail "$ROOT_DIR/scripts/ci/coverage-merge.sh"
+
+# Missing bats unit index.
+"${MKDIR_BIN:-/bin/mkdir}" -p "$merge_input/bats-unit" >/dev/null 2>&1 || true
+run_allow_fail env KIOSK_RETROPIE_CI_COVERAGE_MERGE_ALLOW_FAIL=1 \
+  "$ROOT_DIR/scripts/ci/coverage-merge.sh"
+
+# Missing bats integration index.
+"${RM_BIN:-/bin/rm}" -rf "$merge_input" >/dev/null 2>&1 || true
+"${MKDIR_BIN:-/bin/mkdir}" -p "$merge_input/bats-unit/out" >/dev/null 2>&1 || true
+"${MKDIR_BIN:-/bin/mkdir}" -p "$merge_input/bats-integration" >/dev/null 2>&1 || true
+touch "$merge_input/bats-unit/out/index.html" >/dev/null 2>&1 || true
+run_allow_fail env KIOSK_RETROPIE_CI_COVERAGE_MERGE_ALLOW_FAIL=1 \
+  "$ROOT_DIR/scripts/ci/coverage-merge.sh"
+
+# Missing wrapped merge dir.
+"${RM_BIN:-/bin/rm}" -rf "$merge_input" >/dev/null 2>&1 || true
+"${MKDIR_BIN:-/bin/mkdir}" -p "$merge_input/bats-unit/out" "$merge_input/bats-integration/out" >/dev/null 2>&1 || true
+touch "$merge_input/bats-unit/out/index.html" "$merge_input/bats-integration/out/index.html" >/dev/null 2>&1 || true
+run_allow_fail env KIOSK_RETROPIE_CI_COVERAGE_MERGE_ALLOW_FAIL=1 \
+  "$ROOT_DIR/scripts/ci/coverage-merge.sh"
+
+# Missing scripts coverage.json.
+"${MKDIR_BIN:-/bin/mkdir}" -p "$merge_input/somewhere/coverage-wrapped/kcov-merged" >/dev/null 2>&1 || true
+run_allow_fail env KIOSK_RETROPIE_CI_COVERAGE_MERGE_ALLOW_FAIL=1 \
+  "$ROOT_DIR/scripts/ci/coverage-merge.sh"
+
+# Missing scripts index.html.
+"${RM_BIN:-/bin/rm}" -rf "$merge_input" >/dev/null 2>&1 || true
+"${MKDIR_BIN:-/bin/mkdir}" -p \
+  "$merge_input/bats-unit/out" \
+  "$merge_input/bats-integration/out" \
+  "$merge_input/somewhere/coverage-wrapped/kcov-merged" \
+  "$merge_input/kcov-line-coverage.sh.ABC123/leaf" \
+  >/dev/null 2>&1 || true
+touch \
+  "$merge_input/bats-unit/out/index.html" \
+  "$merge_input/bats-integration/out/index.html" \
+  "$merge_input/kcov-line-coverage.sh.ABC123/leaf/coverage.json" \
+  >/dev/null 2>&1 || true
+run_allow_fail env KIOSK_RETROPIE_CI_COVERAGE_MERGE_ALLOW_FAIL=1 \
+  "$ROOT_DIR/scripts/ci/coverage-merge.sh"
+
+# Dry-run success.
+run_allow_fail env KIOSK_RETROPIE_CI_COVERAGE_MERGE_DRY_RUN=1 \
+  "${RM_BIN:-/bin/rm}" -rf "$merge_input"
+"${MKDIR_BIN:-/bin/mkdir}" -p \
+  "$merge_input/bats-unit/out" \
+  "$merge_input/bats-integration/out" \
+  "$merge_input/somewhere/coverage-wrapped/kcov-merged" \
+  "$merge_input/kcov-line-coverage.sh.ABC123/leaf" \
+  >/dev/null 2>&1 || true
+touch \
+  "$merge_input/bats-unit/out/index.html" \
+  "$merge_input/bats-integration/out/index.html" \
+  "$merge_input/kcov-line-coverage.sh.ABC123/index.html" \
+  "$merge_input/kcov-line-coverage.sh.ABC123/leaf/coverage.json" \
+  >/dev/null 2>&1 || true
+run_allow_fail env KIOSK_RETROPIE_CI_COVERAGE_MERGE_DRY_RUN=1 \
+  "$ROOT_DIR/scripts/ci/coverage-merge.sh"
+
+# Runner override success.
+run_allow_fail env KIOSK_RETROPIE_CI_COVERAGE_MERGE_RUNNER="$ROOT_DIR/tests/stubs/ci-coverage-merge-runner-ok" \
+  "$ROOT_DIR/scripts/ci/coverage-merge.sh"
+
+"${RM_BIN:-/bin/rm}" -rf "$merge_input" >/dev/null 2>&1 || true
