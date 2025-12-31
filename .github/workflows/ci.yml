@@ -877,7 +877,7 @@ jobs:
             -v "$PWD:/work" \
             -w /work \
             kiosk-retropie-devcontainer:ci \
-            bash -lc 'bash ./scripts/ci-coverage-merge.sh'
+            bash -lc 'bash ./scripts/ci/coverage-merge.sh'
 
       - name: Show kcov output paths
         if: always()

@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Stub runner used by tests for scripts/ci/coverage-merge.sh.
+# Accepts any args and always succeeds.
+exit 0
