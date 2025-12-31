@@ -117,7 +117,7 @@ fi
 common_args+=(
   "${report_type_args[@]}"
   --include-path="$ROOT_DIR/scripts"
-  --exclude-pattern="$ROOT_DIR/tests,$ROOT_DIR/tests/vendor,$ROOT_DIR/scripts/ci.sh,$ROOT_DIR/scripts/ci"
+  --exclude-pattern="$ROOT_DIR/tests,$ROOT_DIR/tests/vendor,$ROOT_DIR/scripts/ci.sh"
 )
 
 run_kcov() {
