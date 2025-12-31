@@ -165,7 +165,7 @@ EOF
   sudo -n chown -R retropi:retropi "/home/retropi/.local/share" >/dev/null 2>&1 || true
 
   # Keep the unit readable by moving the long bash invocation into a helper script.
-  # This is written to /run so systemd can execute it regardless of checkout path.
+  # This is written to /run so the unit doesn't depend on the checkout path.
   cat <<'EOF' | sudo -n tee "$start_script" >/dev/null
 #!/usr/bin/env bash
 set -euo pipefail
@@ -220,7 +220,8 @@ ExecStartPre=+/usr/bin/env bash -lc 'install -d -m 0700 -o retropi -g retropi /r
 ExecStartPre=+/usr/bin/env bash -lc 'install -d -m 0755 -o retropi -g retropi /run/kiosk-retropie'
 
 # Start Xorg briefly on this VT. Capture verbose output to /run for CI debugging.
-ExecStart=${start_script}
+# NOTE: some runners mount /run with `noexec`, so execute via bash.
+ExecStart=/usr/bin/env bash ${start_script}
 EOF
 
   run start_unit_wait "$unit"
