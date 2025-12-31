@@ -120,7 +120,10 @@ run_xorg_on_vt_and_check_log() {
     require_or_skip "Could not resolve retropi uid"
   fi
 
+  # Prefer /run for CI artifacts, but some rootless Xorg builds ignore -logfile and
+  # write to the per-user default log dir instead.
   local xorg_log_file="/run/kiosk-retropie/Xorg.${display_num}.log"
+  local xorg_log_file_fallback="/home/retropi/.local/share/xorg/Xorg.${display_num}.log"
   local unit_out_file="/run/kiosk-retropie/vt-xorg-${vt}.out"
   local xorg_conf_file="/run/kiosk-retropie/xorg.${display_num}.conf"
   local start_script="/run/kiosk-retropie/vt-xorg-start.sh"
@@ -157,6 +160,10 @@ EOF
   sudo -n chown retropi:retropi "$xorg_conf_file"
   sudo -n chmod 0644 "$xorg_conf_file"
 
+  # Rootless Xorg default log dir (fallback when -logfile is ignored).
+  sudo -n mkdir -p "/home/retropi/.local/share/xorg" >/dev/null 2>&1 || true
+  sudo -n chown -R retropi:retropi "/home/retropi/.local/share" >/dev/null 2>&1 || true
+
   # Keep the unit readable by moving the long bash invocation into a helper script.
   # This is written to /run so systemd can execute it regardless of checkout path.
   cat <<'EOF' | sudo -n tee "$start_script" >/dev/null
@@ -180,7 +187,7 @@ EOF
 
   # Clean old locks/logs so we read the right file.
   sudo -n rm -f "/tmp/.X${display_num}-lock" "/tmp/.X11-unix/X${display_num}" >/dev/null 2>&1 || true
-  sudo -n rm -f "$xorg_log_file" "$unit_out_file" >/dev/null 2>&1 || true
+  sudo -n rm -f "$xorg_log_file" "$xorg_log_file_fallback" "$unit_out_file" >/dev/null 2>&1 || true
 
   cat <<EOF | write_unit "$unit"
 [Unit]
@@ -231,11 +238,20 @@ EOF
     if [[ -f "$xorg_log_file" ]]; then
       echo "--- ${xorg_log_file} ---" >&2
       sudo -n tail -n 200 "$xorg_log_file" >&2 || true
+    elif [[ -f "$xorg_log_file_fallback" ]]; then
+      echo "--- ${xorg_log_file_fallback} ---" >&2
+      sudo -n tail -n 200 "$xorg_log_file_fallback" >&2 || true
     fi
     echo "--- host sanity ---" >&2
     ls -la "/dev/tty${vt}" >&2 || true
     ls -la /dev/dri >&2 || true
     fail "VT/Xorg systemd unit failed to start on vt${vt}"
+  fi
+
+  if [[ ! -f "$xorg_log_file" ]]; then
+    if [[ -f "$xorg_log_file_fallback" ]]; then
+      xorg_log_file="$xorg_log_file_fallback"
+    fi
   fi
 
   if [[ ! -f "$xorg_log_file" ]]; then
