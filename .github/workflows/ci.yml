@@ -306,7 +306,7 @@ jobs:
             local image="${DEVCONTAINER_IMAGE_BASE}:ci-${suffix}-${{ env.IMAGE_TAG }}"
 
             if docker manifest inspect "$image" >/dev/null 2>&1; then
-              echo "Already exists: $image"
+              echo "Skipping build (already exists): $image"
               return 0
             fi
 

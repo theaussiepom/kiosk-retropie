@@ -123,6 +123,7 @@ run_xorg_on_vt_and_check_log() {
   local xorg_log_file="/run/kiosk-retropie/Xorg.${display_num}.log"
   local unit_out_file="/run/kiosk-retropie/vt-xorg-${vt}.out"
   local xorg_conf_file="/run/kiosk-retropie/xorg.${display_num}.conf"
+  local start_script="/run/kiosk-retropie/vt-xorg-start.sh"
 
   # Pick a likely KMS device (card with a connector status in sysfs), falling back to card0.
   local kmsdev="/dev/dri/card0"
@@ -156,6 +157,27 @@ EOF
   sudo -n chown retropi:retropi "$xorg_conf_file"
   sudo -n chmod 0644 "$xorg_conf_file"
 
+  # Keep the unit readable by moving the long bash invocation into a helper script.
+  # This is written to /run so systemd can execute it regardless of checkout path.
+  cat <<'EOF' | sudo -n tee "$start_script" >/dev/null
+#!/usr/bin/env bash
+set -euo pipefail
+
+exec >"${UNIT_OUT_FILE:?}" 2>&1
+set -x
+
+id
+command -v xinit
+command -v xauth || true
+ls -la "${XORG_CONF_FILE:?}"
+
+xinit /bin/sleep 2 -- /usr/lib/xorg/Xorg ":${DISPLAY_NUM:?}" "vt${VT:?}" \
+  -nolisten tcp -keeptty \
+  -logfile "${XORG_LOG_FILE:?}" \
+  -config "${XORG_CONF_FILE:?}"
+EOF
+  sudo -n chmod 0755 "$start_script"
+
   # Clean old locks/logs so we read the right file.
   sudo -n rm -f "/tmp/.X${display_num}-lock" "/tmp/.X11-unix/X${display_num}" >/dev/null 2>&1 || true
   sudo -n rm -f "$xorg_log_file" "$unit_out_file" >/dev/null 2>&1 || true
@@ -171,6 +193,11 @@ User=retropi
 Group=retropi
 
 Environment=XDG_RUNTIME_DIR=/run/user/${retropi_uid}
+Environment=UNIT_OUT_FILE=${unit_out_file}
+Environment=XORG_CONF_FILE=${xorg_conf_file}
+Environment=XORG_LOG_FILE=${xorg_log_file}
+Environment=DISPLAY_NUM=${display_num}
+Environment=VT=${vt}
 
 # Create a logind session so rootless Xorg can acquire the seat.
 PAMName=login
@@ -186,7 +213,7 @@ ExecStartPre=+/usr/bin/env bash -lc 'install -d -m 0700 -o retropi -g retropi /r
 ExecStartPre=+/usr/bin/env bash -lc 'install -d -m 0755 -o retropi -g retropi /run/kiosk-retropie'
 
 # Start Xorg briefly on this VT. Capture verbose output to /run for CI debugging.
-ExecStart=/usr/bin/env bash -lc 'set -euo pipefail; exec >"${unit_out_file}" 2>&1; set -x; id; command -v xinit; command -v xauth || true; ls -la "${xorg_conf_file}"; xinit /bin/sleep 2 -- /usr/lib/xorg/Xorg :${display_num} vt${vt} -nolisten tcp -keeptty -logfile "${xorg_log_file}" -config "${xorg_conf_file}"'
+ExecStart=${start_script}
 EOF
 
   run start_unit_wait "$unit"
