@@ -202,6 +202,15 @@ if [[ "$cmd" == "clone" ]]; then
   # git clone --depth 1 <repo> <dir>
   dir="${@: -1}"
   mkdir -p "$dir/.git"
+
+  # Minimal RetroPie-Setup stub so install-retropie.sh can complete.
+  # (We only need retropie_packages.sh to exist and succeed.)
+  cat >"$dir/retropie_packages.sh" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+exit 0
+SH
+  chmod +x "$dir/retropie_packages.sh"
   exit 0
 fi
 
@@ -907,6 +916,7 @@ run_allow_fail env MQTT_HOST=localhost MQTT_TOPIC_PREFIX=kiosk-retropie KIOSK_RE
 
   # default_topic_prefix: cover hostname-missing fallback.
   (
+    # shellcheck disable=SC2123
     PATH="/nonexistent"
     default_topic_prefix >/dev/null 2>&1 || true
   )
@@ -1842,6 +1852,7 @@ mv "$hidden_enter_kiosk_lib" "$ROOT_DIR/scripts/lib" 2>/dev/null || true
 export KIOSK_RETROPIE_ALLOW_NON_ROOT=1
 export KIOSK_RETROPIE_DRY_RUN=1
 export KIOSK_RETROPIE_INSTALLED_MARKER="$KIOSK_RETROPIE_ROOT/var/lib/kiosk-retropie/installed"
+export KIOSK_RETROPIE_RETROPIE_MARKER="$KIOSK_RETROPIE_ROOT/var/lib/kiosk-retropie/retropie-installed"
 export KIOSK_RETROPIE_CONFIG_ENV="$config_ok_env"
 
 # install.sh: required config missing branches.
@@ -1873,6 +1884,13 @@ run_allow_fail env KCOV_RETROPI_EXISTS=0 KCOV_APT_CACHE_MODE=chromium KCOV_FLOCK
 run_allow_fail env KCOV_RETROPI_EXISTS=0 KCOV_APT_CACHE_MODE=none KCOV_FLOCK_MODE=ok \
   RETROPIE_INSTALL=1 \
   PATH="$stub_bin:/usr/bin:/bin" "$ROOT_DIR/scripts/install.sh"
+
+# RetroPie marker skip branch.
+: >"$KIOSK_RETROPIE_RETROPIE_MARKER"
+run_allow_fail env KCOV_RETROPI_EXISTS=1 KCOV_APT_CACHE_MODE=chromium KCOV_FLOCK_MODE=ok \
+  RETROPIE_INSTALL=1 \
+  PATH="$stub_bin:/usr/bin:/bin" "$ROOT_DIR/scripts/install.sh"
+rm -f "$KIOSK_RETROPIE_RETROPIE_MARKER"
 
 # Optional RetroPie disabled branch.
 
@@ -1926,7 +1944,15 @@ install_exec_bin="$work_dir/bin-install-exec"
 mkdir -p "$install_exec_bin"
 printf '%s\n' '#!/usr/bin/env bash' 'set -euo pipefail' 'exit 0' >"$install_exec_bin/chown"
 chmod +x "$install_exec_bin/chown"
-run_allow_fail env KIOSK_RETROPIE_ALLOW_NON_ROOT=1 KIOSK_RETROPIE_DRY_RUN=0 KCOV_RETROPI_EXISTS=1 KCOV_APT_CACHE_MODE=none KCOV_FLOCK_MODE=ok \
+mkdir -p "$KIOSK_RETROPIE_ROOT/home/retropi" || true
+run_allow_fail env KIOSK_RETROPIE_ALLOW_NON_ROOT=1 KIOSK_RETROPIE_DRY_RUN=0 KCOV_RETROPI_EXISTS=1 KCOV_APT_CACHE_MODE=chromium KCOV_FLOCK_MODE=ok \
+  RETROPIE_INSTALL=1 KCOV_GETENT_HOME="$KIOSK_RETROPIE_ROOT/home/retropi" \
+  PATH="$install_exec_bin:$stub_bin:/usr/bin:/bin" "$ROOT_DIR/scripts/install.sh"
+
+# Non-dry-run RetroPie failure path (covers the "RetroPie install failed" log line).
+rm -f "$KIOSK_RETROPIE_RETROPIE_MARKER" 2>/dev/null || true
+run_allow_fail env KIOSK_RETROPIE_ALLOW_NON_ROOT=1 KIOSK_RETROPIE_DRY_RUN=0 KCOV_RETROPI_EXISTS=0 KCOV_APT_CACHE_MODE=chromium KCOV_FLOCK_MODE=ok \
+  RETROPIE_INSTALL=1 KCOV_GETENT_HOME="$KIOSK_RETROPIE_ROOT/home/retropi" \
   PATH="$install_exec_bin:$stub_bin:/usr/bin:/bin" "$ROOT_DIR/scripts/install.sh"
 
 # Require-root failure branch.

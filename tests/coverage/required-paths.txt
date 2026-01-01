@@ -62,7 +62,10 @@ install:chromium-browser-pkg
 install:chromium-pkg
 install:chromium-none
 install:optional-retropie-enabled
+install:optional-retropie-skip-installed
 install:optional-retropie-disabled
+install:write-retropie-marker-dry-run
+install:write-retropie-marker-write
 install:write-marker-dry-run
 install:write-marker-write
 
