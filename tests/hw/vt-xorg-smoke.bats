@@ -216,8 +216,8 @@ TTYVTDisallocate=yes
 
 # Ensure the session is active so logind provides unpaused DRM fds.
 ExecStartPre=+/usr/bin/env chvt ${vt}
-ExecStartPre=+/usr/bin/env bash -lc 'install -d -m 0700 -o retropi -g retropi /run/user/${retropi_uid}'
-ExecStartPre=+/usr/bin/env bash -lc 'install -d -m 0755 -o retropi -g retropi /run/kiosk-retropie'
+ExecStartPre=+/usr/bin/env bash -lc "install -d -m 0700 -o retropi -g retropi /run/user/\${retropi_uid}"
+ExecStartPre=+/usr/bin/env bash -lc "install -d -m 0755 -o retropi -g retropi /run/kiosk-retropie"
 
 # Start Xorg briefly on this VT. Capture verbose output to /run for CI debugging.
 # NOTE: some runners mount /run with `noexec`, so execute via bash.
