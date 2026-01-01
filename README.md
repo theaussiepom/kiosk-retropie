@@ -36,7 +36,7 @@ flowchart TD
   RETRO["retro-mode.service<br/>RetroPie"]
 
   LISTEN_KIOSK -->|Start button| RETRO
-  LISTEN_TTY -->|Start button (TTY)| RETRO
+  LISTEN_TTY -->|Start button TTY| RETRO
 
   KIOSK -. OnFailure .-> FAIL
   FAIL --> RETRO
