@@ -38,7 +38,7 @@ pick_evdev_device() {
 
   # Don’t emit any events; we just want to ensure the script can open and start listening.
   # Use max_loops=1 so it exits quickly (~1s) without triggering systemctl actions.
-  run bash -lc "RETROPIE_INPUT_DEVICES='$dev' RETROPIE_MAX_LOOPS=1 RETROPIE_MAX_TRIGGERS=0 RETROPIE_ACTION_DEBOUNCE_SEC=0 python3 '$KIOSK_RETROPIE_REPO_ROOT/scripts/input/controller-listener-tty.sh'"
+  run bash -lc "RETROPIE_INPUT_DEVICES='$dev' RETROPIE_MAX_LOOPS=1 RETROPIE_MAX_TRIGGERS=0 RETROPIE_ACTION_DEBOUNCE_SEC=0 bash '$KIOSK_RETROPIE_REPO_ROOT/scripts/input/controller-listener-tty.sh'"
   assert_success
   assert_output --partial "Listening on $dev"
 }

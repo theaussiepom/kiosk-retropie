@@ -102,6 +102,9 @@ install_packages() {
     xserver-xorg \
     xinit
 
+  # kbd provides chvt/fgconsole for VT switching.
+  run_cmd apt-get install -y --no-install-recommends kbd
+
   # Chromium package name varies by distro/release.
   # Debian/Raspberry Pi OS (newer) typically ships `chromium`, while older
   # Raspberry Pi OS releases used `chromium-browser`.
@@ -114,6 +117,11 @@ install_packages() {
   else
     cover_path "install:chromium-none"
     log "Chromium package not found via apt-cache (skipping for now)"
+  fi
+
+  # Chromium is required for kiosk mode.
+  if ! apt_has_install_candidate chromium && ! apt_has_install_candidate chromium-browser; then
+    die "Chromium is required, but neither 'chromium' nor 'chromium-browser' has an install candidate"
   fi
 }
 

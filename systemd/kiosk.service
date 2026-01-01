@@ -16,6 +16,9 @@ EnvironmentFile=-/etc/kiosk-retropie/config.env
 User=retropi
 Group=retropi
 
+StandardOutput=journal
+StandardError=journal
+
 # Create a logind session so rootless Xorg can acquire the seat.
 PAMName=login
 StandardInput=tty
@@ -23,6 +26,9 @@ TTYPath=/dev/tty7
 TTYReset=yes
 TTYVHangup=yes
 TTYVTDisallocate=yes
+
+# Ensure the session is active so logind provides unpaused DRM fds.
+ExecStartPre=+/usr/bin/env chvt 7
 
 ExecStart=/usr/local/lib/kiosk-retropie/kiosk.sh
 Restart=on-failure

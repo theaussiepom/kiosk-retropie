@@ -63,7 +63,7 @@ That is the same pipeline GitHub CI uses.
 Build the devcontainer image:
 
 ```bash
-docker build -t kiosk-retropie-devcontainer -f .devcontainer/Dockerfile .
+docker build -t kiosk-retropie-devcontainer -f .devcontainer/dockerfile.ci --target dev .
 ```
 
 Run the full pipeline inside it:
@@ -114,3 +114,34 @@ Notes:
 
 - Path coverage is enforced by tests via explicit `PATH <id>` markers and `tests/coverage/required-paths.txt`.
 - `KIOSK_RETROPIE_PATH_COVERAGE` is intended for tests/CI only (it should not be set in production services).
+
+## Runtime gotchas (Pi / real hardware)
+
+These don’t usually show up in container CI, but they matter on actual Raspberry Pi installs.
+
+- **Chromium is required**: The kiosk mode depends on Chromium (`chromium` or `chromium-browser`).
+  The installer now fails if neither package has an apt install candidate.
+- **VT switching is intentional**: kiosk mode runs on tty7 and retro mode runs on tty8.
+  To avoid logind/Xorg “paused DRM fd” failures, the units switch to the correct VT before starting Xorg.
+  This uses `chvt` (provided by the `kbd` package on Debian/Raspberry Pi OS).
+- **Logs are in journald**: `kiosk.service` and `retro-mode.service` send stdout/stderr to the journal.
+  Use `journalctl -u kiosk.service -b --no-pager --full` (and similarly for `retro-mode.service`).
+
+## Local CI tip: don’t rebuild containers every run
+
+`make ci` / `make container-run` will reuse the existing devcontainer image if it already exists.
+To force a rebuild (e.g. after changing `.devcontainer/dockerfile.ci`), run:
+
+```bash
+FORCE_CONTAINER_BUILD=1 make ci
+```
+
+## Hardware tests
+
+The self-hosted ARM64 runner runs `./tests/bin/run-bats-hw.sh`.
+This suite includes “system-level” checks that can’t run in containers (systemd, sysfs, uinput).
+
+If you add a hardware test, ensure it:
+
+- Skips cleanly when prerequisites are missing (unless explicitly required by CI).
+- Restores system state in teardown (especially VTs and transient systemd units).

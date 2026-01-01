@@ -1128,6 +1128,13 @@ mv "$stub_bin/chromium-browser" "$stub_bin/chromium-browser.__kcov_hidden" 2>/de
 run_allow_fail env KIOSK_URL=http://example.invalid KIOSK_RETROPIE_DRY_RUN=1 "$ROOT_DIR/scripts/mode/kiosk.sh"
 mv "$stub_bin/chromium-browser.__kcov_hidden" "$stub_bin/chromium-browser" 2>/dev/null || true
 
+# Ensure chromium_bin chooses chromium-browser (when chromium is absent).
+mv "$stub_bin/chromium" "$stub_bin/chromium.__kcov_hidden" 2>/dev/null || true
+mv "$ROOT_DIR/tests/stubs/chromium" "$ROOT_DIR/tests/stubs/chromium.__kcov_hidden" 2>/dev/null || true
+run_allow_fail env KIOSK_URL=http://example.invalid KIOSK_RETROPIE_DRY_RUN=1 "$ROOT_DIR/scripts/mode/kiosk.sh"
+mv "$stub_bin/chromium.__kcov_hidden" "$stub_bin/chromium" 2>/dev/null || true
+mv "$ROOT_DIR/tests/stubs/chromium.__kcov_hidden" "$ROOT_DIR/tests/stubs/chromium" 2>/dev/null || true
+
 rm -f "$mode_lib_link" 2>/dev/null || true
 
 # Missing chromium/chromium-browser branch.
@@ -1929,12 +1936,12 @@ rm -f "$KIOSK_RETROPIE_RETROPIE_MARKER"
   unset KIOSK_RETROPIE_CONFIG_ENV
   kiosk_retropie_config_env_path >/dev/null
 ) || true
-run_allow_fail env KCOV_RETROPI_EXISTS=1 KCOV_APT_CACHE_MODE=none KCOV_FLOCK_MODE=ok \
+run_allow_fail env KCOV_RETROPI_EXISTS=1 KCOV_APT_CACHE_MODE=chromium KCOV_FLOCK_MODE=ok \
   RETROPIE_INSTALL=0 \
   PATH="$stub_bin:/usr/bin:/bin" "$ROOT_DIR/scripts/install.sh"
 
 # Configured Chromium profile dir (covers install:chromium-profile-configured).
-run_allow_fail env KCOV_RETROPI_EXISTS=1 KCOV_APT_CACHE_MODE=none KCOV_FLOCK_MODE=ok \
+run_allow_fail env KCOV_RETROPI_EXISTS=1 KCOV_APT_CACHE_MODE=chromium KCOV_FLOCK_MODE=ok \
   KIOSK_CHROMIUM_PROFILE_DIR="$KIOSK_RETROPIE_ROOT/var/lib/kiosk-retropie/chromium-profile" \
   PATH="$stub_bin:/usr/bin:/bin" "$ROOT_DIR/scripts/install.sh"
 
@@ -1962,3 +1969,77 @@ run_allow_fail env KIOSK_RETROPIE_ALLOW_NON_ROOT=0 KCOV_RETROPI_EXISTS=1 KCOV_AP
 # Require-root success branch.
 run_allow_fail env KIOSK_RETROPIE_ALLOW_NON_ROOT=0 KIOSK_RETROPIE_EUID_OVERRIDE=0 KIOSK_RETROPIE_DRY_RUN=1 KCOV_RETROPI_EXISTS=1 KCOV_APT_CACHE_MODE=none KCOV_FLOCK_MODE=ok \
   PATH="$stub_bin:/usr/bin:/bin" "$ROOT_DIR/scripts/install.sh"
+
+# Cover scripts/ci/coverage-merge.sh branches.
+merge_input="$ROOT_DIR/tests/.tmp/kcov-merge-input"
+"${RM_BIN:-/bin/rm}" -rf "$merge_input" >/dev/null 2>&1 || true
+
+# Missing merge input.
+run_allow_fail env KIOSK_RETROPIE_CI_COVERAGE_MERGE_ALLOW_FAIL=1 \
+  "$ROOT_DIR/scripts/ci/coverage-merge.sh"
+run_allow_fail "$ROOT_DIR/scripts/ci/coverage-merge.sh"
+
+# Missing bats unit index.
+"${MKDIR_BIN:-/bin/mkdir}" -p "$merge_input/bats-unit" >/dev/null 2>&1 || true
+run_allow_fail env KIOSK_RETROPIE_CI_COVERAGE_MERGE_ALLOW_FAIL=1 \
+  "$ROOT_DIR/scripts/ci/coverage-merge.sh"
+
+# Missing bats integration index.
+"${RM_BIN:-/bin/rm}" -rf "$merge_input" >/dev/null 2>&1 || true
+"${MKDIR_BIN:-/bin/mkdir}" -p "$merge_input/bats-unit/out" >/dev/null 2>&1 || true
+"${MKDIR_BIN:-/bin/mkdir}" -p "$merge_input/bats-integration" >/dev/null 2>&1 || true
+touch "$merge_input/bats-unit/out/index.html" >/dev/null 2>&1 || true
+run_allow_fail env KIOSK_RETROPIE_CI_COVERAGE_MERGE_ALLOW_FAIL=1 \
+  "$ROOT_DIR/scripts/ci/coverage-merge.sh"
+
+# Missing wrapped merge dir.
+"${RM_BIN:-/bin/rm}" -rf "$merge_input" >/dev/null 2>&1 || true
+"${MKDIR_BIN:-/bin/mkdir}" -p "$merge_input/bats-unit/out" "$merge_input/bats-integration/out" >/dev/null 2>&1 || true
+touch "$merge_input/bats-unit/out/index.html" "$merge_input/bats-integration/out/index.html" >/dev/null 2>&1 || true
+run_allow_fail env KIOSK_RETROPIE_CI_COVERAGE_MERGE_ALLOW_FAIL=1 \
+  "$ROOT_DIR/scripts/ci/coverage-merge.sh"
+
+# Missing scripts coverage.json.
+"${MKDIR_BIN:-/bin/mkdir}" -p "$merge_input/somewhere/coverage-wrapped/kcov-merged" >/dev/null 2>&1 || true
+run_allow_fail env KIOSK_RETROPIE_CI_COVERAGE_MERGE_ALLOW_FAIL=1 \
+  "$ROOT_DIR/scripts/ci/coverage-merge.sh"
+
+# Missing scripts index.html.
+"${RM_BIN:-/bin/rm}" -rf "$merge_input" >/dev/null 2>&1 || true
+"${MKDIR_BIN:-/bin/mkdir}" -p \
+  "$merge_input/bats-unit/out" \
+  "$merge_input/bats-integration/out" \
+  "$merge_input/somewhere/coverage-wrapped/kcov-merged" \
+  "$merge_input/kcov-line-coverage.sh.ABC123/leaf" \
+  >/dev/null 2>&1 || true
+touch \
+  "$merge_input/bats-unit/out/index.html" \
+  "$merge_input/bats-integration/out/index.html" \
+  "$merge_input/kcov-line-coverage.sh.ABC123/leaf/coverage.json" \
+  >/dev/null 2>&1 || true
+run_allow_fail env KIOSK_RETROPIE_CI_COVERAGE_MERGE_ALLOW_FAIL=1 \
+  "$ROOT_DIR/scripts/ci/coverage-merge.sh"
+
+# Dry-run success.
+run_allow_fail env KIOSK_RETROPIE_CI_COVERAGE_MERGE_DRY_RUN=1 \
+  "${RM_BIN:-/bin/rm}" -rf "$merge_input"
+"${MKDIR_BIN:-/bin/mkdir}" -p \
+  "$merge_input/bats-unit/out" \
+  "$merge_input/bats-integration/out" \
+  "$merge_input/somewhere/coverage-wrapped/kcov-merged" \
+  "$merge_input/kcov-line-coverage.sh.ABC123/leaf" \
+  >/dev/null 2>&1 || true
+touch \
+  "$merge_input/bats-unit/out/index.html" \
+  "$merge_input/bats-integration/out/index.html" \
+  "$merge_input/kcov-line-coverage.sh.ABC123/index.html" \
+  "$merge_input/kcov-line-coverage.sh.ABC123/leaf/coverage.json" \
+  >/dev/null 2>&1 || true
+run_allow_fail env KIOSK_RETROPIE_CI_COVERAGE_MERGE_DRY_RUN=1 \
+  "$ROOT_DIR/scripts/ci/coverage-merge.sh"
+
+# Runner override success.
+run_allow_fail env KIOSK_RETROPIE_CI_COVERAGE_MERGE_RUNNER="$ROOT_DIR/tests/stubs/ci-coverage-merge-runner-ok" \
+  "$ROOT_DIR/scripts/ci/coverage-merge.sh"
+
+"${RM_BIN:-/bin/rm}" -rf "$merge_input" >/dev/null 2>&1 || true

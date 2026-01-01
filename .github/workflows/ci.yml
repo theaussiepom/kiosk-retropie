@@ -14,325 +14,25 @@ on:
 
 permissions:
   contents: read
+  packages: read
+
+env:
+  DEVCONTAINER_IMAGE_BASE: ghcr.io/${{ github.repository_owner }}/kr-devcontainer
+  DEVCONTAINER_LOCAL_TAG: kiosk-retropie-devcontainer:ci
+  IMAGE_TAG: ${{ github.sha }}
+  PULL_RETRIES: 12
+  PULL_SLEEP_SECONDS: 10
 
 jobs:
-  lint-permissions:
-    name: lint-permissions
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build devcontainer image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: .devcontainer/Dockerfile
-          tags: kiosk-retropie-devcontainer:ci
-          load: true
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Run stage in devcontainer
-        shell: bash
-        run: |
-          set -euo pipefail
-          docker run --rm \
-            -v "$PWD:/work" \
-            -w /work \
-            kiosk-retropie-devcontainer:ci \
-            bash -lc './scripts/ci.sh lint-permissions'
-
-  lint-naming:
-    name: lint-naming
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build devcontainer image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: .devcontainer/Dockerfile
-          tags: kiosk-retropie-devcontainer:ci
-          load: true
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Run stage in devcontainer
-        shell: bash
-        run: |
-          set -euo pipefail
-          docker run --rm \
-            -v "$PWD:/work" \
-            -w /work \
-            kiosk-retropie-devcontainer:ci \
-            bash -lc './scripts/ci.sh lint-naming'
-
-  lint-sh:
-    name: lint-sh
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build devcontainer image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: .devcontainer/Dockerfile
-          tags: kiosk-retropie-devcontainer:ci
-          load: true
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Run stage in devcontainer
-        shell: bash
-        run: |
-          set -euo pipefail
-          docker run --rm \
-            -v "$PWD:/work" \
-            -w /work \
-            kiosk-retropie-devcontainer:ci \
-            bash -lc './scripts/ci.sh lint-sh'
-
-  test-all:
-    name: test-all
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build devcontainer image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: .devcontainer/Dockerfile
-          tags: kiosk-retropie-devcontainer:ci
-          load: true
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Run stage in devcontainer
-        shell: bash
-        run: |
-          set -euo pipefail
-          docker run --rm \
-            -v "$PWD:/work" \
-            -w /work \
-            kiosk-retropie-devcontainer:ci \
-            bash -lc './scripts/ci.sh tests'
-
-  test-coverage:
-    name: test-coverage
-    runs-on: ubuntu-latest
-    needs: [test-all]
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build devcontainer image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: .devcontainer/Dockerfile
-          tags: kiosk-retropie-devcontainer:ci
-          load: true
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Run stage in devcontainer
-        timeout-minutes: 20
-        shell: bash
-        run: |
-          set -euo pipefail
-          docker run --rm \
-            -v "$PWD:/work" \
-            -w /work \
-            kiosk-retropie-devcontainer:ci \
-            bash -lc './scripts/ci.sh coverage'
-
-      - name: Show kcov output paths
-        if: always()
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo "Listing coverage/ (if present)"
-          ls -la coverage || true
-          echo "Searching for coverage.json under coverage/"
-          find coverage -maxdepth 4 -name coverage.json -print 2>/dev/null || true
-          echo "Searching for kcov logs under coverage/"
-          find coverage -maxdepth 2 -name '*.log' -print 2>/dev/null || true
-
-      - name: Show kcov log tails (failure only)
-        if: failure()
-        shell: bash
-        run: |
-          set -euo pipefail
-          for f in coverage/*.log; do
-            [ -f "$f" ] || continue
-            echo "--- $f (last 200 lines) ---"
-            tail -n 200 "$f" || true
-          done
-
-      - name: Upload kcov coverage artifact
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: kcov-coverage
-          path: coverage/
-          if-no-files-found: warn
-
-      - name: Upload kcov logs artifact
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: kcov-logs
-          path: |
-            coverage/*.log
-            coverage/**/*.log
-            coverage/*.strace
-            coverage/**/*.strace
-          if-no-files-found: warn
-
-  # Coverage enforcement is handled by ./scripts/ci.sh coverage
-
-  lint-yaml:
-    name: lint-yaml
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build devcontainer image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: .devcontainer/Dockerfile
-          tags: kiosk-retropie-devcontainer:ci
-          load: true
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Run stage in devcontainer
-        shell: bash
-        run: |
-          set -euo pipefail
-          docker run --rm \
-            -v "$PWD:/work" \
-            -w /work \
-            kiosk-retropie-devcontainer:ci \
-            bash -lc './scripts/ci.sh lint-yaml'
-
-  lint-systemd:
-    name: lint-systemd
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build devcontainer image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: .devcontainer/Dockerfile
-          tags: kiosk-retropie-devcontainer:ci
-          load: true
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Run stage in devcontainer
-        shell: bash
-        run: |
-          set -euo pipefail
-          docker run --rm \
-            -v "$PWD:/work" \
-            -w /work \
-            kiosk-retropie-devcontainer:ci \
-            bash -lc './scripts/ci.sh lint-systemd'
-
-  lint-markdown:
-    name: lint-markdown
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build devcontainer image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: .devcontainer/Dockerfile
-          tags: kiosk-retropie-devcontainer:ci
-          load: true
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Run stage in devcontainer
-        shell: bash
-        run: |
-          set -euo pipefail
-          docker run --rm \
-            -v "$PWD:/work" \
-            -w /work \
-            kiosk-retropie-devcontainer:ci \
-            bash -lc './scripts/ci.sh lint-markdown'
-
-  runner-unit-tests:
-    name: runner-unit-tests (no container)
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    needs:
-      - lint-permissions
-      - lint-naming
-      - lint-sh
-      - lint-yaml
-      - lint-systemd
-      - lint-markdown
-      - test-all
-      - test-coverage
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Run unit tests on runner
-        shell: bash
-        run: |
-          set -euo pipefail
-          ./tests/bin/run-bats-unit.sh
-
-  arm64-hw-integration:
-    name: arm64-hw-integration (self-hosted Linux ARM64)
+  test-hardware-arm64:
+    name: test-hardware-arm64
     runs-on: [self-hosted, Linux, ARM64]
     timeout-minutes: 30
-    needs:
-      - lint-permissions
-      - lint-naming
-      - lint-sh
-      - lint-yaml
-      - lint-systemd
-      - lint-markdown
-      - test-all
     # SECURITY: never run untrusted fork PR code on a self-hosted runner.
     if: |
       (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository) ||
-      github.event_name == 'workflow_dispatch'
+      github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'push'
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -362,6 +62,80 @@ jobs:
             exit 1
           fi
 
+      - name: Ensure retropi user (required for VT/Xorg hardware tests)
+        shell: bash
+        run: |
+          set -euo pipefail
+          if id -u retropi >/dev/null 2>&1; then
+            exit 0
+          fi
+          echo "Creating user retropi for hardware tests" >&2
+          sudo -n useradd -m -s /bin/bash retropi
+
+      - name: Ensure retropi device groups (best-effort)
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Some distros gate access to /dev/dri and input devices via groups.
+          for grp in video render input; do
+            if getent group "$grp" >/dev/null 2>&1; then
+              sudo -n usermod -aG "$grp" retropi
+            fi
+          done
+
+      - name: Stop display manager (free VTs for tty7/tty8)
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "DISPLAY_MANAGER_WAS_ACTIVE=0" >> "$GITHUB_ENV"
+          if systemctl list-unit-files --type=service | awk '{print $1}' | grep -qx 'display-manager.service'; then
+            if systemctl is-active --quiet display-manager.service; then
+              echo "Stopping display-manager.service to free VT7/VT8" >&2
+              echo "DISPLAY_MANAGER_WAS_ACTIVE=1" >> "$GITHUB_ENV"
+              sudo -n systemctl stop display-manager.service
+            fi
+          fi
+
+      - name: Ensure VT/Xorg tooling (required for tty7/tty8 smoke tests)
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          missing=()
+          for cmd in chvt fgconsole xinit; do
+            if ! command -v "$cmd" >/dev/null 2>&1; then
+              missing+=("$cmd")
+            fi
+          done
+          if [[ ! -x /usr/lib/xorg/Xorg ]]; then
+            missing+=("/usr/lib/xorg/Xorg")
+          fi
+
+          if (( ${#missing[@]} > 0 )); then
+            echo "Missing VT/Xorg tooling: ${missing[*]}" >&2
+            if command -v apt-get >/dev/null 2>&1; then
+              sudo -n apt-get update
+              # chvt/fgconsole -> kbd
+              # xinit + Xorg -> xinit + xserver-xorg
+              # xauth is commonly invoked by xinit.
+              sudo -n apt-get install -y kbd xauth xinit xserver-xorg
+            else
+              echo "Cannot auto-install because apt-get is unavailable." >&2
+              exit 1
+            fi
+          fi
+
+          for cmd in chvt fgconsole xinit; do
+            command -v "$cmd" >/dev/null 2>&1 || {
+              echo "VT/Xorg tooling still missing after install: $cmd" >&2
+              exit 1
+            }
+          done
+          [[ -x /usr/lib/xorg/Xorg ]] || {
+            echo "VT/Xorg tooling still missing after install: /usr/lib/xorg/Xorg" >&2
+            exit 1
+          }
+
       - name: Install required systemd units (for HW tests)
         shell: bash
         run: |
@@ -384,6 +158,15 @@ jobs:
           sudo -n install -m 0755 scripts/lib/common.sh "$lib_dir/lib/common.sh"
           sudo -n install -m 0755 scripts/lib/logging.sh "$lib_dir/lib/logging.sh"
           sudo -n install -m 0755 scripts/lib/path.sh "$lib_dir/lib/path.sh"
+          sudo -n install -m 0755 \
+            scripts/leds/led-mqtt.sh \
+            "$lib_dir/kiosk-retropie-led-mqtt.sh"
+          sudo -n install -m 0755 \
+            scripts/leds/ledctl.sh \
+            "$lib_dir/ledctl.sh"
+          sudo -n install -m 0755 \
+            scripts/screen/screen-brightness-mqtt.sh \
+            "$lib_dir/kiosk-retropie-screen-brightness-mqtt.sh"
           sudo -n install -m 0755 scripts/mqtt/home-assistant-mqtt.sh "$lib_dir/kiosk-retropie-home-assistant-mqtt.sh"
           sudo -n systemctl daemon-reload
 
@@ -441,4 +224,736 @@ jobs:
           set -euo pipefail
           export KIOSK_RETROPIE_HW_REQUIRE_UNITS=1
           export KIOSK_RETROPIE_HW_REQUIRE_UINPUT=1
+          export KIOSK_RETROPIE_HW_REQUIRE_VT_XORG=1
           sudo -E bash ./tests/bin/run-bats-hw.sh
+
+      - name: Restart display manager (cleanup)
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${DISPLAY_MANAGER_WAS_ACTIVE:-0}" == "1" ]]; then
+            echo "Restarting display-manager.service (was active before tests)" >&2
+            sudo -n systemctl start display-manager.service || true
+          fi
+
+  build-devcontainer-test:
+    name: build-devcontainer-test
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check if devcontainer image already exists
+        id: image_exists
+        shell: bash
+        run: |
+          set -euo pipefail
+          image="${DEVCONTAINER_IMAGE_BASE}:ci-coverage-${{ env.IMAGE_TAG }}"
+          if docker manifest inspect "$image" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build devcontainer image (coverage)
+        if: ${{ steps.image_exists.outputs.exists != 'true' }}
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: .devcontainer/dockerfile.ci
+          target: coverage
+          tags: >-
+            ${{ env.DEVCONTAINER_IMAGE_BASE }}:ci-coverage-${{ env.IMAGE_TAG }}
+          labels: >-
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+          push: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  build-devcontainer-lint:
+    name: build-devcontainer-lint
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build lint devcontainer images (parallel)
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          build_if_missing() {
+            local target="$1"
+            local suffix="$2"
+            local image="${DEVCONTAINER_IMAGE_BASE}:ci-${suffix}-${{ env.IMAGE_TAG }}"
+
+            if docker manifest inspect "$image" >/dev/null 2>&1; then
+              echo "Skipping build (already exists): $image"
+              return 0
+            fi
+
+            echo "Building: $image (target=$target)"
+            docker buildx build \
+              --file .devcontainer/dockerfile.ci \
+              --target "$target" \
+              --tag "$image" \
+              --label "org.opencontainers.image.revision=${{ github.sha }}" \
+              --label "org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}" \
+              --push \
+              --cache-from "type=gha,scope=ci-${suffix}" \
+              --cache-to "type=gha,mode=max,scope=ci-${suffix}" \
+              . &
+
+            local pid="$!"
+            local started_at
+            started_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo "Started build: ${suffix} pid=${pid} at ${started_at}"
+
+            pids+=("$pid")
+            names+=("$suffix")
+            started_ats+=("$started_at")
+          }
+
+          declare -a pids=()
+          declare -a names=()
+          declare -a started_ats=()
+
+          build_if_missing lint-base lint-base
+          build_if_missing lint-sh lint-sh
+          build_if_missing lint-markdown lint-markdown
+
+          failed=0
+          for i in "${!pids[@]}"; do
+            if ! wait "${pids[$i]}"; then
+              ended_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+              echo "Build failed: ${names[$i]} pid=${pids[$i]} started_at=${started_ats[$i]} ended_at=${ended_at}" >&2
+              failed=1
+            else
+              ended_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+              echo "Build complete: ${names[$i]} pid=${pids[$i]} started_at=${started_ats[$i]} ended_at=${ended_at}"
+            fi
+          done
+
+          exit "$failed"
+
+  lint-permissions:
+    name: lint-permissions
+    runs-on: ubuntu-latest
+    needs: [build-devcontainer-lint]
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull devcontainer image (cached)
+        shell: bash
+        run: |
+          set -euo pipefail
+          image="${DEVCONTAINER_IMAGE_BASE}:ci-lint-base-${{ env.IMAGE_TAG }}"
+          for i in $(seq 1 "${PULL_RETRIES}"); do
+            if docker pull "$image"; then
+              docker tag "$image" "${DEVCONTAINER_LOCAL_TAG}"
+              exit 0
+            fi
+            sleep "${PULL_SLEEP_SECONDS}"
+          done
+
+          echo "Failed to pull devcontainer image: $image" >&2
+          exit 1
+
+      - name: Run stage in devcontainer
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -v "$PWD:/work" \
+            -w /work \
+            kiosk-retropie-devcontainer:ci \
+            bash -lc './scripts/ci.sh lint-permissions'
+
+  lint-naming:
+    name: lint-naming
+    runs-on: ubuntu-latest
+    needs: [build-devcontainer-lint]
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull devcontainer image (cached)
+        shell: bash
+        run: |
+          set -euo pipefail
+          image="${DEVCONTAINER_IMAGE_BASE}:ci-lint-base-${{ env.IMAGE_TAG }}"
+          for i in $(seq 1 "${PULL_RETRIES}"); do
+            if docker pull "$image"; then
+              docker tag "$image" "${DEVCONTAINER_LOCAL_TAG}"
+              exit 0
+            fi
+            sleep "${PULL_SLEEP_SECONDS}"
+          done
+
+          echo "Failed to pull devcontainer image: $image" >&2
+          exit 1
+
+      - name: Run stage in devcontainer
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -v "$PWD:/work" \
+            -w /work \
+            kiosk-retropie-devcontainer:ci \
+            bash -lc './scripts/ci.sh lint-naming'
+
+  lint-sh:
+    name: lint-sh
+    runs-on: ubuntu-latest
+    needs: [build-devcontainer-lint]
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull devcontainer image (cached)
+        shell: bash
+        run: |
+          set -euo pipefail
+          image="${DEVCONTAINER_IMAGE_BASE}:ci-lint-sh-${{ env.IMAGE_TAG }}"
+          for i in $(seq 1 "${PULL_RETRIES}"); do
+            if docker pull "$image"; then
+              docker tag "$image" "${DEVCONTAINER_LOCAL_TAG}"
+              exit 0
+            fi
+            sleep "${PULL_SLEEP_SECONDS}"
+          done
+
+          echo "Failed to pull devcontainer image: $image" >&2
+          exit 1
+
+      - name: Run stage in devcontainer
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -v "$PWD:/work" \
+            -w /work \
+            kiosk-retropie-devcontainer:ci \
+            bash -lc './scripts/ci.sh lint-sh'
+
+  lint-yaml:
+    name: lint-yaml
+    runs-on: ubuntu-latest
+    needs: [build-devcontainer-lint]
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull devcontainer image (cached)
+        shell: bash
+        run: |
+          set -euo pipefail
+          image="${DEVCONTAINER_IMAGE_BASE}:ci-lint-base-${{ env.IMAGE_TAG }}"
+          for i in $(seq 1 "${PULL_RETRIES}"); do
+            if docker pull "$image"; then
+              docker tag "$image" "${DEVCONTAINER_LOCAL_TAG}"
+              exit 0
+            fi
+            sleep "${PULL_SLEEP_SECONDS}"
+          done
+
+          echo "Failed to pull devcontainer image: $image" >&2
+          exit 1
+
+      - name: Run stage in devcontainer
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -v "$PWD:/work" \
+            -w /work \
+            kiosk-retropie-devcontainer:ci \
+            bash -lc './scripts/ci.sh lint-yaml'
+
+  lint-systemd:
+    name: lint-systemd
+    runs-on: ubuntu-latest
+    needs: [build-devcontainer-lint]
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull devcontainer image (cached)
+        shell: bash
+        run: |
+          set -euo pipefail
+          image="${DEVCONTAINER_IMAGE_BASE}:ci-lint-base-${{ env.IMAGE_TAG }}"
+          for i in $(seq 1 "${PULL_RETRIES}"); do
+            if docker pull "$image"; then
+              docker tag "$image" "${DEVCONTAINER_LOCAL_TAG}"
+              exit 0
+            fi
+            sleep "${PULL_SLEEP_SECONDS}"
+          done
+
+          echo "Failed to pull devcontainer image: $image" >&2
+          exit 1
+
+      - name: Run stage in devcontainer
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -v "$PWD:/work" \
+            -w /work \
+            kiosk-retropie-devcontainer:ci \
+            bash -lc './scripts/ci.sh lint-systemd'
+
+  lint-markdown:
+    name: lint-markdown
+    runs-on: ubuntu-latest
+    needs: [build-devcontainer-lint]
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull devcontainer image (cached)
+        shell: bash
+        run: |
+          set -euo pipefail
+          image="${DEVCONTAINER_IMAGE_BASE}:ci-lint-markdown-${{ env.IMAGE_TAG }}"
+          for i in $(seq 1 "${PULL_RETRIES}"); do
+            if docker pull "$image"; then
+              docker tag "$image" "${DEVCONTAINER_LOCAL_TAG}"
+              exit 0
+            fi
+            sleep "${PULL_SLEEP_SECONDS}"
+          done
+
+          echo "Failed to pull devcontainer image: $image" >&2
+          exit 1
+
+      - name: Run stage in devcontainer
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -v "$PWD:/work" \
+            -w /work \
+            kiosk-retropie-devcontainer:ci \
+            bash -lc './scripts/ci.sh lint-markdown'
+
+  test-coverage-line-bats-unit:
+    name: test-unit
+    runs-on: ubuntu-latest
+    needs: [build-devcontainer-test]
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull devcontainer image (cached)
+        shell: bash
+        run: |
+          set -euo pipefail
+          image="${DEVCONTAINER_IMAGE_BASE}:ci-coverage-${{ env.IMAGE_TAG }}"
+          for i in $(seq 1 "${PULL_RETRIES}"); do
+            if docker pull "$image"; then
+              docker tag "$image" "${DEVCONTAINER_LOCAL_TAG}"
+              exit 0
+            fi
+            sleep "${PULL_SLEEP_SECONDS}"
+          done
+
+          echo "Failed to pull devcontainer image: $image" >&2
+          exit 1
+
+      - name: Run kcov bats part in devcontainer
+        timeout-minutes: 20
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf tests/.tmp/kcov-part-bats-unit
+          docker run --rm \
+            -v "$PWD:/work" \
+            -w /work \
+            kiosk-retropie-devcontainer:ci \
+            bash -lc '
+              export KCOV_BATS_SUITE=unit
+              export KCOV_OUT_DIR=/work/tests/.tmp/kcov-part-bats-unit
+              ./scripts/ci.sh coverage-bats
+            '
+
+      - name: Upload kcov bats (unit) part
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kcov-part-bats-unit
+          path: tests/.tmp/kcov-part-bats-unit/*
+          if-no-files-found: error
+
+      - name: Upload unit paths log artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: paths-log-unit
+          path: tests/.tmp/kiosk-retropie-paths.unit.log
+          if-no-files-found: warn
+
+  test-coverage-line-bats-integration:
+    name: test-integration
+    runs-on: ubuntu-latest
+    needs: [build-devcontainer-test]
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull devcontainer image (cached)
+        shell: bash
+        run: |
+          set -euo pipefail
+          image="${DEVCONTAINER_IMAGE_BASE}:ci-coverage-${{ env.IMAGE_TAG }}"
+          for i in $(seq 1 "${PULL_RETRIES}"); do
+            if docker pull "$image"; then
+              docker tag "$image" "${DEVCONTAINER_LOCAL_TAG}"
+              exit 0
+            fi
+            sleep "${PULL_SLEEP_SECONDS}"
+          done
+
+          echo "Failed to pull devcontainer image: $image" >&2
+          exit 1
+
+      - name: Run kcov bats part in devcontainer
+        timeout-minutes: 20
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf tests/.tmp/kcov-part-bats-integration
+          docker run --rm \
+            -v "$PWD:/work" \
+            -w /work \
+            kiosk-retropie-devcontainer:ci \
+            bash -lc '
+              export KCOV_BATS_SUITE=integration
+              export KCOV_OUT_DIR=/work/tests/.tmp/kcov-part-bats-integration
+              ./scripts/ci.sh coverage-bats
+            '
+
+      - name: Upload kcov bats (integration) part
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kcov-part-bats-integration
+          path: tests/.tmp/kcov-part-bats-integration/*
+          if-no-files-found: error
+
+      - name: Upload integration paths log artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: paths-log-integration
+          path: tests/.tmp/kiosk-retropie-paths.log
+          if-no-files-found: warn
+
+  test-coverage-line-scripts:
+    name: test-remaining-coverage
+    runs-on: ubuntu-latest
+    needs: [build-devcontainer-test]
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull devcontainer image (cached)
+        shell: bash
+        run: |
+          set -euo pipefail
+          image="${DEVCONTAINER_IMAGE_BASE}:ci-coverage-${{ env.IMAGE_TAG }}"
+          for i in $(seq 1 "${PULL_RETRIES}"); do
+            if docker pull "$image"; then
+              docker tag "$image" "${DEVCONTAINER_LOCAL_TAG}"
+              exit 0
+            fi
+            sleep "${PULL_SLEEP_SECONDS}"
+          done
+
+          echo "Failed to pull devcontainer image: $image" >&2
+          exit 1
+
+      - name: Run kcov scripts part in devcontainer
+        timeout-minutes: 20
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf tests/.tmp/kcov-part-scripts
+          docker run --rm \
+            -v "$PWD:/work" \
+            -w /work \
+            kiosk-retropie-devcontainer:ci \
+            bash -lc 'export KCOV_OUT_DIR=/work/tests/.tmp/kcov-part-scripts && ./scripts/ci.sh coverage-scripts'
+
+      - name: Upload kcov scripts part
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kcov-part-scripts
+          path: tests/.tmp/kcov-part-scripts/*
+          if-no-files-found: error
+
+  test-coverage:
+    name: test-coverage
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    needs:
+      [
+        build-devcontainer-test,
+        test-coverage-line-bats-unit,
+        test-coverage-line-bats-integration,
+        test-coverage-line-scripts,
+      ]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download unit paths log
+        uses: actions/download-artifact@v4
+        with:
+          name: paths-log-unit
+          path: tests/.tmp/
+
+      - name: Download integration paths log
+        uses: actions/download-artifact@v4
+        with:
+          name: paths-log-integration
+          path: tests/.tmp/
+
+      - name: Download kcov bats (unit) part
+        uses: actions/download-artifact@v4
+        with:
+          name: kcov-part-bats-unit
+          path: tests/.tmp/kcov-merge-input/bats-unit
+
+      - name: Download kcov bats (integration) part
+        uses: actions/download-artifact@v4
+        with:
+          name: kcov-part-bats-integration
+          path: tests/.tmp/kcov-merge-input/bats-integration
+
+      - name: Download kcov scripts part
+        uses: actions/download-artifact@v4
+        with:
+          name: kcov-part-scripts
+          path: tests/.tmp/kcov-merge-input
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull devcontainer image (cached)
+        shell: bash
+        run: |
+          set -euo pipefail
+          image="${DEVCONTAINER_IMAGE_BASE}:ci-coverage-${{ env.IMAGE_TAG }}"
+          for i in $(seq 1 "${PULL_RETRIES}"); do
+            if docker pull "$image"; then
+              docker tag "$image" "${DEVCONTAINER_LOCAL_TAG}"
+              exit 0
+            fi
+            sleep "${PULL_SLEEP_SECONDS}"
+          done
+
+          echo "Failed to pull devcontainer image: $image" >&2
+          exit 1
+
+      - name: Verify required PATH ids
+        shell: bash
+        run: |
+          set -euo pipefail
+          ./scripts/ci.sh tests-path-coverage
+
+      - name: Run stage in devcontainer
+        timeout-minutes: 20
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -v "$PWD:/work" \
+            -w /work \
+            kiosk-retropie-devcontainer:ci \
+            bash -lc 'bash ./scripts/ci/coverage-merge.sh'
+
+      - name: Show kcov output paths
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Listing tests/.tmp/kcov-merge-out/"
+          find tests/.tmp/kcov-merge-out -maxdepth 4 -type f -print | sed 's#^#  #' || true
+
+      - name: Verify kcov output exists
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -d tests/.tmp/kcov-merge-out
+          test -d tests/.tmp/kcov-merge-out/kcov-merged
+          test -f tests/.tmp/kcov-merge-out/kcov-merged/index.html
+          test -f tests/.tmp/kcov-merge-out/kcov-merged/kcov-merged/coverage.json
+
+      - name: Collect kcov output for debugging
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p coverage
+
+          # kcov emits logs in the merge output directory.
+          find tests/.tmp/kcov-merge-out -maxdepth 2 -name '*.log' -print -exec cp -v '{}' coverage/ ';' || true
+
+      - name: Show kcov output summary
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Listing coverage/ (if present)"
+          ls -la coverage || true
+          echo "Searching for coverage.json under coverage/"
+          find coverage -maxdepth 4 -name coverage.json -print 2>/dev/null || true
+          echo "Searching for kcov logs under coverage/"
+          find coverage -maxdepth 2 -name '*.log' -print 2>/dev/null || true
+
+      - name: Show kcov log tails (failure only)
+        if: failure()
+        shell: bash
+        run: |
+          set -euo pipefail
+          for f in coverage/*.log; do
+            [ -f "$f" ] || continue
+            echo "--- $f (last 200 lines) ---"
+            tail -n 200 "$f" || true
+          done
+
+      - name: Upload kcov coverage artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kcov-coverage
+          path: tests/.tmp/kcov-merge-out/
+          if-no-files-found: warn
+
+      - name: Upload kcov logs artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kcov-logs
+          path: |
+            tests/.tmp/kcov-merge-out/*.log
+            tests/.tmp/kcov-merge-out/**/*.log
+            tests/.tmp/kcov-merge-out/*.strace
+            tests/.tmp/kcov-merge-out/**/*.strace
+          if-no-files-found: warn

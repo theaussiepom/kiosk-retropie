@@ -1,0 +1,77 @@
+FROM mcr.microsoft.com/devcontainers/base:ubuntu-22.04 AS base
+
+# Keep CI images as small as possible while still matching repo CI expectations.
+# Individual job images extend this base with only the tools they need.
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends \
+  bash \
+  ca-certificates \
+  curl \
+  git \
+  gnupg \
+  make \
+  python3 \
+  python3-pip \
+  sudo \
+  && rm -rf /var/lib/apt/lists/*
+
+# Shared lint image for checks that can safely share dependencies.
+# Used for: lint-permissions, lint-naming, lint-yaml, lint-systemd.
+FROM base AS lint-base
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends \
+  systemd \
+  yamllint \
+  && rm -rf /var/lib/apt/lists/*
+
+FROM base AS lint-sh
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends \
+  shellcheck \
+  shfmt \
+  && rm -rf /var/lib/apt/lists/*
+
+FROM base AS lint-markdown
+# markdownlint-cli requires a modern Node.
+# Avoid executing remote scripts via `curl | bash`; add the NodeSource repo with a keyring.
+RUN curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key \
+  | gpg --dearmor -o /usr/share/keyrings/nodesource.gpg \
+  && echo "deb [signed-by=/usr/share/keyrings/nodesource.gpg] https://deb.nodesource.com/node_20.x nodistro main" \
+  > /etc/apt/sources.list.d/nodesource.list \
+  && apt-get update \
+  && apt-get install -y --no-install-recommends nodejs \
+  && rm -rf /var/lib/apt/lists/*
+
+RUN npm install -g markdownlint-cli \
+  && npm cache clean --force
+
+FROM base AS coverage
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends \
+  kcov \
+  strace \
+  && rm -rf /var/lib/apt/lists/*
+
+# Full local devcontainer target: includes the superset of tools used across CI.
+FROM base AS dev
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends \
+  kcov \
+  shellcheck \
+  shfmt \
+  strace \
+  systemd \
+  yamllint \
+  && rm -rf /var/lib/apt/lists/*
+
+# markdownlint-cli requires a modern Node.
+RUN curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key \
+  | gpg --dearmor -o /usr/share/keyrings/nodesource.gpg \
+  && echo "deb [signed-by=/usr/share/keyrings/nodesource.gpg] https://deb.nodesource.com/node_20.x nodistro main" \
+  > /etc/apt/sources.list.d/nodesource.list \
+  && apt-get update \
+  && apt-get install -y --no-install-recommends nodejs \
+  && rm -rf /var/lib/apt/lists/*
+
+RUN npm install -g markdownlint-cli \
+  && npm cache clean --force
